@@ -10,6 +10,20 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>()
 
 const confirmBtn = ref<HTMLButtonElement>()
 
+const isZooming = ref(false)
+let zoomTimeout: ReturnType<typeof setTimeout> | undefined
+
+function handleOverlayClick() {
+  isZooming.value = false
+  nextTick(() => {
+    isZooming.value = true
+    clearTimeout(zoomTimeout)
+    zoomTimeout = setTimeout(() => {
+      isZooming.value = false
+    }, 250)
+  })
+}
+
 function onKey(e: KeyboardEvent) {
   if (!props.open) return
   if (e.key === 'Escape') emit('cancel')
@@ -32,8 +46,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 <template>
   <Teleport to="body">
     <Transition name="dialog">
-      <div v-if="open" class="overlay" @click.self="emit('cancel')">
-        <div class="dialog panel" role="dialog" aria-modal="true" :aria-label="title">
+      <div v-if="open" class="overlay" @click.self="handleOverlayClick">
+        <div
+          class="dialog panel"
+          :class="{ 'is-zooming': isZooming }"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="title"
+        >
           <h3 class="dialog-title">{{ title }}</h3>
           <p v-if="message" class="dialog-message">{{ message }}</p>
           <div class="dialog-actions">
@@ -70,6 +90,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   max-width: 400px;
   padding: 1.4rem 1.5rem 1.3rem;
   box-shadow: var(--shadow);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dialog.is-zooming {
+  transform: scale(1.04);
 }
 
 .dialog-title {

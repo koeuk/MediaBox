@@ -29,6 +29,20 @@ watch(
   { immediate: true }
 )
 
+const isZooming = ref(false)
+let zoomTimeout: ReturnType<typeof setTimeout> | undefined
+
+function handleOverlayClick() {
+  isZooming.value = false
+  nextTick(() => {
+    isZooming.value = true
+    clearTimeout(zoomTimeout)
+    zoomTimeout = setTimeout(() => {
+      isZooming.value = false
+    }, 250)
+  })
+}
+
 function onKey(e: KeyboardEvent) {
   if (props.download && e.key === 'Escape') emit('close')
 }
@@ -39,8 +53,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 <template>
   <Teleport to="body">
     <Transition name="preview">
-      <div v-if="download" class="overlay" @click.self="emit('close')">
-        <div class="frame panel" role="dialog" aria-modal="true" :aria-label="name">
+      <div v-if="download" class="overlay" @click.self="handleOverlayClick">
+        <div
+          class="frame panel"
+          :class="{ 'is-zooming': isZooming }"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="name"
+        >
           <header class="head">
             <h3 class="head-name" :title="name">{{ name }}</h3>
             <a
@@ -84,6 +104,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   flex-direction: column;
   overflow: hidden;
   box-shadow: var(--shadow);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.frame.is-zooming {
+  transform: scale(1.04);
 }
 
 .head {

@@ -3,9 +3,19 @@ import type { Ref } from 'vue'
 
 const { user, logout } = useAuth()
 const theme = inject<Ref<string>>('theme')!
+const showLogoutConfirm = ref(false)
 
 function toggleTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
+}
+
+function handleLogoutClick() {
+  showLogoutConfirm.value = true
+}
+
+function confirmLogout() {
+  showLogoutConfirm.value = false
+  logout()
 }
 </script>
 
@@ -43,8 +53,18 @@ function toggleTheme() {
         </svg>
       </button>
 
-      <button class="btn btn-ghost" @click="logout">Logout</button>
+      <button class="btn btn-ghost" @click="handleLogoutClick">Logout</button>
     </div>
+
+    <ConfirmDialog
+      :open="showLogoutConfirm"
+      title="Confirm Logout"
+      message="Are you sure you want to log out?"
+      confirm-label="Logout"
+      danger
+      @confirm="confirmLogout"
+      @cancel="showLogoutConfirm = false"
+    />
   </header>
 </template>
 
