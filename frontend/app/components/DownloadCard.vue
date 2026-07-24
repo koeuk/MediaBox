@@ -64,8 +64,16 @@ const convertTargets = computed(() =>
 
 const catOpen = ref(false)
 const catAnchor = ref<HTMLElement>()
+const menuPos = ref({ top: 0, left: 0 })
 
 function toggleCatMenu() {
+  if (!catOpen.value && catAnchor.value) {
+    const rect = catAnchor.value.getBoundingClientRect()
+    menuPos.value = {
+      top: rect.bottom + window.scrollY + 4,
+      left: rect.left + window.scrollX,
+    }
+  }
   catOpen.value = !catOpen.value
 }
 
@@ -175,9 +183,10 @@ const categoryColor: Record<string, string> = {
         <span v-if="download.content_type"> · {{ download.content_type }}</span>
       </p>
 
-      <!-- Category tag pill + dropdown -->
-      <div class="cat-wrap" ref="catAnchor">
+      <!-- Category tag pill + dropdown (teleported to escape overflow:hidden) -->
+      <div class="cat-wrap">
         <button
+          ref="catAnchor"
           class="cat-pill mono"
           :class="download.category ? categoryColor[download.category] : 'cat-none'"
           :title="download.category ? `Category: ${download.category}` : 'Set category'"
@@ -192,8 +201,16 @@ const categoryColor: Record<string, string> = {
             <path d="m6 9 6 6 6-6" />
           </svg>
         </button>
+      </div>
+
+      <Teleport to="body">
         <Transition name="cat-drop">
-          <div v-if="catOpen" class="cat-menu panel" role="menu">
+          <div
+            v-if="catOpen"
+            class="cat-menu panel"
+            role="menu"
+            :style="{ top: menuPos.top + 'px', left: menuPos.left + 'px' }"
+          >
             <button
               v-for="c in CATEGORIES"
               :key="c"
@@ -215,7 +232,7 @@ const categoryColor: Record<string, string> = {
             </button>
           </div>
         </Transition>
-      </div>
+      </Teleport>
 
       <div class="actions">
         <a
@@ -509,16 +526,14 @@ const categoryColor: Record<string, string> = {
 .cat-view   { border-color: #e879f944; color: #e879f9; background: #e879f914; }
 
 .cat-menu {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 4px);
-  z-index: 50;
-  min-width: 130px;
+  position: fixed;
+  z-index: 9999;
+  min-width: 140px;
   padding: 0.3rem;
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  box-shadow: var(--shadow);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
 }
 
 .cat-opt {
