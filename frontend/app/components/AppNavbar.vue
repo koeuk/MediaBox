@@ -14,6 +14,15 @@ function toggleTheme() {
     <NuxtLink to="/" class="wordmark display">Media<span>Box</span></NuxtLink>
 
     <div class="nav-right">
+      <NuxtLink to="/" class="nav-link">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </svg>
+        Media
+      </NuxtLink>
       <NuxtLink v-if="user?.is_admin" to="/admin" class="btn btn-ghost">Admin</NuxtLink>
       <span v-if="user" class="nav-user mono">{{ user.username }}</span>
 
@@ -46,6 +55,44 @@ function toggleTheme() {
   border-bottom: 1px solid var(--line);
 }
 
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  font-weight: 500;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.nav-link svg {
+  color: var(--text-faint);
+  transition: color 0.15s;
+}
+
+.nav-link:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.nav-link:hover svg {
+  color: var(--accent);
+}
+
+/* NuxtLink adds this class when the route matches exactly */
+.nav-link.router-link-exact-active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.nav-link.router-link-exact-active svg {
+  color: var(--accent);
+}
+
 .wordmark {
   font-size: 1.25rem;
 }
@@ -64,6 +111,12 @@ function toggleTheme() {
   font-size: 0.75rem;
   color: var(--text-dim);
   padding-right: 0.4rem;
+}
+
+@media (max-width: 640px) {
+  .nav-link {
+    padding: 0.5rem 0.7rem;
+  }
 }
 
 @media (max-width: 560px) {
