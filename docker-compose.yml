@@ -1,22 +1,22 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: mysql:8
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
-      POSTGRES_USER: mediabox
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mediabox}
-      POSTGRES_DB: mediabox
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-mediabox}
+      MYSQL_DATABASE: mediabox
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U mediabox']
+      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -uroot -p"$$MYSQL_ROOT_PASSWORD" --silent']
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 15
 
   backend:
     build: ./backend
     environment:
-      DATABASE_URL: postgresql+psycopg2://mediabox:${POSTGRES_PASSWORD:-mediabox}@db:5432/mediabox
+      DATABASE_URL: mysql+pymysql://root:${DB_PASSWORD:-mediabox}@db:3306/mediabox?charset=utf8mb4
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       MEDIA_DIR: /app/media
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
@@ -43,5 +43,5 @@ services:
       - frontend
 
 volumes:
-  pgdata:
+  mysql_data:
   media_data:

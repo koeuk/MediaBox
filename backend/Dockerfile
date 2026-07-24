@@ -1,7 +1,9 @@
 FROM python:3.12-slim
 
+# ffmpeg for thumbnails/conversion; nodejs is the JS runtime yt-dlp needs
+# to solve YouTube's player challenges
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
