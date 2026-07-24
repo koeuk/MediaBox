@@ -1,10 +1,55 @@
 <script setup lang="ts">
 import type { Download } from '~/composables/useApi'
 
-const props = defineProps<{ download: Download | null }>()
-const emit = defineEmits<{ close: [] }>()
+const props = withDefaults(
+  defineProps<{
+    download: Download | null
+    downloads?: Download[]
+  }>(),
+  {
+    downloads: () => [],
+  }
+)
 
-const { fileUrl } = useApi()
+const emit = defineEmits<{
+  close: []
+  select: [download: Download]
+}>()
+
+const { fileUrl, mediaToken } = useApi()
+
+// Playlist of completed media items
+const playlist = computed(() => {
+  if (!props.downloads || props.downloads.length === 0) {
+    return props.download ? [props.download] : []
+  }
+  const items = props.downloads.filter((d) => d.status === 'completed')
+  if (!items.some((d) => d.id === props.download?.id) && props.download) {
+    return [props.download, ...items]
+  }
+  return items.length > 0 ? items : (props.download ? [props.download] : [])
+})
+
+const currentIndex = computed(() => {
+  if (!props.download) return -1
+  return playlist.value.findIndex((d) => d.id === props.download!.id)
+})
+
+function selectItem(item: Download) {
+  emit('select', item)
+}
+
+function prevItem() {
+  if (!playlist.value.length) return
+  const prevIdx = currentIndex.value > 0 ? currentIndex.value - 1 : playlist.value.length - 1
+  emit('select', playlist.value[prevIdx])
+}
+
+function nextItem() {
+  if (!playlist.value.length) return
+  const nextIdx = currentIndex.value < playlist.value.length - 1 ? currentIndex.value + 1 : 0
+  emit('select', playlist.value[nextIdx])
+}
 
 const kind = computed(() => {
   const ct = props.download?.content_type || ''
@@ -18,8 +63,7 @@ const name = computed(
   () => props.download?.title || props.download?.filename || props.download?.url || ''
 )
 
-// captured once per open — a reactive fileUrl would swap src on every
-// media-token refresh and restart playback
+// captured per download open/change
 const src = ref('')
 watch(
   () => props.download,
@@ -27,6 +71,25 @@ watch(
     if (d) src.value = fileUrl(d.id, 'file')
   },
   { immediate: true }
+)
+
+// Auto-scroll slider to active item
+const sliderRef = ref<HTMLElement>()
+const activeCardRef = ref<HTMLElement>()
+
+watch(
+  () => props.download?.id,
+  () => {
+    nextTick(() => {
+      if (activeCardRef.value && sliderRef.value) {
+        activeCardRef.value.scrollIntoView({
+          behavior: 'smooth',
+          inline: 'center',
+          block: 'nearest',
+        })
+      }
+    })
+  }
 )
 
 const isZooming = ref(false)
@@ -44,8 +107,16 @@ function handleOverlayClick() {
 }
 
 function onKey(e: KeyboardEvent) {
-  if (props.download && e.key === 'Escape') emit('close')
+  if (!props.download) return
+  if (e.key === 'Escape') {
+    emit('close')
+  } else if (e.key === 'ArrowLeft') {
+    prevItem()
+  } else if (e.key === 'ArrowRight') {
+    nextItem()
+  }
 }
+
 onMounted(() => window.addEventListener('keydown', onKey))
 onUnmounted(() => window.removeEventListener('keydown', onKey))
 </script>
@@ -75,10 +146,75 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
             </button>
           </header>
 
-          <video v-if="kind === 'video'" class="media" :src="src" controls autoplay playsinline />
-          <audio v-else-if="kind === 'audio'" class="media media-audio" :src="src" controls autoplay />
-          <img v-else-if="kind === 'image'" class="media" :src="src" :alt="name" />
-          <p v-else class="no-preview mono">No preview for this file type — use Save.</p>
+          <div class="media-body">
+            <video v-if="kind === 'video'" class="media" :src="src" controls autoplay playsinline />
+            <audio v-else-if="kind === 'audio'" class="media media-audio" :src="src" controls autoplay />
+            <img v-else-if="kind === 'image'" class="media" :src="src" :alt="name" />
+            <p v-else class="no-preview mono">No preview for this file type — use Save.</p>
+          </div>
+
+          <!-- Bottom Card with Back/Next controls and Thumbnail Slider -->
+          <div v-if="playlist.length > 0" class="bottom-card">
+            <div class="nav-controls">
+              <button
+                class="btn btn-ghost nav-ctrl-btn"
+                :disabled="playlist.length <= 1"
+                title="Previous video (←)"
+                @click="prevItem"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+                Back
+              </button>
+
+              <div class="playlist-counter mono" v-if="currentIndex !== -1">
+                {{ currentIndex + 1 }} / {{ playlist.length }}
+              </div>
+
+              <button
+                class="btn btn-ghost nav-ctrl-btn"
+                :disabled="playlist.length <= 1"
+                title="Next video (→)"
+                @click="nextItem"
+              >
+                Next
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="slider-container" ref="sliderRef">
+              <div
+                v-for="item in playlist"
+                :key="item.id"
+                class="slider-item"
+                :class="{ active: item.id === download.id }"
+                :ref="(el) => { if (item.id === download.id) activeCardRef = el as HTMLElement }"
+                @click="selectItem(item)"
+              >
+                <div class="slider-thumb">
+                  <img
+                    v-if="item.has_thumbnail && mediaToken"
+                    :src="fileUrl(item.id, 'thumbnail')"
+                    :alt="item.title || item.filename || ''"
+                    loading="lazy"
+                  />
+                  <div v-else class="slider-thumb-fallback">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <rect x="2" y="4" width="20" height="16" rx="2" />
+                      <path d="m10 9 5 3-5 3V9Z" fill="currentColor" />
+                    </svg>
+                  </div>
+                  <span v-if="item.id === download.id" class="active-badge mono">Playing</span>
+                </div>
+                <div class="slider-title" :title="item.title || item.filename || item.url">
+                  {{ item.title || item.filename || item.url }}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </Transition>
@@ -99,7 +235,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 
 .frame {
   width: min(920px, 100%);
-  max-height: calc(100vh - 3rem);
+  max-height: calc(100vh - 2.5rem);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -134,11 +270,19 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   font-size: 0.72rem;
 }
 
+.media-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
 .media {
   display: block;
   width: 100%;
-  max-height: calc(100vh - 9rem);
-  background: #000;
+  max-height: calc(100vh - 17rem);
   object-fit: contain;
 }
 
@@ -153,6 +297,130 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   text-align: center;
   font-size: 0.78rem;
   color: var(--text-dim);
+}
+
+.bottom-card {
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding: 0.75rem 1rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.nav-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-ctrl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.nav-ctrl-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.playlist-counter {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  background: var(--bg);
+  padding: 0.25rem 0.7rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+
+.slider-container {
+  display: flex;
+  gap: 0.65rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.slider-item {
+  flex: 0 0 135px;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  overflow: hidden;
+  transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+  display: flex;
+  flex-direction: column;
+}
+
+.slider-item:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.slider-item.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  background: var(--surface-hover);
+}
+
+.slider-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  overflow: hidden;
+}
+
+.slider-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.slider-thumb-fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+  background: repeating-linear-gradient(-45deg, transparent 0 10px, color-mix(in srgb, var(--line) 45%, transparent) 10px 11px);
+}
+
+.active-badge {
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  font-size: 0.58rem;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.slider-title {
+  font-size: 0.7rem;
+  padding: 0.35rem 0.5rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slider-item.active .slider-title {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .preview-enter-active,

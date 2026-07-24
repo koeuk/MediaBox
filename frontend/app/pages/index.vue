@@ -303,7 +303,12 @@ watch(search, () => {
       </section>
     </main>
 
-    <MediaPreview :download="previewTarget" @close="previewTarget = null" />
+    <MediaPreview
+      :download="previewTarget"
+      :downloads="downloads"
+      @select="(d) => (previewTarget = d)"
+      @close="previewTarget = null"
+    />
 
     <ConfirmDialog
       :open="!!deleteTarget"
