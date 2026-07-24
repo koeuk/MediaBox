@@ -6,7 +6,8 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      // Override with NUXT_PUBLIC_API_BASE (e.g. "/api" behind nginx)
+      // Default; override in .env with NUXT_PUBLIC_API_BASE
+      // (e.g. http://localhost:8001/api locally, or "/api" behind nginx)
       apiBase: 'http://localhost:8000/api',
     },
   },
