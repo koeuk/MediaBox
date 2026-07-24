@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Download } from '~/composables/useApi'
 
-const CATEGORIES = ['Coding', 'Fresh', 'Fun', 'View'] as const
+const CATEGORIES = ['Coding', 'Fresh', 'Fun', 'View', 'Techs', 'War', 'Top', 'Car'] as const
 type Category = (typeof CATEGORIES)[number]
 
 const props = defineProps<{ download: Download }>()
@@ -96,6 +96,10 @@ const categoryColor: Record<string, string> = {
   Fresh: 'cat-fresh',
   Fun: 'cat-fun',
   View: 'cat-view',
+  Techs: 'cat-techs',
+  War: 'cat-war',
+  Top: 'cat-top',
+  Car: 'cat-car',
 }
 </script>
 
@@ -524,6 +528,10 @@ const categoryColor: Record<string, string> = {
 .cat-fresh  { border-color: #40c97044; color: #3dca72; background: #40c97014; }
 .cat-fun    { border-color: #f59e0b44; color: #f5a623; background: #f59e0b14; }
 .cat-view   { border-color: #e879f944; color: #e879f9; background: #e879f914; }
+.cat-techs  { border-color: #06b6d444; color: #22d3ee; background: #06b6d414; }
+.cat-war    { border-color: #ef444444; color: #f87171; background: #ef444414; }
+.cat-top    { border-color: #eab30844; color: #facc15; background: #eab30814; }
+.cat-car    { border-color: #f9731644; color: #fb923c; background: #f9731614; }
 
 .cat-menu {
   position: fixed;
@@ -574,6 +582,10 @@ const categoryColor: Record<string, string> = {
 .cat-fresh  .cat-dot { background: #3dca72; }
 .cat-fun    .cat-dot { background: #f5a623; }
 .cat-view   .cat-dot { background: #e879f9; }
+.cat-techs  .cat-dot { background: #22d3ee; }
+.cat-war    .cat-dot { background: #f87171; }
+.cat-top    .cat-dot { background: #facc15; }
+.cat-car    .cat-dot { background: #fb923c; }
 
 .cat-sep {
   height: 1px;

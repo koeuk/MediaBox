@@ -19,7 +19,7 @@ const qualityOptions = [
 ]
 const search = ref('')
 const filter = ref<'all' | 'favorites' | 'active'>('all')
-const CATEGORIES = ['Coding', 'Fresh', 'Fun', 'View'] as const
+const CATEGORIES = ['Coding', 'Fresh', 'Fun', 'View', 'Techs', 'War', 'Top', 'Car'] as const
 const categoryFilter = ref<string | null>(null)
 const submitError = ref('')
 const submitNote = ref('')
@@ -468,6 +468,10 @@ watch(search, () => {
 .cat-tab-fresh.on  { background: #3dca72; color: #fff; }
 .cat-tab-fun.on    { background: #f5a623; color: #fff; }
 .cat-tab-view.on   { background: #e879f9; color: #fff; }
+.cat-tab-techs.on  { background: #22d3ee; color: #000; }
+.cat-tab-war.on    { background: #ef4444; color: #fff; }
+.cat-tab-top.on    { background: #eab308; color: #000; }
+.cat-tab-car.on    { background: #f97316; color: #fff; }
 
 .grid {
   display: grid;
