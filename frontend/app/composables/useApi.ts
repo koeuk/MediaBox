@@ -9,6 +9,7 @@ export interface Download {
   downloaded_bytes: number
   content_type: string | null
   quality: string | null
+  category?: string | null
   error: string | null
   is_favorite: boolean
   has_thumbnail: boolean

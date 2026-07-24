@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { Download } from '~/composables/useApi'
 
+const CATEGORIES = ['Coding', 'Fresh', 'Fun', 'View'] as const
+type Category = (typeof CATEGORIES)[number]
+
 const props = defineProps<{ download: Download }>()
 const emit = defineEmits<{
   favorite: [id: number]
@@ -9,6 +12,7 @@ const emit = defineEmits<{
   convert: [payload: { id: number; target: string }]
   preview: [id: number]
   cancel: [id: number]
+  setCategory: [payload: { id: number; category: string | null }]
 }>()
 
 const { fileUrl, mediaToken } = useApi()
@@ -58,6 +62,33 @@ const convertTargets = computed(() =>
       : []
 )
 
+const catOpen = ref(false)
+const catAnchor = ref<HTMLElement>()
+
+function toggleCatMenu() {
+  catOpen.value = !catOpen.value
+}
+
+function pickCategory(cat: Category | null) {
+  emit('setCategory', { id: props.download.id, category: cat })
+  catOpen.value = false
+}
+
+// Close on outside click
+function onDocClick(e: MouseEvent) {
+  if (catAnchor.value && !catAnchor.value.contains(e.target as Node)) {
+    catOpen.value = false
+  }
+}
+onMounted(() => document.addEventListener('click', onDocClick, true))
+onUnmounted(() => document.removeEventListener('click', onDocClick, true))
+
+const categoryColor: Record<string, string> = {
+  Coding: 'cat-coding',
+  Fresh: 'cat-fresh',
+  Fun: 'cat-fun',
+  View: 'cat-view',
+}
 </script>
 
 <template>
@@ -143,6 +174,48 @@ const convertTargets = computed(() =>
         {{ formatBytes(download.total_bytes) }}
         <span v-if="download.content_type"> · {{ download.content_type }}</span>
       </p>
+
+      <!-- Category tag pill + dropdown -->
+      <div class="cat-wrap" ref="catAnchor">
+        <button
+          class="cat-pill mono"
+          :class="download.category ? categoryColor[download.category] : 'cat-none'"
+          :title="download.category ? `Category: ${download.category}` : 'Set category'"
+          @click.stop="toggleCatMenu"
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2Z" />
+            <circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" />
+          </svg>
+          {{ download.category || 'Tag' }}
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+        <Transition name="cat-drop">
+          <div v-if="catOpen" class="cat-menu panel" role="menu">
+            <button
+              v-for="c in CATEGORIES"
+              :key="c"
+              class="cat-opt mono"
+              :class="[categoryColor[c], { active: download.category === c }]"
+              role="menuitem"
+              @click.stop="pickCategory(c)"
+            >
+              <span class="cat-dot" />
+              {{ c }}
+            </button>
+            <div class="cat-sep" />
+            <button
+              class="cat-opt cat-clear"
+              role="menuitem"
+              @click.stop="pickCategory(null)"
+            >
+              ✕ Clear
+            </button>
+          </div>
+        </Transition>
+      </div>
 
       <div class="actions">
         <a
@@ -400,6 +473,113 @@ const convertTargets = computed(() =>
   color: var(--err);
   border-color: var(--err);
   background: var(--err-soft);
+}
+
+/* ── Category pill & dropdown ── */
+.cat-wrap {
+  position: relative;
+}
+
+.cat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.cat-pill:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.cat-none { color: var(--text-faint); }
+.cat-coding { border-color: #6c8cff44; color: #7b9fff; background: #6c8cff14; }
+.cat-fresh  { border-color: #40c97044; color: #3dca72; background: #40c97014; }
+.cat-fun    { border-color: #f59e0b44; color: #f5a623; background: #f59e0b14; }
+.cat-view   { border-color: #e879f944; color: #e879f9; background: #e879f914; }
+
+.cat-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 50;
+  min-width: 130px;
+  padding: 0.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  box-shadow: var(--shadow);
+}
+
+.cat-opt {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+
+.cat-opt:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.cat-opt.active {
+  background: var(--surface-hover);
+  font-weight: 700;
+}
+
+.cat-opt .cat-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.cat-coding .cat-dot { background: #7b9fff; }
+.cat-fresh  .cat-dot { background: #3dca72; }
+.cat-fun    .cat-dot { background: #f5a623; }
+.cat-view   .cat-dot { background: #e879f9; }
+
+.cat-sep {
+  height: 1px;
+  background: var(--line);
+  margin: 0.2rem 0.3rem;
+}
+
+.cat-clear {
+  font-size: 0.65rem;
+  color: var(--text-faint);
+}
+
+.cat-drop-enter-active,
+.cat-drop-leave-active {
+  transition: opacity 0.12s, transform 0.12s;
+}
+
+.cat-drop-enter-from,
+.cat-drop-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.97);
 }
 
 </style>

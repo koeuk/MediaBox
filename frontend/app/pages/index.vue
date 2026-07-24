@@ -19,6 +19,8 @@ const qualityOptions = [
 ]
 const search = ref('')
 const filter = ref<'all' | 'favorites' | 'active'>('all')
+const CATEGORIES = ['Coding', 'Fresh', 'Fun', 'View'] as const
+const categoryFilter = ref<string | null>(null)
 const submitError = ref('')
 const submitNote = ref('')
 const submitting = ref(false)
@@ -30,6 +32,8 @@ const visible = computed(() => {
   if (filter.value === 'favorites') list = list.filter((d) => d.is_favorite)
   if (filter.value === 'active')
     list = list.filter((d) => d.status === 'queued' || d.status === 'downloading')
+  if (categoryFilter.value)
+    list = list.filter((d) => d.category === categoryFilter.value)
   return list
 })
 
@@ -74,6 +78,19 @@ async function toggleFavorite(id: number) {
   const updated = await request<Download>(`/downloads/${id}/favorite`, { method: 'PATCH' })
   const i = downloads.value.findIndex((d) => d.id === id)
   if (i !== -1) downloads.value[i] = updated
+}
+
+async function setCategory(payload: { id: number; category: string | null }) {
+  try {
+    const updated = await request<Download>(`/downloads/${payload.id}/category`, {
+      method: 'PATCH',
+      body: { category: payload.category },
+    })
+    const i = downloads.value.findIndex((d) => d.id === payload.id)
+    if (i !== -1) downloads.value[i] = updated
+  } catch (e: any) {
+    submitError.value = e?.data?.detail || 'Failed to update category.'
+  }
 }
 
 async function retry(id: number) {
@@ -272,6 +289,25 @@ watch(search, () => {
               {{ f }}<span v-if="f === 'active' && activeCount"> ({{ activeCount }})</span>
             </button>
           </div>
+          <!-- Category filter tabs -->
+          <div class="filters cat-filters">
+            <button
+              class="filter-btn mono"
+              :class="{ on: categoryFilter === null }"
+              @click="categoryFilter = null"
+            >
+              All
+            </button>
+            <button
+              v-for="c in CATEGORIES"
+              :key="c"
+              class="filter-btn mono"
+              :class="['cat-tab-' + c.toLowerCase(), { on: categoryFilter === c }]"
+              @click="categoryFilter = c"
+            >
+              {{ c }}
+            </button>
+          </div>
           <span class="live mono" :class="{ on: live }" :title="live ? 'WebSocket connected' : 'Polling fallback'">
             ● {{ live ? 'live' : 'polling' }}
           </span>
@@ -299,6 +335,7 @@ watch(search, () => {
           @remove="remove"
           @preview="preview"
           @cancel="cancel"
+          @set-category="setCategory"
         />
       </section>
     </main>
@@ -422,6 +459,15 @@ watch(search, () => {
   max-width: 260px;
   font-size: 0.85rem;
 }
+
+.cat-filters {
+  border-color: var(--line);
+}
+
+.cat-tab-coding.on { background: #6c8cff; color: #fff; }
+.cat-tab-fresh.on  { background: #3dca72; color: #fff; }
+.cat-tab-fun.on    { background: #f5a623; color: #fff; }
+.cat-tab-view.on   { background: #e879f9; color: #fff; }
 
 .grid {
   display: grid;
