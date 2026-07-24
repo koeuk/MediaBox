@@ -29,7 +29,9 @@ function toggleTheme() {
         </svg>
         Admin
       </NuxtLink>
-      <span v-if="user" class="nav-user mono">{{ user.username }}</span>
+      <NuxtLink v-if="user" to="/profile" class="nav-user mono" title="Edit your profile">
+        {{ user.username }}
+      </NuxtLink>
 
       <button class="btn btn-ghost btn-icon" :title="`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`" @click="toggleTheme">
         <svg v-if="theme === 'dark'" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -115,7 +117,19 @@ function toggleTheme() {
 .nav-user {
   font-size: 0.75rem;
   color: var(--text-dim);
-  padding-right: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.nav-user:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.nav-user.router-link-exact-active {
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 @media (max-width: 640px) {

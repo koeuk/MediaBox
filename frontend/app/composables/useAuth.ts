@@ -53,11 +53,25 @@ export function useAuth() {
     }
   }
 
+  async function updateProfile(payload: {
+    username?: string
+    email?: string
+    current_password?: string
+    new_password?: string
+  }) {
+    user.value = await $fetch<User>('/auth/me', {
+      baseURL: config.public.apiBase,
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token.value}` },
+      body: payload,
+    })
+  }
+
   function logout() {
     token.value = null
     user.value = null
     return navigateTo('/login')
   }
 
-  return { token, user, login, register, fetchUser, logout }
+  return { token, user, login, register, fetchUser, updateProfile, logout }
 }
