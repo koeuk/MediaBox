@@ -186,7 +186,7 @@ onUnmounted(() => {
 
 .cm-trigger {
   gap: 0.35rem;
-  padding: 0.45rem 0.6rem;
+  padding: 0.5rem 0.7rem;
   font-size: 0.72rem;
   white-space: nowrap;
 }

@@ -375,7 +375,7 @@ const convertTargets = computed(() =>
 }
 
 .actions .btn {
-  padding: 0.45rem 0.75rem;
+  padding: 0.5rem 0.7rem;
   font-size: 0.72rem;
 }
 
