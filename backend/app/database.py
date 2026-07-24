@@ -23,3 +23,20 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def run_migrations(conn) -> None:
+    """Add columns that create_all can't (it only creates missing tables).
+
+    Runs against a live connection so callers control the transaction.
+    """
+    from sqlalchemy import inspect, text
+
+    columns = {c["name"] for c in inspect(conn).get_columns("downloads")}
+    for name, ddl in [
+        ("quality", "quality VARCHAR(8)"),
+        ("convert_source", "convert_source TEXT"),
+        ("convert_target", "convert_target VARCHAR(8)"),
+    ]:
+        if name not in columns:
+            conn.execute(text(f"ALTER TABLE downloads ADD COLUMN {ddl}"))

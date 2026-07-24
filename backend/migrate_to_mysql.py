@@ -14,9 +14,8 @@ from datetime import timezone
 from sqlalchemy import MetaData, Table, create_engine, insert, select, text
 
 from app.config import settings
-from app.database import Base, engine as target_engine
+from app.database import Base, engine as target_engine, run_migrations
 import app.models  # noqa: F401  (register tables)
-from app.main import _migrate
 
 SOURCE = sys.argv[1] if len(sys.argv) > 1 else "./mediabox.db"
 
@@ -34,7 +33,7 @@ def main() -> None:
     source_engine = create_engine(f"sqlite:///{SOURCE}")
     Base.metadata.create_all(bind=target_engine)
     with target_engine.begin() as conn:
-        _migrate(conn)
+        run_migrations(conn)
         if conn.execute(text("select count(*) from users")).scalar():
             sys.exit("Target already has users — refusing to migrate twice")
 

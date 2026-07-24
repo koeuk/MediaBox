@@ -6,44 +6,16 @@ from fastapi.middleware.cors import CORSMiddleware
 import app.models  # noqa: F401  (register models with the metadata)
 from app.api import admin, auth, downloads, ws
 from app.config import settings
-from app.database import Base, SessionLocal, engine
-from app.models import Download, DownloadStatus
-
-
-def _migrate(connection) -> None:
-    """Minimal in-place migrations (create_all only creates missing tables)."""
-    from sqlalchemy import inspect, text
-
-    columns = {c["name"] for c in inspect(connection).get_columns("downloads")}
-    for name, ddl in [
-        ("quality", "quality VARCHAR(8)"),
-        ("convert_source", "convert_source TEXT"),
-        ("convert_target", "convert_target VARCHAR(8)"),
-    ]:
-        if name not in columns:
-            connection.execute(text(f"ALTER TABLE downloads ADD COLUMN {ddl}"))
+from app.database import Base, engine, run_migrations
+from app.services import jobs
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     with engine.begin() as conn:
-        _migrate(conn)
-    # the job queue is in-memory, so anything in-flight when the previous
-    # process died is marked failed — /retry resumes from the partial file
-    db = SessionLocal()
-    try:
-        stuck = (
-            db.query(Download)
-            .filter(Download.status.in_([DownloadStatus.queued, DownloadStatus.downloading]))
-            .all()
-        )
-        for dl in stuck:
-            dl.status = DownloadStatus.failed
-            dl.error = "Interrupted by a server restart — retry to resume"
-        db.commit()
-    finally:
-        db.close()
+        run_migrations(conn)
+    jobs.reset_interrupted()
     yield
 
 

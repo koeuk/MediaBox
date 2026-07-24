@@ -40,3 +40,27 @@ def submit(fn, *args) -> None:
                 ).start()
             _started = True
     _jobs.put((fn, args))
+
+
+def reset_interrupted() -> None:
+    """Fail any download left mid-flight by a previous process.
+
+    The queue is in-memory, so a restart forgets in-progress work; marking it
+    failed lets the user resume it with /retry instead of it hanging forever.
+    """
+    from app.database import SessionLocal
+    from app.models import Download, DownloadStatus
+
+    db = SessionLocal()
+    try:
+        stuck = (
+            db.query(Download)
+            .filter(Download.status.in_([DownloadStatus.queued, DownloadStatus.downloading]))
+            .all()
+        )
+        for dl in stuck:
+            dl.status = DownloadStatus.failed
+            dl.error = "Interrupted by a server restart — retry to resume"
+        db.commit()
+    finally:
+        db.close()

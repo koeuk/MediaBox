@@ -1,5 +1,3 @@
-import mimetypes
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,15 +10,10 @@ from app.api.deps import get_current_user, get_media_user
 from app.database import get_db
 from app.models import Download, DownloadStatus, User
 from app.schemas import BatchDownloadCreate, ConvertRequest, DownloadCreate, DownloadOut
-from app.config import settings
-from app.services import jobs
-from app.services.downloader import (
-    AUDIO_TARGETS,
-    _make_thumbnail,
-    request_cancel,
-    run_convert,
-    run_download,
-)
+from app.services import ffmpeg, jobs, storage
+from app.services.converter import run_convert
+from app.services.downloader import run_download
+from app.services.tasks import request_cancel
 
 router = APIRouter()
 
@@ -73,33 +66,14 @@ def upload_media(
 ):
     """Save a local media file as a completed download so it can be
     previewed and converted like anything else in the box."""
-    filename = Path(file.filename or "upload").name
-    content_type = (file.content_type or "").split(";")[0].strip()
-    if not content_type or content_type == "application/octet-stream":
-        content_type = mimetypes.guess_type(filename)[0] or ""
-    if not content_type.startswith(("video/", "audio/", "image/")):
-        raise HTTPException(status_code=400, detail="Only video, audio, or image files can be uploaded")
-
-    user_dir = settings.media_dir / str(user.id)
-    user_dir.mkdir(parents=True, exist_ok=True)
-    dest = user_dir / f"{uuid.uuid4().hex[:8]}_{filename}"
-
-    max_bytes = settings.max_download_size_mb * 1024 * 1024
-    size = 0
     try:
-        with open(dest, "wb") as fh:
-            while chunk := file.file.read(1024 * 1024):
-                size += len(chunk)
-                if size > max_bytes:
-                    raise HTTPException(
-                        status_code=413,
-                        detail=f"File exceeds the {settings.max_download_size_mb} MB limit",
-                    )
-                fh.write(chunk)
-    except HTTPException:
-        dest.unlink(missing_ok=True)
-        raise
+        dest, size, content_type = storage.save_upload(file, user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except storage.UploadTooLarge as exc:
+        raise HTTPException(status_code=413, detail=str(exc))
 
+    filename = dest.name.split("_", 1)[-1]
     dl = Download(
         user_id=user.id,
         url=f"upload://{filename}",
@@ -111,7 +85,7 @@ def upload_media(
         downloaded_bytes=size,
         content_type=content_type,
         file_path=str(dest),
-        thumbnail_path=_make_thumbnail(dest, content_type),
+        thumbnail_path=ffmpeg.make_thumbnail(dest, content_type),
         completed_at=datetime.now(timezone.utc),
     )
     db.add(dl)
@@ -223,7 +197,7 @@ def convert_download(
     kind = (dl.content_type or "").split("/")[0]
     if kind not in ("video", "audio"):
         raise HTTPException(status_code=400, detail="Only video or audio files can be converted")
-    if kind == "audio" and payload.target not in AUDIO_TARGETS:
+    if kind == "audio" and payload.target not in ffmpeg.AUDIO_TARGETS:
         raise HTTPException(status_code=400, detail="Audio files can only convert to mp3, m4a, or wav")
 
     base = (dl.title or dl.filename or "media").rsplit(".", 1)[0]
@@ -248,9 +222,7 @@ def delete_download(
     user: User = Depends(get_current_user),
 ):
     dl = _get_owned(download_id, db, user)
-    for path in (dl.file_path, dl.thumbnail_path):
-        if path:
-            Path(path).unlink(missing_ok=True)
+    storage.delete_files(dl.file_path, dl.thumbnail_path)
     db.delete(dl)
     db.commit()
 
