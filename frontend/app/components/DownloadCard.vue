@@ -173,7 +173,17 @@ const convertTargets = computed(() =>
           :targets="convertTargets"
           @pick="(target) => emit('convert', { id: download.id, target })"
         />
-        <button class="btn btn-ghost" @click="emit('remove', download.id)">Delete</button>
+        <button
+          class="btn btn-ghost btn-icon delete-btn"
+          title="Delete"
+          aria-label="Delete"
+          @click="emit('remove', download.id)"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+            <path d="M10 11v6M14 11v6" />
+          </svg>
+        </button>
       </div>
     </div>
   </article>
@@ -369,7 +379,7 @@ const convertTargets = computed(() =>
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.25rem;
   margin-top: auto;
   padding-top: 0.5rem;
 }
@@ -380,8 +390,16 @@ const convertTargets = computed(() =>
 }
 
 /* Delete pushed to the right edge, kept on the same row */
-.actions .btn-ghost {
+.delete-btn {
   margin-left: auto;
+  color: var(--text-faint);
+  border-color: var(--line-strong);
+}
+
+.delete-btn:hover {
+  color: var(--err);
+  border-color: var(--err);
+  background: var(--err-soft);
 }
 
 </style>
