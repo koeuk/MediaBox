@@ -58,11 +58,6 @@ const convertTargets = computed(() =>
       : []
 )
 
-function onConvert(event: Event) {
-  const select = event.target as HTMLSelectElement
-  if (select.value) emit('convert', { id: props.download.id, target: select.value })
-  select.value = ''
-}
 </script>
 
 <template>
@@ -173,15 +168,11 @@ function onConvert(event: Event) {
         >
           Stop
         </button>
-        <select
+        <ConvertMenu
           v-if="download.status === 'completed' && convertTargets.length"
-          class="convert mono"
-          title="Convert with FFmpeg"
-          @change="onConvert"
-        >
-          <option value="">Convert…</option>
-          <option v-for="t in convertTargets" :key="t" :value="t">→ {{ t }}</option>
-        </select>
+          :targets="convertTargets"
+          @pick="(target) => emit('convert', { id: download.id, target })"
+        />
         <button class="btn btn-ghost" @click="emit('remove', download.id)">Delete</button>
       </div>
     </div>
@@ -386,21 +377,4 @@ function onConvert(event: Event) {
   font-size: 0.72rem;
 }
 
-.convert {
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text-dim);
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-}
-
-.convert:hover {
-  color: var(--text);
-  border-color: var(--text-faint);
-}
 </style>
