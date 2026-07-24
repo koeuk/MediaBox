@@ -1,0 +1,74 @@
+<script setup lang="ts">
+import type { Ref } from 'vue'
+
+const { user, logout } = useAuth()
+const theme = inject<Ref<string>>('theme')!
+
+function toggleTheme() {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark'
+}
+</script>
+
+<template>
+  <header class="nav">
+    <NuxtLink to="/" class="wordmark display">Media<span>Box</span></NuxtLink>
+
+    <div class="nav-right">
+      <NuxtLink v-if="user?.is_admin" to="/admin" class="btn btn-ghost">Admin</NuxtLink>
+      <span v-if="user" class="nav-user mono">{{ user.username }}</span>
+
+      <button class="btn btn-ghost btn-icon" :title="`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`" @click="toggleTheme">
+        <svg v-if="theme === 'dark'" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+        </svg>
+        <svg v-else width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+        </svg>
+      </button>
+
+      <button class="btn btn-ghost" @click="logout">Logout</button>
+    </div>
+  </header>
+</template>
+
+<style scoped>
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.5rem;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+
+.wordmark {
+  font-size: 1.25rem;
+}
+
+.wordmark span {
+  color: var(--accent);
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nav-user {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  padding-right: 0.4rem;
+}
+
+@media (max-width: 560px) {
+  .nav-user {
+    display: none;
+  }
+}
+</style>

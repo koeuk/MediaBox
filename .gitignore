@@ -1,0 +1,31 @@
+# ── Python / backend ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Local secrets & config
+.env
+.env.local
+
+# ── App data (not source) ─────────────────────────────────────────
+# Downloaded/processed media files
+backend/media/
+# Local SQLite database
+*.db
+*.sqlite3
+
+# ── Node / frontend ───────────────────────────────────────────────
+node_modules/
+.nuxt/
+.output/
+dist/
+.nitro/
+.cache/
+
+# ── Editor / OS / stray artifacts ─────────────────────────────────
+*.root-bak/
+.DS_Store
+Thumbs.db
+*.log

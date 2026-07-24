@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mediabox
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mediabox}
+      POSTGRES_DB: mediabox
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mediabox']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg2://mediabox:${POSTGRES_PASSWORD:-mediabox}@db:5432/mediabox
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      MEDIA_DIR: /app/media
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+    volumes:
+      - media_data:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    environment:
+      # Browser calls go through nginx, so a relative base works everywhere
+      NUXT_PUBLIC_API_BASE: /api
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - '${HTTP_PORT:-80}:80'
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  pgdata:
+  media_data:
