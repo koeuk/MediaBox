@@ -70,12 +70,17 @@ class DownloadOut(BaseModel):
     downloaded_bytes: int
     content_type: str | None
     quality: str | None
+    category: str | None = None
     error: str | None
     is_favorite: bool
     has_thumbnail: bool
     can_retry: bool
     created_at: datetime
     completed_at: datetime | None
+
+
+class CategoryUpdate(BaseModel):
+    category: str | None = Field(default=None, max_length=50)
 
 
 class BatchDownloadCreate(BaseModel):

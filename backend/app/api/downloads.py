@@ -9,7 +9,13 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_media_user
 from app.database import get_db
 from app.models import Download, DownloadStatus, User
-from app.schemas import BatchDownloadCreate, ConvertRequest, DownloadCreate, DownloadOut
+from app.schemas import (
+    BatchDownloadCreate,
+    CategoryUpdate,
+    ConvertRequest,
+    DownloadCreate,
+    DownloadOut,
+)
 from app.services import ffmpeg, jobs, storage
 from app.services.converter import run_convert
 from app.services.downloader import run_download
@@ -98,6 +104,7 @@ def upload_media(
 def list_downloads(
     search: str | None = None,
     favorites: bool = False,
+    category: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -109,6 +116,8 @@ def list_downloads(
         )
     if favorites:
         query = query.filter(Download.is_favorite.is_(True))
+    if category:
+        query = query.filter(Download.category == category)
     return query.order_by(Download.created_at.desc()).all()
 
 
@@ -129,6 +138,20 @@ def toggle_favorite(
 ):
     dl = _get_owned(download_id, db, user)
     dl.is_favorite = not dl.is_favorite
+    db.commit()
+    db.refresh(dl)
+    return dl
+
+
+@router.patch("/{download_id}/category", response_model=DownloadOut)
+def update_category(
+    download_id: int,
+    payload: CategoryUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    dl = _get_owned(download_id, db, user)
+    dl.category = payload.category
     db.commit()
     db.refresh(dl)
     return dl

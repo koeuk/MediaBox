@@ -32,6 +32,7 @@ class Download(Base):
     content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     # max video height for yt-dlp downloads ("720", "1080", …); None = best
     quality: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    category: Mapped[str | None] = mapped_column(String(50), nullable=True, default=None, index=True)
     # set on conversion records so retry re-runs the conversion, not a download
     convert_source: Mapped[str | None] = mapped_column(Text, nullable=True)
     convert_target: Mapped[str | None] = mapped_column(String(8), nullable=True)
