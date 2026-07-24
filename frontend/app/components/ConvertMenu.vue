@@ -148,9 +148,6 @@ onUnmounted(() => {
       title="Convert with FFmpeg"
       @click="toggle"
     >
-      <svg class="cm-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M4 8h13l-3-3M20 16H7l3 3" />
-      </svg>
       Convert
       <svg class="cm-chev" width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true">
         <path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
@@ -188,18 +185,10 @@ onUnmounted(() => {
 }
 
 .cm-trigger {
-  gap: 0.4rem;
-  padding: 0.45rem 0.7rem;
+  gap: 0.35rem;
+  padding: 0.45rem 0.6rem;
   font-size: 0.72rem;
-}
-
-.cm-ico {
-  color: var(--text-faint);
-}
-
-.cm-trigger:hover .cm-ico,
-.cm-trigger.open .cm-ico {
-  color: var(--accent);
+  white-space: nowrap;
 }
 
 .cm-chev {

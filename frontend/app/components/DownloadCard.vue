@@ -367,14 +367,21 @@ const convertTargets = computed(() =>
 
 .actions {
   display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 0.4rem;
   margin-top: auto;
   padding-top: 0.5rem;
 }
 
 .actions .btn {
-  padding: 0.45rem 0.85rem;
+  padding: 0.45rem 0.75rem;
   font-size: 0.72rem;
+}
+
+/* Delete pushed to the right edge, kept on the same row */
+.actions .btn-ghost {
+  margin-left: auto;
 }
 
 </style>
