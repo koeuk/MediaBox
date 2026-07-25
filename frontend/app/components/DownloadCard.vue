@@ -64,17 +64,47 @@ const convertTargets = computed(() =>
 
 const catOpen = ref(false)
 const catAnchor = ref<HTMLElement>()
+const catMenu = ref<HTMLElement>()
 const menuPos = ref({ top: 0, left: 0 })
+// hides the menu for the one frame between mount and measurement
+const menuPlaced = ref(false)
 
-function toggleCatMenu() {
-  if (!catOpen.value && catAnchor.value) {
-    const rect = catAnchor.value.getBoundingClientRect()
-    menuPos.value = {
-      top: rect.bottom + window.scrollY + 4,
-      left: rect.left + window.scrollX,
-    }
+// .cat-menu is position:fixed, so these are viewport coords — never add scrollY/scrollX
+function placeCatMenu() {
+  const anchor = catAnchor.value
+  const menu = catMenu.value
+  if (!anchor || !menu) return
+
+  const rect = anchor.getBoundingClientRect()
+  const { offsetHeight: h, offsetWidth: w } = menu
+  const gap = 4
+  const pad = 8
+
+  // flip above the pill when there isn't room below
+  let top = rect.bottom + gap
+  if (top + h > window.innerHeight - pad) {
+    top = Math.max(pad, rect.top - gap - h)
   }
-  catOpen.value = !catOpen.value
+
+  // keep it inside the right edge
+  let left = rect.left
+  if (left + w > window.innerWidth - pad) {
+    left = Math.max(pad, window.innerWidth - pad - w)
+  }
+
+  menuPos.value = { top, left }
+  menuPlaced.value = true
+}
+
+async function toggleCatMenu() {
+  if (catOpen.value) {
+    catOpen.value = false
+    return
+  }
+  menuPlaced.value = false
+  catOpen.value = true
+  await nextTick()
+  placeCatMenu()
 }
 
 function pickCategory(cat: Category | null) {
@@ -82,14 +112,29 @@ function pickCategory(cat: Category | null) {
   catOpen.value = false
 }
 
-// Close on outside click
+// Close on outside click — the menu is teleported, so it needs its own containment check
 function onDocClick(e: MouseEvent) {
-  if (catAnchor.value && !catAnchor.value.contains(e.target as Node)) {
-    catOpen.value = false
-  }
+  if (!catOpen.value) return
+  const target = e.target as Node
+  if (catAnchor.value?.contains(target) || catMenu.value?.contains(target)) return
+  catOpen.value = false
 }
-onMounted(() => document.addEventListener('click', onDocClick, true))
-onUnmounted(() => document.removeEventListener('click', onDocClick, true))
+
+// a fixed menu would detach from its card on scroll
+function onScroll() {
+  catOpen.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('click', onDocClick, true)
+  window.addEventListener('scroll', onScroll, true)
+  window.addEventListener('resize', onScroll)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', onDocClick, true)
+  window.removeEventListener('scroll', onScroll, true)
+  window.removeEventListener('resize', onScroll)
+})
 
 const categoryColor: Record<string, string> = {
   Coding: 'cat-coding',
@@ -213,9 +258,14 @@ const categoryColor: Record<string, string> = {
         <Transition name="cat-drop">
           <div
             v-if="catOpen"
+            ref="catMenu"
             class="cat-menu panel"
             role="menu"
-            :style="{ top: menuPos.top + 'px', left: menuPos.left + 'px' }"
+            :style="{
+              top: menuPos.top + 'px',
+              left: menuPos.left + 'px',
+              visibility: menuPlaced ? 'visible' : 'hidden',
+            }"
           >
             <button
               v-for="c in CATEGORIES"
