@@ -110,10 +110,27 @@ watch(
   }
 )
 
+/** Collapsed into the floating mini-player in the corner.
+ *
+ * Only ever toggles CSS classes and the *surrounding* markup — the <video>
+ * node itself is never swapped out, so playback continues across the toggle.
+ */
+const minimized = ref(false)
+
+// always reopen full-size for a newly opened item
+watch(
+  () => props.download?.id,
+  (id) => {
+    if (!id) minimized.value = false
+  }
+)
+
 const isZooming = ref(false)
 let zoomTimeout: ReturnType<typeof setTimeout> | undefined
 
 function handleOverlayClick() {
+  // no backdrop to click while minimized
+  if (minimized.value) return
   isZooming.value = false
   nextTick(() => {
     isZooming.value = true
@@ -142,18 +159,39 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 <template>
   <Teleport to="body">
     <Transition name="preview">
-      <div v-if="download" class="overlay" @click.self="handleOverlayClick">
+      <div
+        v-if="download"
+        class="overlay"
+        :class="{ minimized }"
+        @click.self="handleOverlayClick"
+      >
         <div
           class="frame panel"
-          :class="{ 'is-zooming': isZooming }"
+          :class="{ 'is-zooming': isZooming, minimized }"
           role="dialog"
-          aria-modal="true"
+          :aria-modal="!minimized"
           :aria-label="name"
         >
           <header class="head">
             <h3 class="head-name" :title="name">{{ name }}</h3>
+
+            <button
+              class="btn btn-ghost head-btn head-icon"
+              :title="minimized ? 'Expand to full view' : 'Collapse to mini player'"
+              :aria-label="minimized ? 'Expand to full view' : 'Collapse to mini player'"
+              :aria-expanded="!minimized"
+              @click="minimized = !minimized"
+            >
+              <svg v-if="minimized" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+              <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
+              </svg>
+            </button>
+
             <a
-              v-if="download"
+              v-if="download && !minimized"
               class="btn btn-ghost head-btn"
               :href="fileUrl(download.id, 'file')"
               :download="download.filename || true"
@@ -219,7 +257,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
               </button>
             </div>
 
-            <div class="slider-wrapper">
+            <div v-if="!minimized" class="slider-wrapper">
               <button
                 type="button"
                 class="slider-scroll-btn prev"
@@ -300,7 +338,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   flex-direction: column;
   overflow: hidden;
   box-shadow: var(--shadow);
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.22s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame {
+    transition: none;
+  }
 }
 
 .frame.is-zooming {
@@ -328,6 +372,70 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 .head-btn {
   padding: 0.4rem 0.7rem;
   font-size: 0.72rem;
+}
+
+.head-icon {
+  display: grid;
+  place-items: center;
+  padding: 0.4rem 0.5rem;
+}
+
+/* ---- collapsed mini player -------------------------------------------- */
+
+/* the backdrop stops existing when collapsed, so the page underneath stays
+   scrollable and clickable; the card itself opts back into pointer events */
+.overlay.minimized {
+  place-items: end;
+  padding: 1rem;
+  background: transparent;
+  backdrop-filter: none;
+  pointer-events: none;
+}
+
+.overlay.minimized .frame {
+  pointer-events: auto;
+}
+
+.frame.minimized {
+  width: min(340px, calc(100vw - 2rem));
+  max-height: none;
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.frame.minimized .head {
+  padding: 0.4rem 0.4rem 0.4rem 0.75rem;
+}
+
+.frame.minimized .head-name {
+  font-size: 0.74rem;
+}
+
+.frame.minimized .head-btn {
+  padding: 0.3rem 0.45rem;
+  font-size: 0.68rem;
+}
+
+.frame.minimized .media {
+  max-height: 190px;
+}
+
+.frame.minimized .media-audio {
+  padding: 0.9rem 0.6rem;
+}
+
+.frame.minimized .bottom-card {
+  padding: 0.4rem 0.5rem;
+  gap: 0;
+}
+
+.frame.minimized .nav-ctrl-btn {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.68rem;
+}
+
+.frame.minimized .playlist-counter {
+  font-size: 0.68rem;
 }
 
 .media-body {
