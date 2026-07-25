@@ -51,6 +51,18 @@ function nextItem() {
   emit('select', playlist.value[nextIdx])
 }
 
+/** Play the next item when the current one finishes.
+ *
+ * Deliberately stops on the last item instead of reusing nextItem()'s wrap —
+ * the Next button cycling back to the start is a nudge, but autoplay doing it
+ * would run the whole playlist forever.
+ */
+function onEnded() {
+  if (currentIndex.value < 0) return
+  const next = playlist.value[currentIndex.value + 1]
+  if (next) emit('select', next)
+}
+
 const kind = computed(() => {
   const ct = props.download?.content_type || ''
   if (ct.startsWith('video/')) return 'video'
@@ -154,8 +166,23 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
           </header>
 
           <div class="media-body">
-            <video v-if="kind === 'video'" class="media" :src="src" controls autoplay playsinline />
-            <audio v-else-if="kind === 'audio'" class="media media-audio" :src="src" controls autoplay />
+            <video
+              v-if="kind === 'video'"
+              class="media"
+              :src="src"
+              controls
+              autoplay
+              playsinline
+              @ended="onEnded"
+            />
+            <audio
+              v-else-if="kind === 'audio'"
+              class="media media-audio"
+              :src="src"
+              controls
+              autoplay
+              @ended="onEnded"
+            />
             <img v-else-if="kind === 'image'" class="media" :src="src" :alt="name" />
             <p v-else class="no-preview mono">No preview for this file type — use Save.</p>
           </div>
