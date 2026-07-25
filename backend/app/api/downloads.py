@@ -11,8 +11,8 @@ from app.database import get_db
 from app.models import Download, DownloadStatus, User
 from app.schemas import (
     BatchDownloadCreate,
-    CategoryUpdate,
     ConvertRequest,
+    DownloadCategoryUpdate,
     DownloadCreate,
     DownloadOut,
 )
@@ -146,7 +146,7 @@ def toggle_favorite(
 @router.patch("/{download_id}/category", response_model=DownloadOut)
 def update_category(
     download_id: int,
-    payload: CategoryUpdate,
+    payload: DownloadCategoryUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):

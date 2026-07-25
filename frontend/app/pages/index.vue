@@ -19,8 +19,12 @@ const qualityOptions = [
 ]
 const search = ref('')
 const filter = ref<'all' | 'favorites' | 'active'>('all')
-const CATEGORIES = ['Coding', 'Fresh', 'Fun', 'View', 'Techs', 'War', 'Top', 'Car', 'cuties', 'Memes'] as const
-const categoryFilter = ref<string | null>(null)
+const { categories, fetchCategories, solid } = useCategories()
+// deep-linkable: /?category=Coding (the manage page links here)
+const route = useRoute()
+const categoryFilter = ref<string | null>(
+  typeof route.query.category === 'string' ? route.query.category : null
+)
 const submitError = ref('')
 const submitNote = ref('')
 const submitting = ref(false)
@@ -61,6 +65,14 @@ function syncCatScroll() {
 function scrollCats(offset: number) {
   catTrack.value?.scrollBy({ left: offset, behavior: 'smooth' })
 }
+
+// a category deleted or renamed on the manage page leaves the filter pointing
+// at a name that no longer exists — that would just show an empty grid
+watch(categories, (list) => {
+  if (categoryFilter.value && !list.some((c) => c.name === categoryFilter.value)) {
+    categoryFilter.value = null
+  }
+})
 
 // keep the active tab in view when the filter changes from elsewhere
 watch(categoryFilter, () => {
@@ -249,7 +261,10 @@ let timer: ReturnType<typeof setInterval> | undefined
 let mediaTimer: ReturnType<typeof setInterval> | undefined
 onMounted(async () => {
   if (!user.value) await fetchUser()
-  await Promise.all([refresh(), refreshMediaToken()])
+  await Promise.all([refresh(), refreshMediaToken(), fetchCategories()])
+  // the tab row can only measure its overflow once the tabs are rendered
+  await nextTick()
+  syncCatScroll()
   connectWs()
   timer = setInterval(() => {
     if (!live.value && activeCount.value > 0) refresh()
@@ -357,13 +372,14 @@ watch(search, () => {
                 All
               </button>
               <button
-                v-for="c in CATEGORIES"
-                :key="c"
+                v-for="c in categories"
+                :key="c.id"
                 class="filter-btn mono"
-                :class="['cat-tab-' + c.toLowerCase(), { on: categoryFilter === c }]"
-                @click="categoryFilter = c"
+                :class="{ on: categoryFilter === c.name }"
+                :style="categoryFilter === c.name ? solid(c.name) : { color: c.color }"
+                @click="categoryFilter = c.name"
               >
-                {{ c }}
+                {{ c.name }}
               </button>
             </div>
 
@@ -612,14 +628,8 @@ watch(search, () => {
   }
 }
 
-.cat-tab-coding.on { background: #6c8cff; color: #fff; }
-.cat-tab-fresh.on  { background: #3dca72; color: #fff; }
-.cat-tab-fun.on    { background: #f5a623; color: #fff; }
-.cat-tab-view.on   { background: #e879f9; color: #fff; }
-.cat-tab-techs.on  { background: #22d3ee; color: #000; }
-.cat-tab-war.on    { background: #ef4444; color: #fff; }
-.cat-tab-top.on    { background: #eab308; color: #000; }
-.cat-tab-car.on    { background: #f97316; color: #fff; }
+/* tab colours are inline now, driven by each category's stored colour —
+   see useCategories().solid */
 
 .grid {
   display: grid;

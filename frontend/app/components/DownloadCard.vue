@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import type { Download } from '~/composables/useApi'
 
-const CATEGORIES = ['Coding', 'Fresh', 'Fun', 'View', 'Techs', 'War', 'Top', 'Car', 'cuties', 'Memes'] as const
-type Category = (typeof CATEGORIES)[number]
-
 const props = defineProps<{ download: Download }>()
 const emit = defineEmits<{
   favorite: [id: number]
@@ -16,6 +13,7 @@ const emit = defineEmits<{
 }>()
 
 const { fileUrl, mediaToken } = useApi()
+const { categories, loaded: catsLoaded, tint, colorOf } = useCategories()
 
 const thumbBroken = ref(false)
 // a fresh media token may fix a thumbnail that 401'd on an expired one
@@ -107,7 +105,7 @@ async function toggleCatMenu() {
   placeCatMenu()
 }
 
-function pickCategory(cat: Category | null) {
+function pickCategory(cat: string | null) {
   emit('setCategory', { id: props.download.id, category: cat })
   catOpen.value = false
 }
@@ -136,18 +134,11 @@ onUnmounted(() => {
   window.removeEventListener('resize', onScroll)
 })
 
-const categoryColor: Record<string, string> = {
-  Coding: 'cat-coding',
-  Fresh: 'cat-fresh',
-  Fun: 'cat-fun',
-  View: 'cat-view',
-  Techs: 'cat-techs',
-  War: 'cat-war',
-  Top: 'cat-top',
-  cuties: 'cat-cuties',
-  Memes: 'cat-memes',
-  Car: 'cat-car',
-}
+// a download can carry a tag whose category row was deleted — still show it,
+// but only once the list has actually loaded, or every tag flashes as orphaned
+const orphanTag = computed(
+  () => catsLoaded.value && !!props.download.category && !colorOf(props.download.category)
+)
 </script>
 
 <template>
@@ -239,8 +230,15 @@ const categoryColor: Record<string, string> = {
         <button
           ref="catAnchor"
           class="cat-pill mono"
-          :class="download.category ? categoryColor[download.category] : 'cat-none'"
-          :title="download.category ? `Category: ${download.category}` : 'Set category'"
+          :class="{ 'cat-none': !download.category, 'cat-orphan': orphanTag }"
+          :style="tint(download.category)"
+          :title="
+            orphanTag
+              ? `Category: ${download.category} (no longer in your list)`
+              : download.category
+                ? `Category: ${download.category}`
+                : 'Set category'
+          "
           @click.stop="toggleCatMenu"
         >
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -268,16 +266,22 @@ const categoryColor: Record<string, string> = {
             }"
           >
             <button
-              v-for="c in CATEGORIES"
-              :key="c"
+              v-for="c in categories"
+              :key="c.id"
               class="cat-opt mono"
-              :class="[categoryColor[c], { active: download.category === c }]"
+              :class="{ active: download.category === c.name }"
+              :style="{ color: c.color }"
               role="menuitem"
-              @click.stop="pickCategory(c)"
+              @click.stop="pickCategory(c.name)"
             >
-              <span class="cat-dot" />
-              {{ c }}
+              <span class="cat-dot" :style="{ background: c.color }" />
+              {{ c.name }}
             </button>
+
+            <p v-if="!categories.length" class="cat-empty mono">
+              No categories yet
+            </p>
+
             <div class="cat-sep" />
             <button
               class="cat-opt cat-clear"
@@ -286,6 +290,9 @@ const categoryColor: Record<string, string> = {
             >
               ✕ Clear
             </button>
+            <NuxtLink to="/categories" class="cat-opt cat-manage" role="menuitem">
+              ⚙ Manage…
+            </NuxtLink>
           </div>
         </Transition>
       </Teleport>
@@ -575,15 +582,14 @@ const categoryColor: Record<string, string> = {
   color: var(--text);
 }
 
+/* tag colours now come from the category record — see useCategories().tint */
 .cat-none { color: var(--text-faint); }
-.cat-coding { border-color: #6c8cff44; color: #7b9fff; background: #6c8cff14; }
-.cat-fresh  { border-color: #40c97044; color: #3dca72; background: #40c97014; }
-.cat-fun    { border-color: #f59e0b44; color: #f5a623; background: #f59e0b14; }
-.cat-view   { border-color: #e879f944; color: #e879f9; background: #e879f914; }
-.cat-techs  { border-color: #06b6d444; color: #22d3ee; background: #06b6d414; }
-.cat-war    { border-color: #ef444444; color: #f87171; background: #ef444414; }
-.cat-top    { border-color: #eab30844; color: #facc15; background: #eab30814; }
-.cat-car    { border-color: #f9731644; color: #fb923c; background: #f9731614; }
+
+/* a tag whose category was deleted: readable, but visibly not a live one */
+.cat-orphan {
+  border-style: dashed;
+  opacity: 0.75;
+}
 
 .cat-menu {
   position: fixed;
@@ -630,22 +636,25 @@ const categoryColor: Record<string, string> = {
   flex-shrink: 0;
 }
 
-.cat-coding .cat-dot { background: #7b9fff; }
-.cat-fresh  .cat-dot { background: #3dca72; }
-.cat-fun    .cat-dot { background: #f5a623; }
-.cat-view   .cat-dot { background: #e879f9; }
-.cat-techs  .cat-dot { background: #22d3ee; }
-.cat-war    .cat-dot { background: #f87171; }
-.cat-top    .cat-dot { background: #facc15; }
-.cat-car    .cat-dot { background: #fb923c; }
-
 .cat-sep {
   height: 1px;
   background: var(--line);
   margin: 0.2rem 0.3rem;
 }
 
-.cat-clear {
+.cat-clear,
+.cat-manage {
+  font-size: 0.65rem;
+  color: var(--text-faint);
+}
+
+.cat-manage:hover {
+  color: var(--accent);
+}
+
+.cat-empty {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
   font-size: 0.65rem;
   color: var(--text-faint);
 }

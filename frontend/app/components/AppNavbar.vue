@@ -33,6 +33,13 @@ function confirmLogout() {
         </svg>
         Media
       </NuxtLink>
+      <NuxtLink to="/categories" class="nav-link">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2Z" />
+          <circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" />
+        </svg>
+        Categories
+      </NuxtLink>
       <NuxtLink v-if="user?.is_admin" to="/admin" class="nav-link">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 2 4 5v6c0 5 3.4 8.3 8 10 4.6-1.7 8-5 8-10V5l-8-3Z" />
