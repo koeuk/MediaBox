@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Download } from '~/composables/useApi'
 
-const CATEGORIES = ['Coding', 'Fresh', 'Fun', 'View', 'Techs', 'War', 'Top', 'Car'] as const
+const CATEGORIES = ['Coding', 'Fresh', 'Fun', 'View', 'Techs', 'War', 'Top', 'Car', 'cuties', 'Memes'] as const
 type Category = (typeof CATEGORIES)[number]
 
 const props = defineProps<{ download: Download }>()
@@ -99,6 +99,8 @@ const categoryColor: Record<string, string> = {
   Techs: 'cat-techs',
   War: 'cat-war',
   Top: 'cat-top',
+  cuties: 'cat-cuties',
+  Memes: 'cat-memes',
   Car: 'cat-car',
 }
 </script>

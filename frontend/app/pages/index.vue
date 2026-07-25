@@ -19,7 +19,7 @@ const qualityOptions = [
 ]
 const search = ref('')
 const filter = ref<'all' | 'favorites' | 'active'>('all')
-const CATEGORIES = ['Coding', 'Fresh', 'Fun', 'View', 'Techs', 'War', 'Top', 'Car'] as const
+const CATEGORIES = ['Coding', 'Fresh', 'Fun', 'View', 'Techs', 'War', 'Top', 'Car', 'cuties', 'Memes'] as const
 const categoryFilter = ref<string | null>(null)
 const submitError = ref('')
 const submitNote = ref('')
