@@ -16,6 +16,7 @@ from app.database import SessionLocal
 from app.models import Download, DownloadStatus
 from app.services import ffmpeg, storage
 from app.services.extractor import is_tiktok_photo_url, is_ytdlp_url, run_ytdlp
+from app.services.pinterest import is_pinterest_url, run_pinterest
 from app.services.tiktok_photos import run_photo_post
 from app.services.ssrf import ensure_public_host
 from app.services.tasks import Cancelled, PAUSED_ERROR, checkpoint, mark_failed
@@ -88,6 +89,10 @@ def run_download(download_id: int, resume: bool = False) -> None:
         # photo posts need their own path — yt-dlp only yields their audio
         if is_tiktok_photo_url(dl.url):
             run_photo_post(dl, db)
+            return
+        # pins may be video, image or GIF; the service picks the right path
+        if is_pinterest_url(dl.url):
+            run_pinterest(dl, db)
             return
         if is_ytdlp_url(dl.url):
             run_ytdlp(dl, db)

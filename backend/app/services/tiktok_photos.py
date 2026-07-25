@@ -139,6 +139,8 @@ def _render_slideshow(
         if duration:
             seconds = min(max(duration / len(images), MIN_SLIDE_SECONDS), MAX_SLIDE_SECONDS)
 
+    total = seconds * len(images)
+
     args = ["ffmpeg", "-y"]
     for image in images:
         args += ["-loop", "1", "-t", f"{seconds:.3f}", "-i", str(image)]
@@ -155,14 +157,18 @@ def _render_slideshow(
         + f"concat=n={len(images)}:v=1:a=0[v]"
     )
     if audio:
-        # apad + -shortest makes the audio exactly match the slideshow whether
-        # the track is longer or shorter than the slides
-        steps.append(f"[{len(images)}:a]apad[a]")
+        # whole_dur bounds the padding to the slideshow length. A bare `apad`
+        # pads forever, and -shortest does NOT reliably stop an endless stream
+        # coming from the filter graph — ffmpeg then encodes silence until it
+        # is killed. Never drop this argument.
+        steps.append(f"[{len(images)}:a]apad=whole_dur={total:.3f}[a]")
 
     args += ["-filter_complex", ";".join(steps), "-map", "[v]"]
     if audio:
-        args += ["-map", "[a]", "-c:a", "aac", "-b:a", "128k", "-shortest"]
+        args += ["-map", "[a]", "-c:a", "aac", "-b:a", "128k"]
     args += [
+        # a hard output limit, so a filter that misbehaves still terminates
+        "-t", f"{total:.3f}",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
         "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(dest),
     ]

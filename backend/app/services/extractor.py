@@ -80,14 +80,18 @@ def _build_opts(dl, out_template: str, hook) -> dict:
     return opts
 
 
-def run_ytdlp(dl, db) -> None:
+def run_ytdlp(dl, db, url: str | None = None) -> None:
     """Resolve and download a video with yt-dlp, tracking progress on `dl`.
 
     Page URLs (TikTok, Facebook, …) can't be streamed directly — yt-dlp
     resolves the media, downloads it, and merges streams via ffmpeg.
+
+    `url` overrides the record's own URL, for callers that already resolved a
+    share link to its canonical form (see app.services.pinterest).
     """
     import yt_dlp  # heavy import, only needed on this path
 
+    source = url or dl.url
     out_dir = storage.user_dir(dl.user_id)
     out_template = str(out_dir / f"{uuid.uuid4().hex[:8]}_%(title).80B.%(ext)s")
 
@@ -114,7 +118,7 @@ def run_ytdlp(dl, db) -> None:
 
     try:
         with yt_dlp.YoutubeDL(_build_opts(dl, out_template, hook)) as ydl:
-            info = ydl.extract_info(dl.url, download=True)
+            info = ydl.extract_info(source, download=True)
     except Cancelled:
         raise
     except Exception as exc:
