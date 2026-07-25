@@ -15,6 +15,7 @@ from app.config import settings
 from app.models import DownloadStatus
 from app.services import ffmpeg, storage
 from app.services.tasks import Cancelled, take_cancel
+from app.services.tiktok_photos import photo_post_id
 
 # strips terminal color escapes yt-dlp puts in error strings
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
@@ -28,6 +29,22 @@ def is_ytdlp_url(url: str) -> bool:
         if item and (host == item or host.endswith(f".{item}")):
             return True
     return False
+
+
+def is_tiktok_photo_url(url: str) -> bool:
+    """True for TikTok photo/slideshow posts (…/@user/photo/<id>).
+
+    These need app.services.tiktok_photos instead of yt-dlp: the extractor
+    only matches /video/ and /embed/, and even under /video/ it treats a
+    slideshow as audio-only, so downloading it here saves the background music
+    rather than the pictures.
+    """
+    return photo_post_id(url) is not None
+
+
+# a short link only reveals it points at a photo post once yt-dlp has followed
+# the redirect and failed on the resolved URL
+_UNSUPPORTED_PHOTO_RE = re.compile(r"Unsupported URL:\s*(\S*/photo/\d+\S*)")
 
 
 def _build_opts(dl, out_template: str, hook) -> dict:
@@ -106,6 +123,14 @@ def run_ytdlp(dl, db) -> None:
             raise Cancelled() from None
         if isinstance(exc, yt_dlp.utils.DownloadError):
             message = _ANSI_RE.sub("", str(exc)).replace("ERROR: ", "").strip()
+            # a short link that turned out to be a photo post: retry it on the
+            # slideshow path now that the redirect has given us the real URL
+            resolved = _UNSUPPORTED_PHOTO_RE.search(message)
+            if resolved and is_tiktok_photo_url(resolved.group(1)):
+                from app.services.tiktok_photos import run_photo_post
+
+                run_photo_post(dl, db, url=resolved.group(1))
+                return
             raise ValueError(f"Could not fetch this video: {message}") from exc
         raise
 

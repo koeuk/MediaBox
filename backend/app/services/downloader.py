@@ -15,7 +15,8 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models import Download, DownloadStatus
 from app.services import ffmpeg, storage
-from app.services.extractor import is_ytdlp_url, run_ytdlp
+from app.services.extractor import is_tiktok_photo_url, is_ytdlp_url, run_ytdlp
+from app.services.tiktok_photos import run_photo_post
 from app.services.ssrf import ensure_public_host
 from app.services.tasks import Cancelled, PAUSED_ERROR, checkpoint, mark_failed
 
@@ -84,6 +85,10 @@ def run_download(download_id: int, resume: bool = False) -> None:
             raise ValueError(
                 "This item has no downloadable URL — convert again from the source card"
             )
+        # photo posts need their own path — yt-dlp only yields their audio
+        if is_tiktok_photo_url(dl.url):
+            run_photo_post(dl, db)
+            return
         if is_ytdlp_url(dl.url):
             run_ytdlp(dl, db)
             return
