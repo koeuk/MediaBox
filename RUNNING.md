@@ -102,7 +102,7 @@ Two files, both already set up. Don't commit secrets into them.
 **`backend/.env`**
 
 ```ini
-MEDIA_DIR=/home/koeuk/Videos/video-download/medias   # where downloads are saved
+MEDIA_DIR=/media/koeuk/Drive/media   # where downloads are saved
 DATABASE_URL=mysql+pymysql://root:...@127.0.0.1:3306/mediabox
 ```
 
