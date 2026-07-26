@@ -45,6 +45,43 @@ def is_tiktok_photo_url(url: str) -> bool:
 # a short link only reveals it points at a photo post once yt-dlp has followed
 # the redirect and failed on the resolved URL
 _UNSUPPORTED_PHOTO_RE = re.compile(r"Unsupported URL:\s*(\S*/photo/\d+\S*)")
+_FORMAT_FRAGMENT_RE = re.compile(r"\.f[0-9A-Za-z_-]+\.[^.]+$")
+
+
+def _is_final_media_path(path: Path) -> bool:
+    """True for the final file yt-dlp should hand back to MediaBox."""
+    name = path.name
+    if name.endswith((".part", ".ytdl")) or ".temp." in name:
+        return False
+    # yt-dlp names split stream fragments like title.f401.mp4 before merging.
+    return _FORMAT_FRAGMENT_RE.search(name) is None
+
+
+def _info_paths(data: dict) -> list[Path]:
+    paths: list[Path] = []
+    for key in ("filepath", "filename", "_filename"):
+        value = data.get(key)
+        if isinstance(value, str) and value:
+            paths.append(Path(value))
+    return paths
+
+
+def _downloaded_path(info: dict | None, out_dir: Path, prefix: str) -> Path | None:
+    candidates: list[Path] = []
+    if info:
+        candidates.extend(_info_paths(info))
+        for item in info.get("requested_downloads") or []:
+            if isinstance(item, dict):
+                candidates.extend(_info_paths(item))
+
+    for candidate in candidates:
+        if candidate.exists() and _is_final_media_path(candidate):
+            return candidate
+
+    produced = [p for p in out_dir.glob(f"{prefix}*") if p.is_file() and _is_final_media_path(p)]
+    if not produced:
+        return None
+    return max(produced, key=lambda p: p.stat().st_mtime)
 
 
 def _build_opts(dl, out_template: str, hook) -> dict:
@@ -93,7 +130,8 @@ def run_ytdlp(dl, db, url: str | None = None) -> None:
 
     source = url or dl.url
     out_dir = storage.user_dir(dl.user_id)
-    out_template = str(out_dir / f"{uuid.uuid4().hex[:8]}_%(title).80B.%(ext)s")
+    prefix = f"{uuid.uuid4().hex[:8]}_"
+    out_template = str(out_dir / f"{prefix}%(title).80B.%(ext)s")
 
     last_write = 0.0
     cancelled = False
@@ -138,10 +176,12 @@ def run_ytdlp(dl, db, url: str | None = None) -> None:
             raise ValueError(f"Could not fetch this video: {message}") from exc
         raise
 
-    requested = (info or {}).get("requested_downloads") or []
-    path = Path(requested[0]["filepath"]) if requested else None
-    if path is None or not path.exists():
-        raise ValueError("The video could not be saved (no file produced)")
+    path = _downloaded_path(info, out_dir, prefix)
+    if path is None:
+        raise ValueError(
+            "The video download did not produce a final media file. "
+            "Add it again with a lower quality, or increase MAX_DOWNLOAD_SIZE_MB for large videos."
+        )
 
     size = path.stat().st_size
     content_type = mimetypes.guess_type(path.name)[0] or "video/mp4"
