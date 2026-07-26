@@ -14,5 +14,6 @@ provide('theme', theme)
 <template>
   <div>
     <NuxtPage />
+    <BackToTop />
   </div>
 </template>
