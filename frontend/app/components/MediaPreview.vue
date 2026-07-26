@@ -17,6 +17,17 @@ const emit = defineEmits<{
 }>()
 
 const { fileUrl, mediaToken } = useApi()
+const autoNext = useCookie<'on' | 'off'>('mediabox_auto_next', {
+  default: () => 'on',
+  maxAge: 60 * 60 * 24 * 365,
+})
+
+const autoNextEnabled = computed({
+  get: () => autoNext.value !== 'off',
+  set: (enabled: boolean) => {
+    autoNext.value = enabled ? 'on' : 'off'
+  },
+})
 
 // Playlist of completed media items
 const playlist = computed(() => {
@@ -51,13 +62,14 @@ function nextItem() {
   emit('select', playlist.value[nextIdx])
 }
 
-/** Play the next item when the current one finishes.
+/** Play the next item when the current one finishes, if Auto next is enabled.
  *
  * Deliberately stops on the last item instead of reusing nextItem()'s wrap —
  * the Next button cycling back to the start is a nudge, but autoplay doing it
  * would run the whole playlist forever.
  */
 function onEnded() {
+  if (!autoNextEnabled.value) return
   if (currentIndex.value < 0) return
   const next = playlist.value[currentIndex.value + 1]
   if (next) emit('select', next)
@@ -240,8 +252,28 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
                 Back
               </button>
 
-              <div class="playlist-counter mono" v-if="currentIndex !== -1">
-                {{ currentIndex + 1 }} / {{ playlist.length }}
+              <div class="playback-options">
+                <div class="playlist-counter mono" v-if="currentIndex !== -1">
+                  {{ currentIndex + 1 }} / {{ playlist.length }}
+                </div>
+
+                <label
+                  class="auto-next-toggle"
+                  :class="{ on: autoNextEnabled }"
+                  :title="autoNextEnabled ? 'Auto next is on' : 'Manual next only'"
+                >
+                  <input
+                    v-model="autoNextEnabled"
+                    type="checkbox"
+                    aria-label="Automatically play the next video"
+                  />
+                  <span class="toggle-track" aria-hidden="true">
+                    <span class="toggle-thumb" />
+                  </span>
+                  <span class="auto-next-label">
+                    {{ autoNextEnabled ? 'Auto next' : 'Manual' }}
+                  </span>
+                </label>
               </div>
 
               <button
@@ -438,6 +470,23 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   font-size: 0.68rem;
 }
 
+.frame.minimized .nav-controls {
+  gap: 0.4rem;
+}
+
+.frame.minimized .nav-ctrl-btn {
+  min-width: 66px;
+}
+
+.frame.minimized .auto-next-toggle {
+  min-height: 26px;
+  padding: 0.2rem 0.35rem;
+}
+
+.frame.minimized .auto-next-label {
+  display: none;
+}
+
 .media-body {
   flex: 1;
   min-height: 0;
@@ -477,9 +526,26 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 }
 
 .nav-controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.nav-ctrl-btn:first-child {
+  justify-self: start;
+}
+
+.nav-ctrl-btn:last-child {
+  justify-self: end;
+}
+
+.playback-options {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: 0;
 }
 
 .nav-ctrl-btn {
@@ -492,6 +558,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--bg);
+  min-width: 86px;
+  justify-content: center;
 }
 
 .nav-ctrl-btn:disabled {
@@ -500,12 +568,87 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 }
 
 .playlist-counter {
+  flex: 0 0 auto;
   font-size: 0.72rem;
   color: var(--text-dim);
   background: var(--bg);
   padding: 0.25rem 0.7rem;
   border-radius: 12px;
   border: 1px solid var(--line);
+}
+
+.auto-next-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 28px;
+  padding: 0.2rem 0.55rem 0.2rem 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.auto-next-toggle:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.auto-next-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.auto-next-toggle:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.auto-next-toggle.on {
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
+  color: var(--text);
+}
+
+.toggle-track {
+  position: relative;
+  width: 30px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  transition: background 0.15s;
+}
+
+.auto-next-toggle.on .toggle-track {
+  background: var(--accent);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
+  transition: transform 0.15s;
+}
+
+.auto-next-toggle.on .toggle-thumb {
+  transform: translateX(14px);
+}
+
+.auto-next-label {
+  width: auto;
+  text-align: left;
 }
 
 .slider-wrapper {
@@ -646,5 +789,37 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 .preview-enter-from .frame,
 .preview-leave-to .frame {
   transform: translateY(10px) scale(0.98);
+}
+
+@media (max-width: 560px) {
+  .overlay {
+    padding: 0.75rem;
+  }
+
+  .nav-controls {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.45rem;
+  }
+
+  .nav-ctrl-btn {
+    min-width: 0;
+    padding: 0.35rem 0.55rem;
+  }
+
+  .playback-options {
+    gap: 0.35rem;
+  }
+
+  .playlist-counter {
+    padding: 0.25rem 0.55rem;
+  }
+
+  .auto-next-toggle {
+    padding: 0.2rem 0.35rem;
+  }
+
+  .auto-next-label {
+    display: none;
+  }
 }
 </style>
