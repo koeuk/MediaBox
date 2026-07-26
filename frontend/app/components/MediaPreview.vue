@@ -46,33 +46,63 @@ const currentIndex = computed(() => {
   return playlist.value.findIndex((d) => d.id === props.download!.id)
 })
 
-function selectItem(item: Download) {
+const mediaRef = ref<HTMLMediaElement>()
+let replayAfterSelect = false
+
+async function replayMediaFromStart() {
+  await nextTick()
+  const media = mediaRef.value
+  if (!media) return
+
+  media.pause()
+  try {
+    media.currentTime = 0
+  } catch {
+    // Some media formats reject seeking before metadata is ready.
+  }
+  media.load()
+  void media.play().catch(() => {})
+}
+
+function selectAndReplay(item: Download) {
+  if (item.id === props.download?.id) {
+    void replayMediaFromStart()
+    return
+  }
+  replayAfterSelect = true
   emit('select', item)
+}
+
+function selectItem(item: Download) {
+  selectAndReplay(item)
 }
 
 function prevItem() {
   if (!playlist.value.length) return
   const prevIdx = currentIndex.value > 0 ? currentIndex.value - 1 : playlist.value.length - 1
-  emit('select', playlist.value[prevIdx])
+  selectAndReplay(playlist.value[prevIdx])
 }
 
 function nextItem() {
   if (!playlist.value.length) return
   const nextIdx = currentIndex.value < playlist.value.length - 1 ? currentIndex.value + 1 : 0
-  emit('select', playlist.value[nextIdx])
+  selectAndReplay(playlist.value[nextIdx])
 }
 
-/** Play the next item when the current one finishes, if Auto next is enabled.
+/** Auto next advances through the playlist; Manual loops the current item.
  *
  * Deliberately stops on the last item instead of reusing nextItem()'s wrap —
  * the Next button cycling back to the start is a nudge, but autoplay doing it
  * would run the whole playlist forever.
  */
 function onEnded() {
-  if (!autoNextEnabled.value) return
+  if (!autoNextEnabled.value) {
+    void replayMediaFromStart()
+    return
+  }
   if (currentIndex.value < 0) return
   const next = playlist.value[currentIndex.value + 1]
-  if (next) emit('select', next)
+  if (next) selectAndReplay(next)
 }
 
 const kind = computed(() => {
@@ -119,6 +149,10 @@ watch(
         })
       }
     })
+    if (replayAfterSelect) {
+      replayAfterSelect = false
+      void replayMediaFromStart()
+    }
   }
 )
 
@@ -218,19 +252,23 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
           <div class="media-body">
             <video
               v-if="kind === 'video'"
+              ref="mediaRef"
               class="media"
               :src="src"
               controls
               autoplay
+              :loop="!autoNextEnabled"
               playsinline
               @ended="onEnded"
             />
             <audio
               v-else-if="kind === 'audio'"
+              ref="mediaRef"
               class="media media-audio"
               :src="src"
               controls
               autoplay
+              :loop="!autoNextEnabled"
               @ended="onEnded"
             />
             <img v-else-if="kind === 'image'" class="media" :src="src" :alt="name" />
