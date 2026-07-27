@@ -647,7 +647,7 @@ onMounted(async () => {
    would pad every row out to its tallest tile. */
 .gallery {
   columns: 250px;
-  column-gap: 1rem;
+  column-gap: 0.5rem;
 }
 
 .empty {

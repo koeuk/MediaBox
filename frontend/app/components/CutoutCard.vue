@@ -110,7 +110,7 @@ const failed = computed(() => props.download.status === 'failed')
   overflow: hidden;
   /* masonry column child — must not split across columns */
   break-inside: avoid;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
