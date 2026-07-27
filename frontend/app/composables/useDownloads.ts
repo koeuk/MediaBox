@@ -1,4 +1,4 @@
-import type { Download } from '~/types'
+import type { CutoutQuality, Download } from '~/types'
 
 /**
  * The download list and everything that mutates it: queueing, uploading,
@@ -79,16 +79,18 @@ export function useDownloads() {
     }
   }
 
-  async function upload(files: File[]) {
-    if (!files.length) return
+  /** Returns the records that were created, so callers can act on them. */
+  async function upload(files: File[]): Promise<Download[]> {
+    if (!files.length) return []
     clearMessages()
     uploading.value = true
+    const created: Download[] = []
     try {
       // one request per file so a single rejected file doesn't lose the batch
       for (const f of files) {
         const form = new FormData()
         form.append('file', f)
-        await request<Download>('/downloads/upload', { method: 'POST', body: form })
+        created.push(await request<Download>('/downloads/upload', { method: 'POST', body: form }))
       }
       note.value =
         files.length === 1
@@ -100,6 +102,7 @@ export function useDownloads() {
     } finally {
       uploading.value = false
     }
+    return created
   }
 
   // ── Per-card actions ──────────────────────────────────────────────────
@@ -146,6 +149,22 @@ export function useDownloads() {
       downloads.value = [created, ...downloads.value]
     } catch (e) {
       error.value = errorMessage(e, 'Conversion failed to start.')
+    }
+  }
+
+  /** Queue a transparent-PNG cutout of an image already in the box. */
+  async function removeBackground(id: number, cutoutQuality: CutoutQuality) {
+    clearMessages()
+    try {
+      const created = await request<Download>(`/downloads/${id}/remove-background`, {
+        method: 'POST',
+        body: { quality: cutoutQuality },
+      })
+      downloads.value = [created, ...downloads.value]
+      return created
+    } catch (e) {
+      error.value = errorMessage(e, 'Could not start background removal.')
+      return null
     }
   }
 
@@ -243,6 +262,7 @@ export function useDownloads() {
     retry,
     cancel,
     convert,
+    removeBackground,
     remove,
     find,
     startLive,

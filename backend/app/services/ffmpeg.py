@@ -22,13 +22,17 @@ CONVERT_FORMATS: dict[str, tuple[str, list[str]]] = {
 AUDIO_TARGETS = {"mp3", "m4a", "wav"}
 
 
-def make_thumbnail(path: Path, content_type: str | None) -> str | None:
-    """Grab a JPEG poster frame for a video/image; None for anything else."""
+def make_thumbnail(path: Path, content_type: str | None, keep_alpha: bool = False) -> str | None:
+    """Grab a poster frame for a video/image; None for anything else.
+
+    JPEG by default. `keep_alpha` writes a PNG instead, for sources whose
+    transparency is the point — a JPEG thumbnail of a cutout is a black blob.
+    """
     kind = (content_type or mimetypes.guess_type(path.name)[0] or "").split("/")[0]
     if kind not in ("video", "image"):
         return None
 
-    thumb = path.parent / f"{path.stem}_thumb.jpg"
+    thumb = path.parent / f"{path.stem}_thumb.{'png' if keep_alpha else 'jpg'}"
     args = ["ffmpeg", "-y"]
     if kind == "video":
         args += ["-ss", "1"]

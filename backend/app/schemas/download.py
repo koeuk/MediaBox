@@ -7,6 +7,8 @@ from app.models import DownloadStatus
 # max video height accepted for yt-dlp extraction; anything else is rejected
 QUALITY_PATTERN = r"^(2160|1440|1080|720|480)$"
 CONVERT_TARGET_PATTERN = r"^(mp4|webm|gif|mp3|m4a|wav)$"
+# see services.bgremove.QUALITY_MODELS for what each tier maps to
+CUTOUT_QUALITY_PATTERN = r"^(fast|good|best)$"
 
 
 class DownloadCreate(BaseModel):
@@ -31,6 +33,10 @@ class ConvertRequest(BaseModel):
     target: str = Field(pattern=CONVERT_TARGET_PATTERN)
 
 
+class RemoveBackgroundRequest(BaseModel):
+    quality: str = Field(default="good", pattern=CUTOUT_QUALITY_PATTERN)
+
+
 class DownloadOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -45,6 +51,8 @@ class DownloadOut(BaseModel):
     content_type: str | None
     quality: str | None
     category: str | None = None
+    # "cutout" for background removal; null for downloads and conversions
+    job_kind: str | None = None
     error: str | None
     is_favorite: bool
     has_thumbnail: bool

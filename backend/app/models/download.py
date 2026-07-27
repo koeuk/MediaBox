@@ -33,9 +33,13 @@ class Download(Base):
     # max video height for yt-dlp downloads ("720", "1080", …); None = best
     quality: Mapped[str | None] = mapped_column(String(8), nullable=True)
     category: Mapped[str | None] = mapped_column(String(50), nullable=True, default=None, index=True)
-    # set on conversion records so retry re-runs the conversion, not a download
+    # set on records derived from another file (convert, cutout) so retry
+    # re-runs the right worker instead of trying to fetch the URL again
     convert_source: Mapped[str | None] = mapped_column(Text, nullable=True)
     convert_target: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # "cutout" for background removal; NULL means download-or-convert, which is
+    # what every row created before this column existed is
+    job_kind: Mapped[str | None] = mapped_column(String(16), nullable=True, default=None)
     file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     thumbnail_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -54,10 +58,16 @@ class Download(Base):
         return self.thumbnail_path is not None
 
     @property
+    def is_derived(self) -> bool:
+        """True when this row was produced from another file on disk rather
+        than fetched from its URL — a conversion or a cutout."""
+        return bool(self.convert_source)
+
+    @property
     def can_retry(self) -> bool:
         """Whether /retry can actually do something for this record."""
         if self.status != DownloadStatus.failed:
             return False
-        if self.convert_source and self.convert_target:
+        if self.is_derived:
             return Path(self.convert_source).exists()
         return self.url.lower().startswith(("http://", "https://"))

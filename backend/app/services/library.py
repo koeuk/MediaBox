@@ -14,8 +14,11 @@ from sqlalchemy.orm import Session
 
 from app.models import Download, DownloadStatus, User
 from app.services import ffmpeg, jobs, storage
+from app.services.bgremove import QUALITY_MODELS, run_remove_bg
 from app.services.converter import run_convert
 from app.services.downloader import run_download
+
+CUTOUT = "cutout"
 
 
 class LibraryError(Exception):
@@ -94,14 +97,19 @@ def store_upload(db: Session, user: User, file: UploadFile) -> Download:
     )
 
 
-def queue_conversion(db: Session, user: User, source: Download, target: str) -> Download:
-    """Queue a new record that transcodes `source` into `target`."""
+def _require_usable_source(source: Download) -> None:
+    """A derived job can only start from a finished file that is still there."""
     if (
         source.status != DownloadStatus.completed
         or not source.file_path
         or not Path(source.file_path).exists()
     ):
         raise Conflict("Source file is not available")
+
+
+def queue_conversion(db: Session, user: User, source: Download, target: str) -> Download:
+    """Queue a new record that transcodes `source` into `target`."""
+    _require_usable_source(source)
 
     kind = (source.content_type or "").split("/")[0]
     if kind not in ("video", "audio"):
@@ -124,19 +132,44 @@ def queue_conversion(db: Session, user: User, source: Download, target: str) -> 
     return record
 
 
-def requeue(db: Session, dl: Download) -> Download:
-    """Re-run a failed download or conversion.
+def queue_cutout(db: Session, user: User, source: Download, quality: str) -> Download:
+    """Queue a transparent-PNG cutout of `source`."""
+    _require_usable_source(source)
 
-    A conversion needs its source file to still be on disk; an upload has no
-    URL to re-fetch, so it can only be redone from the card it came from.
+    if (source.content_type or "").split("/")[0] != "image":
+        raise LibraryError("Only images can have their background removed")
+    if quality not in QUALITY_MODELS:
+        raise LibraryError(f"Unknown quality: {quality}")
+
+    base = (source.title or source.filename or "image").rsplit(".", 1)[0]
+    record = _persist(
+        db,
+        Download(
+            user_id=user.id,
+            url=source.url,
+            title=f"{base} (no bg)",
+            convert_source=source.file_path,
+            job_kind=CUTOUT,
+            # the tier is remembered so /retry re-runs at the same quality
+            quality=quality,
+        ),
+    )
+    jobs.submit(run_remove_bg, record.id, source.file_path, quality)
+    return record
+
+
+def requeue(db: Session, dl: Download) -> Download:
+    """Re-run a failed download, conversion or cutout.
+
+    Anything derived needs its source file to still be on disk; an upload has
+    no URL to re-fetch, so it can only be redone from the card it came from.
     """
     if dl.status != DownloadStatus.failed:
         raise Conflict("Only failed downloads can be retried")
 
-    is_conversion = bool(dl.convert_source and dl.convert_target)
-    if is_conversion and not Path(dl.convert_source).exists():
-        raise Conflict("The source file is gone — convert again from its card")
-    if not is_conversion and dl.url.startswith("upload://"):
+    if dl.is_derived and not Path(dl.convert_source).exists():
+        raise Conflict("The source file is gone — start again from its card")
+    if not dl.is_derived and dl.url.startswith("upload://"):
         raise Conflict("This item can't be re-fetched — convert again from the source card")
 
     dl.status = DownloadStatus.queued
@@ -144,7 +177,9 @@ def requeue(db: Session, dl: Download) -> Download:
     db.commit()
     db.refresh(dl)
 
-    if is_conversion:
+    if dl.job_kind == CUTOUT:
+        jobs.submit(run_remove_bg, dl.id, dl.convert_source, dl.quality or "good")
+    elif dl.is_derived:
         jobs.submit(run_convert, dl.id, dl.convert_source, dl.convert_target)
     else:
         jobs.submit(run_download, dl.id, True)

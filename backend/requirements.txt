@@ -11,3 +11,5 @@ PyMySQL>=1.1
 # curl-cffi enables browser impersonation, required by TikTok
 yt-dlp[default,curl-cffi]>=2026.1
 python-multipart>=0.0.9
+# background removal (u2net/isnet ONNX models, downloaded on first use)
+rembg[cpu]>=2.0.77

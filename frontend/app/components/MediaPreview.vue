@@ -107,6 +107,11 @@ function onEnded() {
 
 const kind = computed(() => mediaKind(props.download?.content_type))
 
+// cutouts are transparent PNGs — show a checkerboard so the alpha is legible
+const transparent = computed(
+  () => props.download?.job_kind === 'cutout' || props.download?.content_type === 'image/png'
+)
+
 const name = computed(
   () => props.download?.title || props.download?.filename || props.download?.url || ''
 )
@@ -265,7 +270,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
               :loop="!autoNextEnabled"
               @ended="onEnded"
             />
-            <img v-else-if="kind === 'image'" class="media" :src="src" :alt="name" />
+            <img
+              v-else-if="kind === 'image'"
+              class="media"
+              :class="{ 'alpha-grid': transparent }"
+              :src="src"
+              :alt="name"
+            />
             <p v-else class="no-preview mono">No preview for this file type — use Save.</p>
           </div>
 

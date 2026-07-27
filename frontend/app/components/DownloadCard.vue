@@ -1,7 +1,18 @@
 <script setup lang="ts">
 import type { Download } from '~/types'
 
-const props = defineProps<{ download: Download }>()
+const props = withDefaults(
+  defineProps<{
+    download: Download
+    /** Off where categories don't apply, e.g. the cutouts on /remove-bg. */
+    taggable?: boolean
+    /** Collapse Save/Info/Delete into a kebab menu instead of a button row. */
+    compact?: boolean
+    /** Fit the whole image in the thumb rather than cropping it to fill. */
+    contain?: boolean
+  }>(),
+  { taggable: true, compact: false, contain: false }
+)
 const emit = defineEmits<{
   favorite: [id: number]
   remove: [id: number]
@@ -9,6 +20,7 @@ const emit = defineEmits<{
   convert: [payload: { id: number; target: string }]
   preview: [id: number]
   cancel: [id: number]
+  info: [id: number]
   setCategory: [payload: { id: number; category: string | null }]
 }>()
 
@@ -38,6 +50,11 @@ function onThumbClick() {
 }
 
 const targets = computed(() => convertTargets(kind.value))
+
+// cutouts are transparent PNGs — show a checkerboard so the alpha is legible
+const transparent = computed(
+  () => props.download.job_kind === 'cutout' || props.download.content_type === 'image/png'
+)
 
 const catOpen = ref(false)
 const catAnchor = ref<HTMLElement>()
@@ -124,7 +141,7 @@ const orphanTag = computed(
   <article class="card panel" :class="{ active }">
     <div
       class="thumb"
-      :class="{ clickable: previewable }"
+      :class="{ clickable: previewable, 'alpha-grid': transparent }"
       :title="previewable ? 'Click to preview' : undefined"
       @click="onThumbClick"
     >
@@ -205,7 +222,7 @@ const orphanTag = computed(
       </p>
 
       <!-- Category tag pill + dropdown (teleported to escape overflow:hidden) -->
-      <div class="cat-wrap">
+      <div v-if="taggable" class="cat-wrap">
         <button
           ref="catAnchor"
           class="cat-pill mono"
@@ -342,7 +359,8 @@ const orphanTag = computed(
 .thumb {
   position: relative;
   aspect-ratio: 16 / 9;
-  background: var(--bg-raised);
+  /* background-color, not the shorthand — .alpha-grid supplies the layers */
+  background-color: var(--bg-raised);
   overflow: hidden;
 }
 

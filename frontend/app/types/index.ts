@@ -18,6 +18,8 @@ export interface Download {
   content_type: string | null
   quality: string | null
   category?: string | null
+  /** "cutout" for background removal; null for downloads and conversions. */
+  job_kind?: string | null
   error: string | null
   is_favorite: boolean
   has_thumbnail: boolean
@@ -45,6 +47,9 @@ export interface User {
 
 /** Which pane of the grid is showing — not a server-side filter. */
 export type DownloadFilter = 'all' | 'favorites' | 'active'
+
+/** Background-removal quality tier; see backend services/bgremove.py. */
+export type CutoutQuality = 'fast' | 'good' | 'best'
 
 export interface AdminStats {
   users: number

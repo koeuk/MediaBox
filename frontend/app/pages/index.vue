@@ -55,6 +55,12 @@ const visible = computed(() => {
 const previewTarget = ref<Download | null>(null)
 const deleteTarget = ref<Download | null>(null)
 
+// stills get a lightbox, playable media gets the player — they want opposite
+// affordances, so each is its own dialog and only one is ever mounted
+const isStill = (d: Download | null) => !!d && mediaKind(d.content_type) === 'image'
+const previewImage = computed(() => (isStill(previewTarget.value) ? previewTarget.value : null))
+const previewMedia = computed(() => (isStill(previewTarget.value) ? null : previewTarget.value))
+
 async function confirmRemove() {
   const target = deleteTarget.value
   if (!target) return
@@ -128,8 +134,15 @@ onMounted(async () => {
     </main>
 
     <MediaPreview
-      :download="previewTarget"
+      :download="previewMedia"
       :downloads="downloads"
+      @select="(d) => (previewTarget = d)"
+      @close="previewTarget = null"
+    />
+
+    <ImagePreview
+      :download="previewImage"
+      :images="downloads"
       @select="(d) => (previewTarget = d)"
       @close="previewTarget = null"
     />

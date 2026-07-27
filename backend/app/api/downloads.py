@@ -14,6 +14,7 @@ from app.schemas import (
     DownloadCategoryUpdate,
     DownloadCreate,
     DownloadOut,
+    RemoveBackgroundRequest,
 )
 from app.services import library, storage
 from app.services.tasks import request_cancel
@@ -117,6 +118,19 @@ def convert_download(
     return library.queue_conversion(db, user, source, payload.target)
 
 
+@router.post(
+    "/{download_id}/remove-background",
+    response_model=DownloadOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def remove_background(
+    download_id: int, payload: RemoveBackgroundRequest, db: DbSession, user: CurrentUser
+):
+    """Queue a transparent-PNG cutout of an image already in the box."""
+    source = _owned(db, download_id, user)
+    return library.queue_cutout(db, user, source, payload.quality)
+
+
 @router.delete("/{download_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_download(download_id: int, db: DbSession, user: CurrentUser):
     dl = _owned(db, download_id, user)
@@ -146,4 +160,6 @@ def download_thumbnail(download_id: int, db: DbSession, user: MediaUser):
     dl = _owned(db, download_id, user)
     if not dl.thumbnail_path or not Path(dl.thumbnail_path).exists():
         raise HTTPException(status_code=404, detail="Thumbnail not available")
-    return FileResponse(dl.thumbnail_path, media_type="image/jpeg")
+    # cutout thumbnails are PNG so their transparency survives
+    kind = "image/png" if dl.thumbnail_path.endswith(".png") else "image/jpeg"
+    return FileResponse(dl.thumbnail_path, media_type=kind)

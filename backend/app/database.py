@@ -38,6 +38,7 @@ def run_migrations(conn) -> None:
         ("convert_source", "convert_source TEXT"),
         ("convert_target", "convert_target VARCHAR(8)"),
         ("category", "category VARCHAR(50)"),
+        ("job_kind", "job_kind VARCHAR(16)"),
     ]:
         if name not in columns:
             conn.execute(text(f"ALTER TABLE downloads ADD COLUMN {ddl}"))

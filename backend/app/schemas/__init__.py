@@ -16,12 +16,14 @@ from app.schemas.auth import (
 from app.schemas.category import HEX_COLOR_PATTERN, CategoryCreate, CategoryEdit, CategoryOut
 from app.schemas.download import (
     CONVERT_TARGET_PATTERN,
+    CUTOUT_QUALITY_PATTERN,
     QUALITY_PATTERN,
     BatchDownloadCreate,
     ConvertRequest,
     DownloadCategoryUpdate,
     DownloadCreate,
     DownloadOut,
+    RemoveBackgroundRequest,
 )
 
 __all__ = [
@@ -37,9 +39,11 @@ __all__ = [
     "BatchDownloadCreate",
     "DownloadCategoryUpdate",
     "ConvertRequest",
+    "RemoveBackgroundRequest",
     "DownloadOut",
     "QUALITY_PATTERN",
     "CONVERT_TARGET_PATTERN",
+    "CUTOUT_QUALITY_PATTERN",
     # categories
     "CategoryCreate",
     "CategoryEdit",

@@ -235,6 +235,21 @@ a {
   font-weight: 600;
 }
 
+/* Alpha checkerboard, so a transparent PNG reads as transparent rather than
+   as whatever colour happens to sit behind it.
+   Only the layers are set here — the surface underneath stays whatever the
+   host element chose, which keeps it legible in both themes. Anything using
+   this must set `background-color`, not the `background` shorthand, or it
+   wipes these layers out. */
+.alpha-grid {
+  --sq: 9px;
+  background-image:
+    linear-gradient(45deg, var(--line-strong) 25%, transparent 25% 75%, var(--line-strong) 75%),
+    linear-gradient(45deg, var(--line-strong) 25%, transparent 25% 75%, var(--line-strong) 75%);
+  background-size: calc(var(--sq) * 2) calc(var(--sq) * 2);
+  background-position: 0 0, var(--sq) var(--sq);
+}
+
 /* ── Cards / misc ───────────────────────────────────────────────────── */
 
 .panel {

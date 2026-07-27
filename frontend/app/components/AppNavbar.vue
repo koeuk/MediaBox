@@ -24,6 +24,15 @@ function confirmLogout() {
     <NuxtLink to="/" class="wordmark display">Media<span>Box</span></NuxtLink>
 
     <div class="nav-right">
+      <NuxtLink to="/remove-bg" class="nav-link">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <!-- a photo frame with the backdrop cut away, subject left standing -->
+          <path d="M3 3h5M16 3h5v5M21 16v5h-5M8 21H3v-5" stroke-dasharray="0" />
+          <circle cx="12" cy="10" r="2.6" />
+          <path d="M7.5 17.5a4.5 4.5 0 0 1 9 0" />
+        </svg>
+        Remove BG
+      </NuxtLink>
       <NuxtLink to="/" class="nav-link">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="3" y="3" width="7" height="7" rx="1" />
