@@ -33,9 +33,50 @@ fi
   || die "frontend/node_modules is missing. Install first:
   cd frontend && npm install"
 
+configured_media_dir="${MEDIA_DIR:-}"
+if [ -z "$configured_media_dir" ] && [ -f backend/.env ]; then
+  configured_media_dir=$(sed -n "s/^[[:space:]]*MEDIA_DIR[[:space:]]*=[[:space:]]*//p" backend/.env | tail -n 1)
+  configured_media_dir="${configured_media_dir%%#*}"
+  configured_media_dir="${configured_media_dir%\"}"
+  configured_media_dir="${configured_media_dir#\"}"
+fi
+configured_media_dir="${configured_media_dir:-./media}"
+
+case "$configured_media_dir" in
+  "~") resolved_media_dir="$HOME" ;;
+  "~/"*) resolved_media_dir="$HOME/${configured_media_dir#"~/"}" ;;
+  /*) resolved_media_dir="$configured_media_dir" ;;
+  *) resolved_media_dir="backend/$configured_media_dir" ;;
+esac
+
+case "$resolved_media_dir" in
+  "/media/$(id -un)/"*)
+    media_tail="${resolved_media_dir#"/media/$(id -un)/"}"
+    media_mount="/media/$(id -un)/${media_tail%%/*}"
+    [ -d "$media_mount" ] \
+      || die "MEDIA_DIR drive is not mounted: $media_mount
+  Mount it in Files, then run ./dev.sh again."
+    ;;
+esac
+
+media_probe="$resolved_media_dir"
+while [ ! -e "$media_probe" ] && [ "$media_probe" != "/" ]; do
+  media_probe=$(dirname "$media_probe")
+done
+
+[ -d "$media_probe" ] && [ -w "$media_probe" ] \
+  || die "MEDIA_DIR is not writable: $resolved_media_dir
+  Mount the drive or edit backend/.env to use a writable folder."
+
+mkdir -p "$resolved_media_dir" \
+  || die "Could not create MEDIA_DIR: $resolved_media_dir"
+
+[ -w "$resolved_media_dir" ] \
+  || die "MEDIA_DIR exists but is not writable: $resolved_media_dir"
+
 # A previous `sudo` run leaves build caches owned by root, and vite/nuxt then
 # die with a bare EACCES deep in a stack trace. Catch it here instead.
-for path in frontend/node_modules frontend/.nuxt backend/media backend/mediabox.db; do
+for path in frontend/node_modules frontend/.nuxt "$resolved_media_dir" backend/mediabox.db; do
   [ -e "$path" ] || continue
   [ -w "$path" ] && [ -z "$(find "$path" -maxdepth 2 ! -user "$(id -un)" -print -quit 2>/dev/null)" ] \
     || die "$path contains files owned by another user (a previous sudo run).

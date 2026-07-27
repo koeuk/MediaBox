@@ -164,7 +164,6 @@ async function changePassword() {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
-  box-shadow: var(--shadow);
 }
 
 .card-title {
