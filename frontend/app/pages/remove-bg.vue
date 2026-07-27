@@ -22,7 +22,7 @@ const {
   remove,
   find,
   startLive,
-} = useDownloads()
+} = useDownloads('cutout')
 
 const qualityOptions = [
   { value: 'fast', label: 'Fast', hint: 'seconds' },
@@ -32,13 +32,13 @@ const qualityOptions = [
 // AppSelect emits a plain string, so the tier is narrowed where it is used
 const quality = ref('good')
 
-/** Images already in the box that a cutout can be made from. */
+/** Originals uploaded here, which a cutout can be made from. */
 const sources = computed(() =>
   downloads.value.filter(
     (d) =>
       d.status === 'completed' &&
       (d.content_type || '').startsWith('image/') &&
-      d.job_kind !== 'cutout'
+      d.job_kind === 'cutout_src'
   )
 )
 
@@ -132,6 +132,7 @@ async function onDrop(e: DragEvent) {
 
 const previewTarget = ref<Download | null>(null)
 const deleteTarget = ref<Download | null>(null)
+const infoTarget = ref<Download | null>(null)
 
 async function confirmRemove() {
   const target = deleteTarget.value
@@ -304,17 +305,16 @@ onMounted(async () => {
 
       <section v-if="cutouts.length" class="results reveal" style="animation-delay: 0.1s">
         <h2 class="label section-label">Cutouts</h2>
-        <div class="grid">
-          <DownloadCard
+        <div class="gallery">
+          <CutoutCard
             v-for="d in cutouts"
             :key="d.id"
             :download="d"
-            :taggable="false"
             @favorite="toggleFavorite"
             @retry="retry"
-            @convert="convert"
             @remove="deleteTarget = find($event)"
             @preview="previewTarget = find($event)"
+            @info="infoTarget = find($event)"
             @cancel="cancel"
           />
         </div>
@@ -328,6 +328,8 @@ onMounted(async () => {
       @select="(d) => (previewTarget = d)"
       @close="previewTarget = null"
     />
+
+    <InfoDialog :download="infoTarget" @close="infoTarget = null" />
 
     <ConfirmDialog
       :open="!!deleteTarget"
@@ -641,10 +643,11 @@ onMounted(async () => {
   text-transform: uppercase;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 1rem;
+/* Masonry columns, because each tile is as tall as its own image — a grid
+   would pad every row out to its tallest tile. */
+.gallery {
+  columns: 250px;
+  column-gap: 1rem;
 }
 
 .empty {

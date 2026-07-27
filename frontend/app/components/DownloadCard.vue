@@ -1,18 +1,7 @@
 <script setup lang="ts">
 import type { Download } from '~/types'
 
-const props = withDefaults(
-  defineProps<{
-    download: Download
-    /** Off where categories don't apply, e.g. the cutouts on /remove-bg. */
-    taggable?: boolean
-    /** Collapse Save/Info/Delete into a kebab menu instead of a button row. */
-    compact?: boolean
-    /** Fit the whole image in the thumb rather than cropping it to fill. */
-    contain?: boolean
-  }>(),
-  { taggable: true, compact: false, contain: false }
-)
+const props = defineProps<{ download: Download }>()
 const emit = defineEmits<{
   favorite: [id: number]
   remove: [id: number]
@@ -20,7 +9,6 @@ const emit = defineEmits<{
   convert: [payload: { id: number; target: string }]
   preview: [id: number]
   cancel: [id: number]
-  info: [id: number]
   setCategory: [payload: { id: number; category: string | null }]
 }>()
 
@@ -222,7 +210,7 @@ const orphanTag = computed(
       </p>
 
       <!-- Category tag pill + dropdown (teleported to escape overflow:hidden) -->
-      <div v-if="taggable" class="cat-wrap">
+      <div class="cat-wrap">
         <button
           ref="catAnchor"
           class="cat-pill mono"

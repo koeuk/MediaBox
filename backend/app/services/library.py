@@ -18,7 +18,11 @@ from app.services.bgremove import QUALITY_MODELS, run_remove_bg
 from app.services.converter import run_convert
 from app.services.downloader import run_download
 
-CUTOUT = "cutout"
+# job_kind values. Rows in this family belong to the background-removal page
+# and are deliberately kept out of the main media list.
+CUTOUT = "cutout"  # the transparent PNG that comes out
+CUTOUT_SOURCE = "cutout_src"  # an original uploaded there to be cut
+CUTOUT_KINDS = (CUTOUT, CUTOUT_SOURCE)
 
 
 class LibraryError(Exception):
@@ -67,9 +71,16 @@ def queue_batch(db: Session, user: User, urls: list[str], quality: str | None) -
     return records
 
 
-def store_upload(db: Session, user: User, file: UploadFile) -> Download:
+def store_upload(db: Session, user: User, file: UploadFile, scope: str | None = None) -> Download:
     """Save a local media file as a completed download so it can be previewed
-    and converted like anything else in the box."""
+    and converted like anything else in the box.
+
+    `scope="cutout"` marks it as belonging to the background-removal page, so
+    the main media list leaves it alone.
+    """
+    if scope not in (None, "cutout"):
+        raise LibraryError(f"Unknown upload scope: {scope}")
+
     try:
         dest, size, content_type = storage.save_upload(file, user.id)
     except storage.UploadTooLarge as exc:
@@ -92,6 +103,7 @@ def store_upload(db: Session, user: User, file: UploadFile) -> Download:
             content_type=content_type,
             file_path=str(dest),
             thumbnail_path=ffmpeg.make_thumbnail(dest, content_type),
+            job_kind=CUTOUT_SOURCE if scope == "cutout" else None,
             completed_at=datetime.now(timezone.utc),
         ),
     )

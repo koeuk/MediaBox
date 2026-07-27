@@ -8,12 +8,25 @@ import type { CutoutQuality, Download } from '~/types'
  * which tab is selected and which category is filtered are view concerns and
  * stay in the page.
  */
-export function useDownloads() {
+/** Rows produced by the background-removal page — its uploads and its results. */
+const CUTOUT_KINDS = ['cutout', 'cutout_src']
+
+export function useDownloads(scope: 'media' | 'cutout' = 'media') {
   const { request, wsUrl, refreshMediaToken } = useApi()
 
-  const downloads = ref<Download[]>([])
+  /** Everything the server sent. The list endpoint and the live snapshot are
+   *  both unscoped, so the split happens here. */
+  const all = ref<Download[]>([])
   const loaded = ref(false)
   const live = ref(false)
+
+  function inScope(d: Download) {
+    const belongsToCutouts = CUTOUT_KINDS.includes(d.job_kind || '')
+    return scope === 'cutout' ? belongsToCutouts : !belongsToCutouts
+  }
+
+  /** What this page should show. */
+  const downloads = computed(() => all.value.filter(inScope))
 
   // form state for the submit bar, bound with v-model
   const url = ref('')
@@ -35,8 +48,8 @@ export function useDownloads() {
 
   /** Swap one row in place, keeping list order. */
   function replace(updated: Download) {
-    const i = downloads.value.findIndex((d) => d.id === updated.id)
-    if (i !== -1) downloads.value[i] = updated
+    const i = all.value.findIndex((d) => d.id === updated.id)
+    if (i !== -1) all.value[i] = updated
   }
 
   function clearMessages() {
@@ -47,7 +60,7 @@ export function useDownloads() {
   async function refresh() {
     const params: Record<string, string> = {}
     if (search.value) params.search = search.value
-    downloads.value = await request<Download[]>('/downloads', { params })
+    all.value = await request<Download[]>('/downloads', { params })
     loaded.value = true
   }
 
@@ -90,7 +103,14 @@ export function useDownloads() {
       for (const f of files) {
         const form = new FormData()
         form.append('file', f)
-        created.push(await request<Download>('/downloads/upload', { method: 'POST', body: form }))
+        created.push(
+          await request<Download>('/downloads/upload', {
+            method: 'POST',
+            body: form,
+            // keeps cutout sources out of the media list
+            params: scope === 'cutout' ? { scope: 'cutout' } : {},
+          })
+        )
       }
       note.value =
         files.length === 1
@@ -146,7 +166,7 @@ export function useDownloads() {
         method: 'POST',
         body: { target: payload.target },
       })
-      downloads.value = [created, ...downloads.value]
+      all.value = [created, ...all.value]
     } catch (e) {
       error.value = errorMessage(e, 'Conversion failed to start.')
     }
@@ -160,7 +180,7 @@ export function useDownloads() {
         method: 'POST',
         body: { quality: cutoutQuality },
       })
-      downloads.value = [created, ...downloads.value]
+      all.value = [created, ...all.value]
       return created
     } catch (e) {
       error.value = errorMessage(e, 'Could not start background removal.')
@@ -171,14 +191,14 @@ export function useDownloads() {
   async function remove(id: number) {
     try {
       await request(`/downloads/${id}`, { method: 'DELETE' })
-      downloads.value = downloads.value.filter((d) => d.id !== id)
+      all.value = all.value.filter((d) => d.id !== id)
     } catch (e) {
       error.value = errorMessage(e, 'Failed to delete — check that the server is running.')
     }
   }
 
   function find(id: number) {
-    return downloads.value.find((d) => d.id === id) || null
+    return all.value.find((d) => d.id === id) || null
   }
 
   // ── Live updates: WebSocket first, 2s polling as fallback ─────────────
@@ -201,7 +221,7 @@ export function useDownloads() {
         const msg = JSON.parse(ev.data)
         // ignore pushes while a server-side search filter is active
         if (msg.type === 'snapshot' && !search.value) {
-          downloads.value = msg.items
+          all.value = msg.items
           loaded.value = true
         }
       } catch {}

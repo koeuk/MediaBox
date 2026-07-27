@@ -40,8 +40,14 @@ def create_batch(payload: BatchDownloadCreate, db: DbSession, user: CurrentUser)
 
 
 @router.post("/upload", response_model=DownloadOut, status_code=status.HTTP_201_CREATED)
-def upload_media(db: DbSession, user: CurrentUser, file: Annotated[UploadFile, File()]):
-    return library.store_upload(db, user, file)
+def upload_media(
+    db: DbSession,
+    user: CurrentUser,
+    file: Annotated[UploadFile, File()],
+    scope: str | None = None,
+):
+    """`scope=cutout` files belong to the background-removal page only."""
+    return library.store_upload(db, user, file, scope=scope)
 
 
 @router.get("", response_model=list[DownloadOut])
