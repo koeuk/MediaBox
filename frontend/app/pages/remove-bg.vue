@@ -645,9 +645,12 @@ onMounted(async () => {
 
 /* Masonry columns, because each tile is as tall as its own image — a grid
    would pad every row out to its tallest tile. */
+/* Four across at full width, folding down to fewer as the window narrows.
+   Tiles are square (see CutoutCard), so rows stay flush with no dead space. */
 .gallery {
-  columns: 250px;
-  column-gap: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 1rem;
 }
 
 .empty {

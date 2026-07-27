@@ -108,9 +108,8 @@ const failed = computed(() => props.download.status === 'failed')
 .tile {
   position: relative;
   overflow: hidden;
-  /* masonry column child — must not split across columns */
-  break-inside: avoid;
-  margin-bottom: 0.5rem;
+  /* a <figure> defaults to `margin: 1em 40px`; the grid owns the spacing */
+  margin: 0;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
@@ -129,7 +128,10 @@ const failed = computed(() => props.download.status === 'failed')
 
 .shot {
   position: relative;
-  display: block;
+  /* every tile is the same square, so grid rows stay flush — the image is
+     fitted inside rather than cropped, so nothing is lost */
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
   /* the checkerboard needs a surface under it; .alpha-grid only draws layers */
   background-color: var(--bg-raised);
 }
@@ -138,18 +140,22 @@ const failed = computed(() => props.download.status === 'failed')
   cursor: zoom-in;
 }
 
+/* absolutely positioned so a tall image's intrinsic height cannot stretch the
+   square — `contain` then letterboxes it rather than cropping */
 .shot img {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
-  /* the image sets the tile's height — no cropping, no letterboxing */
-  height: auto;
+  height: 100%;
+  object-fit: contain;
 }
 
 .placeholder {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
-  /* only the fallback needs a shape of its own */
-  aspect-ratio: 4 / 3;
   padding: 1rem;
   text-align: center;
 }

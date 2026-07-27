@@ -529,23 +529,38 @@ const orphanTag = computed(
 /* ── Category pill & dropdown ── */
 .cat-wrap {
   position: relative;
+  /* lets the pill shrink instead of pushing the kebab out of the row */
+  min-width: 0;
 }
 
 .cat-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.22rem 0.55rem;
-  font-size: 0.62rem;
+  justify-content: center;
+  max-width: 100%;
+  /* geometry mirrors ConvertMenu's .cm-trigger so the action row reads as one bar */
+  gap: 0.35rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  border-radius: 20px;
-  border: 1px solid var(--line);
+  letter-spacing: 0.08em;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
   background: var(--surface);
   color: var(--text-dim);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.cat-pill svg {
+  flex: none;
+}
+
+.cat-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cat-pill:hover {
