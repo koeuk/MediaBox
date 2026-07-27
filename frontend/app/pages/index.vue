@@ -291,7 +291,7 @@ watch(search, () => {
     <AppNavbar />
 
     <main class="page">
-      <section class="hero reveal">
+      <section class="manage panel reveal">
         <h1 class="display hero-title">Add to your box</h1>
         <form class="submit-bar" @submit.prevent="submit">
           <input
@@ -329,79 +329,79 @@ watch(search, () => {
         </form>
         <p v-if="submitError" class="submit-error mono">{{ submitError }}</p>
         <p v-else-if="submitNote" class="submit-note mono">{{ submitNote }}</p>
-      </section>
 
-      <section class="toolbar reveal" style="animation-delay: 0.06s">
-        <div class="toolbar-left">
-          <div class="filters">
-            <button
-              v-for="f in (['all', 'favorites', 'active'] as const)"
-              :key="f"
-              class="filter-btn mono"
-              :class="{ on: filter === f }"
-              @click="filter = f"
-            >
-              {{ f }}<span v-if="f === 'active' && activeCount"> ({{ activeCount }})</span>
-            </button>
-          </div>
-          <!-- Category filter tabs — scrolls as a carousel when it overflows -->
-          <div
-            class="filters cat-filters"
-            :class="{ scrollable: catOverflow, 'at-start': catAtStart, 'at-end': catAtEnd }"
-          >
-            <button
-              v-if="catOverflow"
-              type="button"
-              class="cat-nav prev"
-              :disabled="catAtStart"
-              title="Scroll categories left"
-              aria-label="Scroll categories left"
-              @click="scrollCats(-180)"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                <path d="m15 18-6-6 6-6" />
-              </svg>
-            </button>
-
-            <div ref="catTrack" class="cat-track" @scroll.passive="syncCatScroll">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <div class="filters">
               <button
+                v-for="f in (['all', 'favorites', 'active'] as const)"
+                :key="f"
                 class="filter-btn mono"
-                :class="{ on: categoryFilter === null }"
-                @click="categoryFilter = null"
+                :class="{ on: filter === f }"
+                @click="filter = f"
               >
-                All
-              </button>
-              <button
-                v-for="c in categories"
-                :key="c.id"
-                class="filter-btn mono"
-                :class="{ on: categoryFilter === c.name }"
-                :style="categoryFilter === c.name ? solid(c.name) : { color: c.color }"
-                @click="categoryFilter = c.name"
-              >
-                {{ c.name }}
+                {{ f }}<span v-if="f === 'active' && activeCount"> ({{ activeCount }})</span>
               </button>
             </div>
-
-            <button
-              v-if="catOverflow"
-              type="button"
-              class="cat-nav next"
-              :disabled="catAtEnd"
-              title="Scroll categories right"
-              aria-label="Scroll categories right"
-              @click="scrollCats(180)"
+            <!-- Category filter tabs — scrolls as a carousel when it overflows -->
+            <div
+              class="filters cat-filters"
+              :class="{ scrollable: catOverflow, 'at-start': catAtStart, 'at-end': catAtEnd }"
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                <path d="m9 18 6-6-6-6" />
-              </svg>
-            </button>
+              <button
+                v-if="catOverflow"
+                type="button"
+                class="cat-nav prev"
+                :disabled="catAtStart"
+                title="Scroll categories left"
+                aria-label="Scroll categories left"
+                @click="scrollCats(-180)"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+
+              <div ref="catTrack" class="cat-track" @scroll.passive="syncCatScroll">
+                <button
+                  class="filter-btn mono"
+                  :class="{ on: categoryFilter === null }"
+                  @click="categoryFilter = null"
+                >
+                  All
+                </button>
+                <button
+                  v-for="c in categories"
+                  :key="c.id"
+                  class="filter-btn mono"
+                  :class="{ on: categoryFilter === c.name }"
+                  :style="categoryFilter === c.name ? solid(c.name) : { color: c.color }"
+                  @click="categoryFilter = c.name"
+                >
+                  {{ c.name }}
+                </button>
+              </div>
+
+              <button
+                v-if="catOverflow"
+                type="button"
+                class="cat-nav next"
+                :disabled="catAtEnd"
+                title="Scroll categories right"
+                aria-label="Scroll categories right"
+                @click="scrollCats(180)"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </button>
+            </div>
+            <span class="live mono" :class="{ on: live }" :title="live ? 'WebSocket connected' : 'Polling fallback'">
+              ● {{ live ? 'live' : 'polling' }}
+            </span>
           </div>
-          <span class="live mono" :class="{ on: live }" :title="live ? 'WebSocket connected' : 'Polling fallback'">
-            ● {{ live ? 'live' : 'polling' }}
-          </span>
+          <input v-model="search" class="input search" type="search" placeholder="Search downloads…" />
         </div>
-        <input v-model="search" class="input search" type="search" placeholder="Search downloads…" />
       </section>
 
       <section v-if="loaded && visible.length === 0" class="empty reveal" style="animation-delay: 0.1s">
@@ -455,6 +455,13 @@ watch(search, () => {
   padding: 2.2rem 1.5rem 4rem;
 }
 
+/* Submit bar + filters live in one card, so they read as a single control
+   surface sitting above the results grid. */
+.manage {
+  padding: 1.5rem;
+  margin-bottom: 1.6rem;
+}
+
 .hero-title {
   font-size: clamp(1.6rem, 4vw, 2.4rem);
   margin: 0 0 1.1rem;
@@ -491,7 +498,7 @@ watch(search, () => {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin: 2rem 0 1.2rem;
+  margin-top: 1.3rem;
   flex-wrap: wrap;
 }
 
@@ -506,7 +513,8 @@ watch(search, () => {
 .filters {
   display: flex;
   gap: 0.3rem;
-  background: var(--surface);
+  /* --surface would vanish against the .manage card it now sits on */
+  background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 0.25rem;
@@ -657,6 +665,10 @@ watch(search, () => {
 }
 
 @media (max-width: 560px) {
+  .manage {
+    padding: 1.1rem;
+  }
+
   .submit-bar {
     flex-direction: column;
   }

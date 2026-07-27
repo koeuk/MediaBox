@@ -85,7 +85,6 @@ async function submit() {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
-  box-shadow: var(--shadow);
 }
 
 .auth-title {
