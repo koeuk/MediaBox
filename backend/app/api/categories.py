@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
-from app.database import get_db
+from app.api.deps import CurrentUser, DbSession, owned_or_404
 from app.models import DEFAULT_CATEGORIES, Category, Download, User
 from app.schemas import CategoryCreate, CategoryEdit, CategoryOut
 
@@ -44,13 +43,6 @@ def _to_out(cat: Category, counts: dict[str, int]) -> CategoryOut:
     )
 
 
-def _owned(category_id: int, db: Session, user: User) -> Category:
-    cat = db.get(Category, category_id)
-    if cat is None or cat.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Category not found")
-    return cat
-
-
 def _ordered(db: Session, user: User) -> list[Category]:
     return (
         db.query(Category)
@@ -60,11 +52,27 @@ def _ordered(db: Session, user: User) -> list[Category]:
     )
 
 
+def _clean_name(raw: str) -> str:
+    name = raw.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Name cannot be blank")
+    return name
+
+
+def _reject_duplicate(db: Session, user: User, name: str, exclude_id: int | None = None) -> None:
+    """Names are unique per user, case-insensitively — two tags differing only
+    in case would be indistinguishable on the cards."""
+    query = db.query(Category).filter(
+        Category.user_id == user.id, func.lower(Category.name) == name.lower()
+    )
+    if exclude_id is not None:
+        query = query.filter(Category.id != exclude_id)
+    if query.first():
+        raise HTTPException(status_code=409, detail=f'"{name}" already exists')
+
+
 @router.get("", response_model=list[CategoryOut])
-def list_categories(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
+def list_categories(db: DbSession, user: CurrentUser):
     cats = _ordered(db, user)
     if not cats:
         _seed_defaults(db, user)
@@ -74,22 +82,9 @@ def list_categories(
 
 
 @router.post("", response_model=CategoryOut, status_code=status.HTTP_201_CREATED)
-def create_category(
-    payload: CategoryCreate,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    name = payload.name.strip()
-    if not name:
-        raise HTTPException(status_code=422, detail="Name cannot be blank")
-
-    existing = (
-        db.query(Category)
-        .filter(Category.user_id == user.id, func.lower(Category.name) == name.lower())
-        .first()
-    )
-    if existing:
-        raise HTTPException(status_code=409, detail=f'"{name}" already exists')
+def create_category(payload: CategoryCreate, db: DbSession, user: CurrentUser):
+    name = _clean_name(payload.name)
+    _reject_duplicate(db, user, name)
 
     last = (
         db.query(func.coalesce(func.max(Category.position), -1))
@@ -105,29 +100,13 @@ def create_category(
 
 @router.patch("/{category_id}", response_model=CategoryOut)
 def update_category(
-    category_id: int,
-    payload: CategoryEdit,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    category_id: int, payload: CategoryEdit, db: DbSession, user: CurrentUser
 ):
-    cat = _owned(category_id, db, user)
+    cat = owned_or_404(db, Category, category_id, user, "Category")
 
     if payload.name is not None:
-        name = payload.name.strip()
-        if not name:
-            raise HTTPException(status_code=422, detail="Name cannot be blank")
-        clash = (
-            db.query(Category)
-            .filter(
-                Category.user_id == user.id,
-                Category.id != cat.id,
-                func.lower(Category.name) == name.lower(),
-            )
-            .first()
-        )
-        if clash:
-            raise HTTPException(status_code=409, detail=f'"{name}" already exists')
-
+        name = _clean_name(payload.name)
+        _reject_duplicate(db, user, name, exclude_id=cat.id)
         if name != cat.name:
             # downloads reference the tag by name, so carry them along
             db.query(Download).filter(
@@ -146,12 +125,8 @@ def update_category(
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_category(
-    category_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    cat = _owned(category_id, db, user)
+def delete_category(category_id: int, db: DbSession, user: CurrentUser):
+    cat = owned_or_404(db, Category, category_id, user, "Category")
     # untag rather than orphan — the downloads themselves are untouched
     db.query(Download).filter(
         Download.user_id == user.id, Download.category == cat.name
@@ -161,11 +136,7 @@ def delete_category(
 
 
 @router.put("/reorder", response_model=list[CategoryOut])
-def reorder_categories(
-    ids: list[int],
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
+def reorder_categories(ids: list[int], db: DbSession, user: CurrentUser):
     owned = {c.id: c for c in _ordered(db, user)}
     unknown = [i for i in ids if i not in owned]
     if unknown:

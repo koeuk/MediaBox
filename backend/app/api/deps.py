@@ -1,3 +1,5 @@
+from typing import Annotated, TypeVar
+
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
@@ -55,3 +57,34 @@ def get_media_user(request: Request, db: Session = Depends(get_db)) -> User:
     if scope != "media":
         raise _credentials_error
     return _resolve_user(token, db, allow_query_scope=True)
+
+
+def get_admin_user(user: User = Depends(get_current_user)) -> User:
+    if not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return user
+
+
+# Annotated aliases, so a route reads `user: CurrentUser` instead of repeating
+# `user: User = Depends(get_current_user)` on every handler. They also free
+# route signatures from the "defaults last" ordering rule, which is why query
+# parameters can now sit wherever they read best.
+DbSession = Annotated[Session, Depends(get_db)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
+MediaUser = Annotated[User, Depends(get_media_user)]
+AdminUser = Annotated[User, Depends(get_admin_user)]
+
+
+T = TypeVar("T")
+
+
+def owned_or_404(db: Session, model: type[T], obj_id: int, user: User, label: str) -> T:
+    """Fetch a row the caller owns, or 404.
+
+    Deliberately 404 rather than 403 for someone else's row — a 403 would
+    confirm the id exists.
+    """
+    obj = db.get(model, obj_id)
+    if obj is None or obj.user_id != user.id:
+        raise HTTPException(status_code=404, detail=f"{label} not found")
+    return obj

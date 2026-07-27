@@ -1,23 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter
 from sqlalchemy import func
-from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
-from app.database import get_db
+from app.api.deps import AdminUser, DbSession
 from app.models import Download, DownloadStatus, User
 from app.schemas import AdminDownloadOut, AdminStats, AdminUserOut
 
 router = APIRouter()
 
 
-def require_admin(user: User = Depends(get_current_user)) -> User:
-    if not user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return user
-
-
 @router.get("/stats", response_model=AdminStats)
-def stats(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+def stats(db: DbSession, _: AdminUser):
     by_status = dict(
         db.query(Download.status, func.count(Download.id)).group_by(Download.status).all()
     )
@@ -37,7 +29,7 @@ def stats(db: Session = Depends(get_db), _: User = Depends(require_admin)):
 
 
 @router.get("/users", response_model=list[AdminUserOut])
-def list_users(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+def list_users(db: DbSession, _: AdminUser):
     rows = (
         db.query(
             User,
@@ -64,11 +56,7 @@ def list_users(db: Session = Depends(get_db), _: User = Depends(require_admin)):
 
 
 @router.get("/downloads", response_model=list[AdminDownloadOut])
-def recent_downloads(
-    limit: int = 50,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
-):
+def recent_downloads(db: DbSession, _: AdminUser, limit: int = 50):
     rows = (
         db.query(Download, User.username)
         .join(User, User.id == Download.user_id)

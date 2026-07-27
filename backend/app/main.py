@@ -1,13 +1,15 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 import app.models  # noqa: F401  (register models with the metadata)
 from app.api import admin, auth, categories, downloads, ws
 from app.config import settings
 from app.database import Base, engine, run_migrations
 from app.services import jobs
+from app.services.library import LibraryError
 
 
 @asynccontextmanager
@@ -28,6 +30,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(LibraryError)
+async def library_error_handler(request: Request, exc: LibraryError):
+    """Library rejections answer in the same shape FastAPI uses for
+    HTTPException, so the frontend's error handling needs no special case."""
+    return JSONResponse(status_code=exc.status, content={"detail": str(exc)})
+
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(downloads.router, prefix="/api/downloads", tags=["downloads"])

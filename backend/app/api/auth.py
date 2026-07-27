@@ -1,8 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import get_current_user
-from app.database import get_db
+from app.api.deps import CurrentUser, DbSession
 from app.models import User
 from app.schemas import (
     MediaTokenOut,
@@ -24,7 +22,7 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
-def register(payload: UserCreate, db: Session = Depends(get_db)):
+def register(payload: UserCreate, db: DbSession):
     if db.query(User).filter(User.email == payload.email).first():
         raise HTTPException(status_code=409, detail="Email already registered")
 
@@ -42,7 +40,7 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenOut)
-def login(payload: UserLogin, db: Session = Depends(get_db)):
+def login(payload: UserLogin, db: DbSession):
     user = db.query(User).filter(User.email == payload.email).first()
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -50,16 +48,12 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserOut)
-def me(user: User = Depends(get_current_user)):
+def me(user: CurrentUser):
     return user
 
 
 @router.patch("/me", response_model=UserOut)
-def update_me(
-    payload: ProfileUpdate,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
+def update_me(payload: ProfileUpdate, db: DbSession, user: CurrentUser):
     """Update the current user's own profile (username, email, password)."""
     if payload.new_password is not None:
         if not payload.current_password or not verify_password(
@@ -87,7 +81,7 @@ def update_me(
 
 
 @router.post("/media-token", response_model=MediaTokenOut)
-def media_token(user: User = Depends(get_current_user)):
+def media_token(user: CurrentUser):
     """Short-lived URL-safe token for <img>/<a>/WebSocket usage."""
     return MediaTokenOut(
         token=create_media_token(user.id),
