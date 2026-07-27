@@ -131,6 +131,15 @@ export function useDownloads(scope: 'media' | 'cutout' = 'media') {
     replace(await request<Download>(`/downloads/${id}/favorite`, { method: 'PATCH' }))
   }
 
+  /** Keep a download out of the default views without deleting it. */
+  async function toggleHidden(id: number) {
+    try {
+      replace(await request<Download>(`/downloads/${id}/hide`, { method: 'PATCH' }))
+    } catch (e) {
+      error.value = errorMessage(e, 'Could not hide that download.')
+    }
+  }
+
   async function setCategory(payload: { id: number; category: string | null }) {
     try {
       replace(
@@ -278,6 +287,7 @@ export function useDownloads(scope: 'media' | 'cutout' = 'media') {
     submit,
     upload,
     toggleFavorite,
+    toggleHidden,
     setCategory,
     retry,
     cancel,

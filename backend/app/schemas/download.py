@@ -55,6 +55,7 @@ class DownloadOut(BaseModel):
     job_kind: str | None = None
     error: str | None
     is_favorite: bool
+    is_hidden: bool = False
     has_thumbnail: bool
     can_retry: bool
     created_at: datetime

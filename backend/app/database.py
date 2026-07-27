@@ -39,6 +39,8 @@ def run_migrations(conn) -> None:
         ("convert_target", "convert_target VARCHAR(8)"),
         ("category", "category VARCHAR(50)"),
         ("job_kind", "job_kind VARCHAR(16)"),
+        # DEFAULT 0 so rows that predate the column are visible, not NULL
+        ("is_hidden", "is_hidden BOOLEAN NOT NULL DEFAULT 0"),
     ]:
         if name not in columns:
             conn.execute(text(f"ALTER TABLE downloads ADD COLUMN {ddl}"))

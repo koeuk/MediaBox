@@ -85,6 +85,16 @@ def toggle_favorite(download_id: int, db: DbSession, user: CurrentUser):
     return dl
 
 
+@router.patch("/{download_id}/hide", response_model=DownloadOut)
+def toggle_hidden(download_id: int, db: DbSession, user: CurrentUser):
+    """Keep a download out of the default views without deleting its files."""
+    dl = _owned(db, download_id, user)
+    dl.is_hidden = not dl.is_hidden
+    db.commit()
+    db.refresh(dl)
+    return dl
+
+
 @router.patch("/{download_id}/category", response_model=DownloadOut)
 def update_category(
     download_id: int, payload: DownloadCategoryUpdate, db: DbSession, user: CurrentUser

@@ -24,6 +24,7 @@ const {
   submit,
   upload,
   toggleFavorite,
+  toggleHidden,
   setCategory,
   retry,
   cancel,
@@ -43,7 +44,8 @@ const categoryFilter = ref<string | null>(
 )
 
 const visible = computed(() => {
-  let list = downloads.value
+  // hidden rows live on /hidden; this grid never shows them
+  let list = downloads.value.filter((d) => !d.is_hidden)
   if (filter.value === 'favorites') list = list.filter((d) => d.is_favorite)
   if (filter.value === 'active') list = list.filter(isActive)
   if (categoryFilter.value) list = list.filter((d) => d.category === categoryFilter.value)
@@ -54,6 +56,7 @@ const visible = computed(() => {
 
 const previewTarget = ref<Download | null>(null)
 const deleteTarget = ref<Download | null>(null)
+const infoTarget = ref<Download | null>(null)
 
 // stills get a lightbox, playable media gets the player — they want opposite
 // affordances, so each is its own dialog and only one is ever mounted
@@ -127,6 +130,8 @@ onMounted(async () => {
           @convert="convert"
           @remove="deleteTarget = find($event)"
           @preview="previewTarget = find($event)"
+          @info="infoTarget = find($event)"
+          @hide="toggleHidden"
           @cancel="cancel"
           @set-category="setCategory"
         />
@@ -146,6 +151,8 @@ onMounted(async () => {
       @select="(d) => (previewTarget = d)"
       @close="previewTarget = null"
     />
+
+    <InfoDialog :download="infoTarget" @close="infoTarget = null" />
 
     <ConfirmDialog
       :open="!!deleteTarget"

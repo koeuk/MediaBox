@@ -22,6 +22,8 @@ export interface Download {
   job_kind?: string | null
   error: string | null
   is_favorite: boolean
+  /** Kept out of the default views without being deleted. */
+  is_hidden?: boolean
   has_thumbnail: boolean
   can_retry: boolean
   created_at: string

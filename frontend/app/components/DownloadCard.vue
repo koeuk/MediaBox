@@ -9,6 +9,8 @@ const emit = defineEmits<{
   convert: [payload: { id: number; target: string }]
   preview: [id: number]
   cancel: [id: number]
+  info: [id: number]
+  hide: [id: number]
   setCategory: [payload: { id: number; category: string | null }]
 }>()
 
@@ -185,7 +187,6 @@ const orphanTag = computed(
 
     <div class="body">
       <h3 class="name" :title="name">{{ name }}</h3>
-      <p class="url mono" :title="download.url">{{ download.url }}</p>
 
       <div v-if="active" class="progress">
         <div class="progress-track">
@@ -208,33 +209,6 @@ const orphanTag = computed(
         {{ formatBytes(download.total_bytes) }}
         <span v-if="download.content_type"> · {{ download.content_type }}</span>
       </p>
-
-      <!-- Category tag pill + dropdown (teleported to escape overflow:hidden) -->
-      <div class="cat-wrap">
-        <button
-          ref="catAnchor"
-          class="cat-pill mono"
-          :class="{ 'cat-none': !download.category, 'cat-orphan': orphanTag }"
-          :style="tint(download.category)"
-          :title="
-            orphanTag
-              ? `Category: ${download.category} (no longer in your list)`
-              : download.category
-                ? `Category: ${download.category}`
-                : 'Set category'
-          "
-          @click.stop="toggleCatMenu"
-        >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2Z" />
-            <circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" />
-          </svg>
-          {{ download.category || 'Tag' }}
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </button>
-      </div>
 
       <Teleport to="body">
         <Transition name="cat-drop">
@@ -282,14 +256,7 @@ const orphanTag = computed(
       </Teleport>
 
       <div class="actions">
-        <a
-          v-if="download.status === 'completed' && mediaToken"
-          class="btn btn-accent"
-          :href="fileUrl(download.id, 'file')"
-          :download="download.filename || true"
-        >
-          Save
-        </a>
+        <!-- Save lives in the ⋮ menu — CardMenu shows it under the same condition -->
         <button
           v-if="download.status === 'failed' && download.can_retry"
           class="btn btn-accent"
@@ -310,17 +277,42 @@ const orphanTag = computed(
           :targets="targets"
           @pick="(target) => emit('convert', { id: download.id, target })"
         />
-        <button
-          class="btn btn-ghost btn-icon delete-btn"
-          title="Delete"
-          aria-label="Delete"
-          @click="emit('remove', download.id)"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-            <path d="M10 11v6M14 11v6" />
-          </svg>
-        </button>
+
+        <!-- Category tag pill; its dropdown is teleported to escape overflow:hidden -->
+        <div class="cat-wrap">
+          <button
+            ref="catAnchor"
+            class="cat-pill mono"
+            :class="{ 'cat-none': !download.category, 'cat-orphan': orphanTag }"
+            :style="tint(download.category)"
+            :title="
+              orphanTag
+                ? `Category: ${download.category} (no longer in your list)`
+                : download.category
+                  ? `Category: ${download.category}`
+                  : 'Set category'
+            "
+            @click.stop="toggleCatMenu"
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2Z" />
+              <circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" />
+            </svg>
+            <span class="cat-name">{{ download.category || 'Tag' }}</span>
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+        </div>
+
+        <CardMenu
+          class="card-menu"
+          :download="download"
+          hideable
+          @info="emit('info', download.id)"
+          @hide="emit('hide', download.id)"
+          @remove="emit('remove', download.id)"
+        />
       </div>
     </div>
   </article>
@@ -449,15 +441,6 @@ const orphanTag = computed(
   text-overflow: ellipsis;
 }
 
-.url {
-  margin: 0;
-  font-size: 0.68rem;
-  color: var(--text-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .progress {
   display: flex;
   flex-direction: column;
@@ -527,17 +510,20 @@ const orphanTag = computed(
   font-size: 0.72rem;
 }
 
-/* Delete pushed to the right edge, kept on the same row */
-.delete-btn {
+/* The menu sits at the right edge, on the same row as Convert/Retry */
+.card-menu {
   margin-left: auto;
-  color: var(--text-faint);
-  border-color: var(--line-strong);
 }
 
-.delete-btn:hover {
-  color: var(--err);
-  border-color: var(--err);
-  background: var(--err-soft);
+.card-menu :deep(.kebab) {
+  color: var(--text-faint);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+}
+
+.card-menu :deep(.kebab:hover) {
+  color: var(--text);
+  border-color: var(--text-faint);
 }
 
 /* ── Category pill & dropdown ── */

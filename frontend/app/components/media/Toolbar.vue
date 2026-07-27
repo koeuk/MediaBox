@@ -8,6 +8,7 @@ const filter = defineModel<DownloadFilter>('filter', { required: true })
 const category = defineModel<string | null>('category', { required: true })
 const search = defineModel<string>('search', { required: true })
 
+// hidden items have their own page, so there is no tab for them here
 const views: DownloadFilter[] = ['all', 'favorites', 'active']
 </script>
 

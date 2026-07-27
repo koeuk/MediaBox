@@ -4,12 +4,14 @@ import type { Ref } from 'vue'
 const { user, logout } = useAuth()
 const theme = inject<Ref<string>>('theme')!
 const showLogoutConfirm = ref(false)
+const { open, anchor, menu, pos, placed, toggle, close } = usePopMenu()
 
 function toggleTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
 }
 
 function handleLogoutClick() {
+  close()
   showLogoutConfirm.value = true
 }
 
@@ -55,9 +57,61 @@ function confirmLogout() {
         </svg>
         Admin
       </NuxtLink>
-      <NuxtLink v-if="user" to="/profile" class="nav-user mono" title="Edit your profile">
-        {{ user.username }}
-      </NuxtLink>
+      <div v-if="user" class="menu-wrap">
+        <button
+          ref="anchor"
+          class="nav-link settings-btn"
+          :class="{ on: open }"
+          title="Settings"
+          :aria-expanded="open"
+          aria-haspopup="menu"
+          @click.stop="toggle"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+          </svg>
+          Settings
+        </button>
+
+        <Teleport to="body">
+          <Transition name="pop">
+            <div
+              v-if="open"
+              ref="menu"
+              class="pop-menu panel"
+              role="menu"
+              :style="{ top: `${pos.top}px`, left: `${pos.left}px`, visibility: placed ? 'visible' : 'hidden' }"
+              @click.stop
+            >
+              <NuxtLink to="/profile" class="pop-item" role="menuitem" @click="close">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="8" r="3.5" />
+                  <path d="M5 20a7 7 0 0 1 14 0" />
+                </svg>
+                {{ user.username }}
+              </NuxtLink>
+
+              <NuxtLink to="/hidden" class="pop-item" role="menuitem" @click="close">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                  <path d="M1 1l22 22" />
+                </svg>
+                Hidden
+              </NuxtLink>
+
+              <div class="pop-sep" />
+
+              <button class="pop-item danger" role="menuitem" @click="handleLogoutClick">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+                </svg>
+                Logout
+              </button>
+            </div>
+          </Transition>
+        </Teleport>
+      </div>
 
       <button class="btn btn-ghost btn-icon" :title="`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`" @click="toggleTheme">
         <svg v-if="theme === 'dark'" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -68,8 +122,6 @@ function confirmLogout() {
           <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
         </svg>
       </button>
-
-      <button class="btn btn-ghost" @click="handleLogoutClick">Logout</button>
     </div>
 
     <ConfirmDialog
@@ -150,33 +202,92 @@ function confirmLogout() {
   gap: 0.5rem;
 }
 
-.nav-user {
-  font-size: 0.75rem;
-  color: var(--text-dim);
-  padding: 0.4rem 0.6rem;
-  border-radius: 6px;
-  transition: color 0.15s, background 0.15s;
+.menu-wrap {
+  position: relative;
+  display: inline-flex;
 }
 
-.nav-user:hover {
+/* a <button> needs the font reset that NuxtLink's .nav-link gets for free */
+.settings-btn {
+  font-family: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings-btn.on {
   color: var(--text);
   background: var(--surface-hover);
 }
 
-.nav-user.router-link-exact-active {
+.settings-btn.on svg {
   color: var(--accent);
-  background: var(--accent-soft);
+}
+
+.pop-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 160px;
+  padding: 0.3rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.pop-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  font: 500 0.78rem 'Archivo', sans-serif;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.pop-item svg {
+  color: var(--text-faint);
+  flex: none;
+}
+
+.pop-item:hover {
+  background: var(--surface-hover);
+}
+
+.pop-item:hover svg {
+  color: var(--accent);
+}
+
+.pop-item.danger:hover {
+  color: var(--err);
+}
+
+.pop-item.danger:hover svg {
+  color: var(--err);
+}
+
+.pop-sep {
+  height: 1px;
+  margin: 0.25rem 0.2rem;
+  background: var(--line);
+}
+
+.pop-enter-active,
+.pop-leave-active {
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.pop-enter-from,
+.pop-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 @media (max-width: 640px) {
   .nav-link {
     padding: 0.5rem 0.7rem;
-  }
-}
-
-@media (max-width: 560px) {
-  .nav-user {
-    display: none;
   }
 }
 </style>
