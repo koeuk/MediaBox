@@ -85,6 +85,12 @@ async function submit() {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.auth-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
 }
 
 .auth-title {

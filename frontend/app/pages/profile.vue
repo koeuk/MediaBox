@@ -164,6 +164,12 @@ async function changePassword() {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
 }
 
 .card-title {

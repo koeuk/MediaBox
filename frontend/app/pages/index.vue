@@ -460,6 +460,12 @@ watch(search, () => {
 .manage {
   padding: 1.5rem;
   margin-bottom: 1.6rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.manage:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
 }
 
 .hero-title {
