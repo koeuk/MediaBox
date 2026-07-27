@@ -39,6 +39,7 @@ def run_migrations(conn) -> None:
         ("convert_target", "convert_target VARCHAR(8)"),
         ("category", "category VARCHAR(50)"),
         ("job_kind", "job_kind VARCHAR(16)"),
+        ("slides", "slides TEXT"),
         # DEFAULT 0 so rows that predate the column are visible, not NULL
         ("is_hidden", "is_hidden BOOLEAN NOT NULL DEFAULT 0"),
     ]:

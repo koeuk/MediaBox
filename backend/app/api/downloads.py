@@ -150,7 +150,8 @@ def remove_background(
 @router.delete("/{download_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_download(download_id: int, db: DbSession, user: CurrentUser):
     dl = _owned(db, download_id, user)
-    storage.delete_files(dl.file_path, dl.thumbnail_path)
+    # slide 1 is also file_path; delete_files tolerates the repeat
+    storage.delete_files(dl.file_path, dl.thumbnail_path, *dl.slide_paths)
     db.delete(dl)
     db.commit()
 
@@ -169,6 +170,19 @@ def download_file(download_id: int, db: DbSession, user: MediaUser):
         filename=dl.filename or "download",
         media_type=dl.content_type or "application/octet-stream",
     )
+
+
+@router.get("/{download_id}/slide/{index}")
+def download_slide(download_id: int, index: int, db: DbSession, user: MediaUser):
+    """One image out of a multi-image post, by zero-based position."""
+    dl = _owned(db, download_id, user)
+    slides = dl.slide_paths
+    if dl.status != DownloadStatus.completed or not 0 <= index < len(slides):
+        raise HTTPException(status_code=404, detail="Slide not available")
+    path = Path(slides[index])
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Slide not available")
+    return FileResponse(path, filename=path.name.split("_", 1)[-1], media_type="image/jpeg")
 
 
 @router.get("/{download_id}/thumbnail")

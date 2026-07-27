@@ -27,6 +27,8 @@ const name = computed(
 
 const kind = computed(() => mediaKind(props.download.content_type))
 
+const slideCount = computed(() => props.download.slide_count ?? 1)
+
 const active = computed(
   () => props.download.status === 'queued' || props.download.status === 'downloading'
 )
@@ -171,6 +173,15 @@ const orphanTag = computed(
       <span class="badge status" :class="`badge-${download.status}`">
         <span v-if="active" class="dot" />
         {{ download.status }}
+      </span>
+
+      <!-- a photo post is many images under one record; say so up front -->
+      <span v-if="slideCount > 1" class="badge slides mono" :title="`${slideCount} photos`">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+          <rect x="8" y="3" width="13" height="13" rx="2" />
+          <path d="M16 20H5a2 2 0 0 1-2-2V7" />
+        </svg>
+        {{ slideCount }}
       </span>
 
       <button
@@ -395,6 +406,17 @@ const orphanTag = computed(
   position: absolute;
   top: 0.6rem;
   left: 0.6rem;
+  backdrop-filter: blur(6px);
+}
+
+/* bottom-left, clear of the status badge above and the star opposite */
+.slides {
+  position: absolute;
+  bottom: 0.6rem;
+  left: 0.6rem;
+  gap: 0.25rem;
+  background: color-mix(in srgb, #000 62%, transparent);
+  color: #fff;
   backdrop-filter: blur(6px);
 }
 

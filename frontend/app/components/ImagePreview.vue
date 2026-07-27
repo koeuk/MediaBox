@@ -16,13 +16,34 @@ const props = withDefaults(
 
 const emit = defineEmits<{ close: []; select: [download: Download] }>()
 
-const { fileUrl } = useApi()
+const { fileUrl, slideUrl } = useApi()
 
 const name = computed(
   () => props.download?.title || props.download?.filename || props.download?.url || ''
 )
 
-const src = computed(() => (props.download ? fileUrl(props.download.id, 'file') : ''))
+// ── Slides ────────────────────────────────────────────────────────────
+//
+// A TikTok photo post is many images under one record. Those are stepped
+// through in place, so ← and → move within the post rather than leaving it.
+
+const slideCount = computed(() => props.download?.slide_count ?? 1)
+const isSlideshow = computed(() => slideCount.value > 1)
+const slide = ref(0)
+
+// a different post starts at its first slide
+watch(() => props.download?.id, () => (slide.value = 0))
+
+function stepSlide(delta: number) {
+  slide.value = (slide.value + delta + slideCount.value) % slideCount.value
+}
+
+const src = computed(() => {
+  if (!props.download) return ''
+  return isSlideshow.value
+    ? slideUrl(props.download.id, slide.value)
+    : fileUrl(props.download.id, 'file')
+})
 
 /** Other stills to step through, current one included. */
 const gallery = computed(() => {
@@ -39,12 +60,19 @@ const index = computed(() =>
   props.download ? gallery.value.findIndex((d) => d.id === props.download!.id) : -1
 )
 
+/** Inside a slideshow the arrows walk its slides; otherwise the gallery. */
 function step(delta: number) {
+  if (isSlideshow.value) {
+    stepSlide(delta)
+    return
+  }
   const list = gallery.value
   if (list.length < 2 || index.value < 0) return
   const next = (index.value + delta + list.length) % list.length
   emit('select', list[next]!)
 }
+
+const steppable = computed(() => isSlideshow.value || gallery.value.length > 1)
 
 // ── Zoom & pan ────────────────────────────────────────────────────────
 
@@ -96,8 +124,9 @@ function onPointerUp(e: PointerEvent) {
   ;(e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId)
 }
 
-// a different picture starts fresh rather than inheriting the last zoom
+// a different picture — or slide — starts fresh rather than inheriting the zoom
 watch(() => props.download?.id, reset)
+watch(slide, reset)
 
 // transparency is the point of a cutout, so show it against a checkerboard
 const checkered = ref(true)
@@ -130,7 +159,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
           <header class="head">
             <h3 class="head-name" :title="name">{{ name }}</h3>
 
-            <span v-if="gallery.length > 1" class="counter mono">
+            <span v-if="isSlideshow" class="counter mono">
+              {{ slide + 1 }} / {{ slideCount }} photos
+            </span>
+            <span v-else-if="gallery.length > 1" class="counter mono">
               {{ index + 1 }} / {{ gallery.length }}
             </span>
 
@@ -144,10 +176,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
               Alpha
             </button>
 
+            <!-- src already points at the visible slide, so this saves that one -->
             <a
               class="btn btn-ghost head-btn"
               :href="src"
               :download="download.filename || true"
+              :title="isSlideshow ? `Save photo ${slide + 1}` : 'Save'"
             >
               Save
             </a>
@@ -178,7 +212,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
             />
 
             <button
-              v-if="gallery.length > 1"
+              v-if="steppable"
               class="step prev"
               title="Previous image (←)"
               aria-label="Previous image"
@@ -189,7 +223,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
               </svg>
             </button>
             <button
-              v-if="gallery.length > 1"
+              v-if="steppable"
               class="step next"
               title="Next image (→)"
               aria-label="Next image"
@@ -199,6 +233,20 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
                 <path d="m9 18 6-6-6-6" />
               </svg>
             </button>
+          </div>
+
+          <!-- jump straight to a slide; only worth showing for a short post -->
+          <div v-if="isSlideshow && slideCount <= 20" class="dots">
+            <button
+              v-for="n in slideCount"
+              :key="n"
+              class="dot"
+              :class="{ on: n - 1 === slide }"
+              :title="`Photo ${n}`"
+              :aria-label="`Photo ${n}`"
+              :aria-current="n - 1 === slide"
+              @click="slide = n - 1"
+            />
           </div>
 
           <footer class="foot">
@@ -333,6 +381,35 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 
 .step.next {
   right: 0.7rem;
+}
+
+.dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.55rem 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--line-strong);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.dot:hover {
+  background: var(--text-faint);
+}
+
+.dot.on {
+  background: var(--accent);
+  transform: scale(1.35);
 }
 
 .foot {

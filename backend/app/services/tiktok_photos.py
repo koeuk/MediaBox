@@ -6,16 +6,16 @@ music and you get an m4a instead of the pictures. The images *are* present in
 the metadata yt-dlp already fetches, under `imagePost.images[]`, so this module
 reuses yt-dlp's web extraction to read them and downloads them itself.
 
-Output depends on the post:
-  * one slide   -> the image is saved as-is (the music is dropped)
-  * many slides -> an MP4 slideshow muxed with the post's audio, so the result
-                   behaves like every other video in the box (preview,
-                   thumbnail, convert) instead of a pile of loose files
+The slides are kept as images, mirroring what the post is on TikTok: every
+image is saved and the record carries the ordered list in `Download.slides`,
+which the preview steps through as a slider. `file_path` points at slide 1, so
+the thumbnail, Save and card paths behave like any other image.
+
+The post's background music is dropped — there is no video to carry it.
 """
 
-import mimetypes
+import json
 import re
-import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,12 +27,6 @@ from app.models import DownloadStatus
 from app.services import ffmpeg, storage
 from app.services.ssrf import ensure_public_host
 from app.services.tasks import checkpoint
-
-# canvas bounds for the rendered slideshow; slides are letterboxed to fit
-MAX_W, MAX_H = 1080, 1920
-# per-slide screen time, and the window we squeeze it into when there's audio
-DEFAULT_SLIDE_SECONDS = 3.0
-MIN_SLIDE_SECONDS, MAX_SLIDE_SECONDS = 2.0, 8.0
 
 _PHOTO_PATH_RE = re.compile(r"^/@[\w.-]+/photo/(\d+)")
 _TIMEOUT = httpx.Timeout(30.0, read=120.0)
@@ -118,70 +112,6 @@ def _download(client: httpx.Client, mirrors: list[str], dest: Path, limit: int) 
     raise ValueError(f"Could not download a slide ({last_error})")
 
 
-def _canvas(sizes: list[tuple[int, int]]) -> tuple[int, int]:
-    """An even-dimensioned canvas that fits the largest slide within bounds."""
-    width = max((w for w, _ in sizes if w), default=0) or MAX_W
-    height = max((h for _, h in sizes if h), default=0) or MAX_H
-    scale = min(MAX_W / width, MAX_H / height, 1.0)
-    # libx264 with yuv420p requires even dimensions
-    return max(2, int(width * scale) // 2 * 2), max(2, int(height * scale) // 2 * 2)
-
-
-def _render_slideshow(
-    images: list[Path], audio: Path | None, sizes: list[tuple[int, int]], dest: Path
-) -> None:
-    """Mux the slides (and audio, if any) into an MP4."""
-    width, height = _canvas(sizes)
-
-    seconds = DEFAULT_SLIDE_SECONDS
-    if audio:
-        duration = ffmpeg.probe_duration(audio)
-        if duration:
-            seconds = min(max(duration / len(images), MIN_SLIDE_SECONDS), MAX_SLIDE_SECONDS)
-
-    total = seconds * len(images)
-
-    args = ["ffmpeg", "-y"]
-    for image in images:
-        args += ["-loop", "1", "-t", f"{seconds:.3f}", "-i", str(image)]
-    if audio:
-        args += ["-i", str(audio)]
-
-    fit = (
-        f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p"
-    )
-    steps = [f"[{i}:v]{fit}[v{i}]" for i in range(len(images))]
-    steps.append(
-        "".join(f"[v{i}]" for i in range(len(images)))
-        + f"concat=n={len(images)}:v=1:a=0[v]"
-    )
-    if audio:
-        # whole_dur bounds the padding to the slideshow length. A bare `apad`
-        # pads forever, and -shortest does NOT reliably stop an endless stream
-        # coming from the filter graph — ffmpeg then encodes silence until it
-        # is killed. Never drop this argument.
-        steps.append(f"[{len(images)}:a]apad=whole_dur={total:.3f}[a]")
-
-    args += ["-filter_complex", ";".join(steps), "-map", "[v]"]
-    if audio:
-        args += ["-map", "[a]", "-c:a", "aac", "-b:a", "128k"]
-    args += [
-        # a hard output limit, so a filter that misbehaves still terminates
-        "-t", f"{total:.3f}",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-        "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(dest),
-    ]
-
-    result = subprocess.run(args, capture_output=True, timeout=600)
-    if result.returncode != 0 or not dest.exists() or not dest.stat().st_size:
-        detail = result.stderr.decode("utf-8", "replace").strip().splitlines()
-        raise ValueError(
-            "Could not build the slideshow video"
-            + (f": {detail[-1][:200]}" if detail else "")
-        )
-
-
 def run_photo_post(dl, db, url: str | None = None) -> None:
     """Fetch a TikTok photo post onto `dl`, tracking progress as it goes."""
     source = url or dl.url
@@ -194,11 +124,6 @@ def run_photo_post(dl, db, url: str | None = None) -> None:
     if not slides:
         raise ValueError("TikTok returned no images for this post")
 
-    sizes = [
-        (image.get("imageWidth") or 0, image.get("imageHeight") or 0)
-        for image in (data.get("imagePost") or {}).get("images") or []
-    ]
-    audio_url = (data.get("music") or {}).get("playUrl")
     title = (data.get("desc") or "").strip() or f"TikTok photo {video_id}"
     limit = storage.max_bytes()
 
@@ -222,46 +147,34 @@ def run_photo_post(dl, db, url: str | None = None) -> None:
                 path = tmp / f"slide_{index:03d}.jpg"
                 downloaded += _download(client, mirrors, path, limit - downloaded)
                 images.append(path)
-                # slides are ~85% of the work; the render is the rest
-                dl.progress = round((index + 1) / len(slides) * 85, 1)
+                dl.progress = round((index + 1) / len(slides) * 95, 1)
                 dl.downloaded_bytes = downloaded
                 dl.total_bytes = downloaded
                 db.commit()
 
-            audio: Path | None = None
-            if audio_url and len(images) > 1:
-                try:
-                    audio = tmp / "audio.m4a"
-                    downloaded += _download(client, [audio_url], audio, limit - downloaded)
-                except ValueError:
-                    audio = None  # a silent slideshow beats no slideshow
-
         checkpoint(dl.id)
 
-        if len(images) == 1:
-            # a single-slide post is just a picture — keep it as one
-            suffix = mimetypes.guess_extension(
-                mimetypes.guess_type(str(images[0]))[0] or "image/jpeg"
-            ) or ".jpg"
-            dest = storage.new_path(dl.user_id, f"{title[:80]}{suffix}")
-            dest.write_bytes(images[0].read_bytes())
-            content_type = "image/jpeg"
-        else:
-            dl.progress = 90.0
-            db.commit()
-            dest = storage.new_path(dl.user_id, f"{title[:80]}.mp4")
-            _render_slideshow(images, audio, sizes, dest)
-            content_type = "video/mp4"
+        # staged in the temp dir first: a slide that fails partway through
+        # would otherwise leave orphans in the user's folder
+        stored: list[Path] = []
+        multi = len(images) > 1
+        for index, image in enumerate(images):
+            name = f"{title[:70]} {index + 1:02d}.jpg" if multi else f"{title[:80]}.jpg"
+            dest = storage.new_path(dl.user_id, name)
+            dest.write_bytes(image.read_bytes())
+            stored.append(dest)
 
-    size = dest.stat().st_size
+    first = stored[0]
+    size = sum(path.stat().st_size for path in stored)
     dl.title = dl.title or title
-    dl.filename = dest.name.split("_", 1)[-1]
-    dl.file_path = str(dest)
-    dl.content_type = content_type
+    dl.filename = first.name.split("_", 1)[-1]
+    dl.file_path = str(first)
+    dl.slides = json.dumps([str(p) for p in stored]) if multi else None
+    dl.content_type = "image/jpeg"
     dl.total_bytes = size
     dl.downloaded_bytes = size
     dl.progress = 100.0
-    dl.thumbnail_path = ffmpeg.make_thumbnail(dest, content_type)
+    dl.thumbnail_path = ffmpeg.make_thumbnail(first, "image/jpeg")
     dl.status = DownloadStatus.completed
     dl.completed_at = datetime.now(timezone.utc)
     db.commit()

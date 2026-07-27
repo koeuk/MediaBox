@@ -37,6 +37,11 @@ export function useApi() {
     return `${config.public.apiBase}/downloads/${id}/${kind}?token=${mediaToken.value}`
   }
 
+  /** One image out of a multi-image post, by zero-based position. */
+  function slideUrl(id: number, index: number) {
+    return `${config.public.apiBase}/downloads/${id}/slide/${index}?token=${mediaToken.value}`
+  }
+
   /** ws:// URL for the live-progress socket, derived from the API base. */
   function wsUrl() {
     const base = config.public.apiBase
@@ -44,5 +49,5 @@ export function useApi() {
     return `${abs.replace(/^http/, 'ws')}/ws/progress?token=${mediaToken.value}`
   }
 
-  return { request, fileUrl, wsUrl, mediaToken, refreshMediaToken }
+  return { request, fileUrl, slideUrl, wsUrl, mediaToken, refreshMediaToken }
 }

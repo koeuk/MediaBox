@@ -20,6 +20,8 @@ export interface Download {
   category?: string | null
   /** "cutout" for background removal; null for downloads and conversions. */
   job_kind?: string | null
+  /** >1 for a multi-image post (a TikTok photo slideshow), else 1. */
+  slide_count?: number
   error: string | null
   is_favorite: boolean
   /** Kept out of the default views without being deleted. */

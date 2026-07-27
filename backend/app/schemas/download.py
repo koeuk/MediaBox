@@ -53,6 +53,8 @@ class DownloadOut(BaseModel):
     category: str | None = None
     # "cutout" for background removal; null for downloads and conversions
     job_kind: str | None = None
+    # >1 for a multi-image post; fetch each one from /downloads/{id}/slide/{n}
+    slide_count: int = 1
     error: str | None
     is_favorite: bool
     is_hidden: bool = False

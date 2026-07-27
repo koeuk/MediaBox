@@ -1,4 +1,5 @@
 import enum
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -41,6 +42,10 @@ class Download(Base):
     # what every row created before this column existed is
     job_kind: Mapped[str | None] = mapped_column(String(16), nullable=True, default=None)
     file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # JSON array of absolute paths for a multi-image post (a TikTok photo
+    # slideshow). NULL for everything else, which is a single file. file_path
+    # points at slide 1 so the thumbnail, Save and preview paths keep working.
+    slides: Mapped[str | None] = mapped_column(Text, nullable=True)
     thumbnail_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -58,6 +63,22 @@ class Download(Base):
     @property
     def has_thumbnail(self) -> bool:
         return self.thumbnail_path is not None
+
+    @property
+    def slide_paths(self) -> list[str]:
+        """Every image in a multi-image post, in order. Empty for a single file."""
+        if not self.slides:
+            return []
+        try:
+            paths = json.loads(self.slides)
+        except ValueError:
+            return []
+        return [p for p in paths if isinstance(p, str)]
+
+    @property
+    def slide_count(self) -> int:
+        """How many images this record holds; 1 for an ordinary single file."""
+        return len(self.slide_paths) or 1
 
     @property
     def is_derived(self) -> bool:

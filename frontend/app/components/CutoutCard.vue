@@ -24,6 +24,30 @@ const broken = ref(false)
 // a fresh media token may fix an image that 401'd on an expired one
 watch(mediaToken, () => (broken.value = false))
 
+/**
+ * The tile takes the picture's own proportions instead of a fixed square, so a
+ * wide banner doesn't sit in a sea of empty checkerboard. Clamped at both ends:
+ * a panorama would otherwise collapse to a sliver and a tall portrait would
+ * tower over its row.
+ */
+const MIN_RATIO = 0.7 // tallest allowed (w/h) — roughly 5:7 portrait
+const MAX_RATIO = 1.9 // widest allowed  — roughly 2:1 banner
+
+const ratio = ref<number | null>(null)
+
+function onLoad(e: Event) {
+  const img = e.target as HTMLImageElement
+  if (!img.naturalWidth || !img.naturalHeight) return
+  ratio.value = Math.min(MAX_RATIO, Math.max(MIN_RATIO, img.naturalWidth / img.naturalHeight))
+}
+
+// square until the image reports its size, so the grid doesn't jump on load
+const shotStyle = computed(() => ({ aspectRatio: `${ratio.value ?? 1}` }))
+
+// a different record means the old proportions no longer apply
+watch(() => props.download.id, () => (ratio.value = null))
+
+
 const name = computed(() => props.download.title || props.download.filename || props.download.url)
 const active = computed(
   () => props.download.status === 'queued' || props.download.status === 'downloading'
@@ -37,6 +61,7 @@ const failed = computed(() => props.download.status === 'failed')
     <div
       class="shot alpha-grid"
       :class="{ clickable: ready }"
+      :style="shotStyle"
       :title="ready ? name : undefined"
       @click="ready && emit('preview', download.id)"
     >
@@ -45,6 +70,7 @@ const failed = computed(() => props.download.status === 'failed')
         :src="fileUrl(download.id, 'file')"
         :alt="name"
         loading="lazy"
+        @load="onLoad"
         @error="broken = true"
       />
 
@@ -110,6 +136,8 @@ const failed = computed(() => props.download.status === 'failed')
   overflow: hidden;
   /* a <figure> defaults to `margin: 1em 40px`; the grid owns the spacing */
   margin: 0;
+  /* fill the row, which is as tall as the tallest tile in it */
+  height: 100%;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
@@ -128,9 +156,14 @@ const failed = computed(() => props.download.status === 'failed')
 
 .shot {
   position: relative;
-  /* every tile is the same square, so grid rows stay flush — the image is
-     fitted inside rather than cropped, so nothing is lost */
+  /* The inline aspect-ratio (from the image's own dimensions) sets how tall
+     this tile *asks* to be; the tallest ask in a row wins and the rest grow to
+     match, so a row is flush and no card is left stunted. */
   aspect-ratio: 1 / 1;
+  /* width must be pinned first, or aspect-ratio derives the width from the
+     stretched height and the picture overflows the column */
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   /* the checkerboard needs a surface under it; .alpha-grid only draws layers */
   background-color: var(--bg-raised);
