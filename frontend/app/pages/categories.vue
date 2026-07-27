@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Category } from '~/composables/useCategories'
+import type { Category } from '~/types'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -38,8 +38,8 @@ const pendingDelete = ref<Category | null>(null)
 onMounted(async () => {
   try {
     await fetchCategories(true)
-  } catch (e: any) {
-    error.value = e?.data?.detail || 'Could not load categories.'
+  } catch (e) {
+    error.value = errorMessage(e, 'Could not load categories.')
   } finally {
     loading.value = false
   }
@@ -56,14 +56,6 @@ function flash(msg: string) {
   }, 2500)
 }
 
-function describe(e: any, fallback: string) {
-  const detail = e?.data?.detail
-  if (typeof detail === 'string') return detail
-  // pydantic validation errors arrive as an array of objects
-  if (Array.isArray(detail)) return detail[0]?.msg || fallback
-  return fallback
-}
-
 async function add() {
   const name = newName.value.trim()
   if (!name || creating.value) return
@@ -73,8 +65,8 @@ async function add() {
     await createCategory(name, newColor.value)
     newName.value = ''
     flash(`Added "${name}"`)
-  } catch (e: any) {
-    error.value = describe(e, 'Could not create that category.')
+  } catch (e) {
+    error.value = fieldErrorMessage(e, 'Could not create that category.')
   } finally {
     creating.value = false
   }
@@ -114,8 +106,8 @@ async function saveEdit() {
         ? `Renamed — ${cat.download_count} download${cat.download_count === 1 ? '' : 's'} retagged`
         : 'Saved'
     )
-  } catch (e: any) {
-    error.value = describe(e, 'Could not save that category.')
+  } catch (e) {
+    error.value = fieldErrorMessage(e, 'Could not save that category.')
   } finally {
     saving.value = false
   }
@@ -132,9 +124,9 @@ async function move(index: number, delta: number) {
   categories.value = ids.map((id) => before.find((c) => c.id === id)!)
   try {
     await reorderCategories(ids)
-  } catch (e: any) {
+  } catch (e) {
     categories.value = before
-    error.value = describe(e, 'Could not reorder categories.')
+    error.value = fieldErrorMessage(e, 'Could not reorder categories.')
   }
 }
 
@@ -150,8 +142,8 @@ async function confirmDelete() {
         ? `Deleted "${cat.name}" — ${cat.download_count} download${cat.download_count === 1 ? '' : 's'} untagged`
         : `Deleted "${cat.name}"`
     )
-  } catch (e: any) {
-    error.value = describe(e, 'Could not delete that category.')
+  } catch (e) {
+    error.value = fieldErrorMessage(e, 'Could not delete that category.')
   }
 }
 

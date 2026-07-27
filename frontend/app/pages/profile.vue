@@ -32,8 +32,8 @@ async function saveProfile() {
   try {
     await updateProfile({ username: username.value, email: email.value })
     profileMsg.value = 'Profile updated'
-  } catch (e: any) {
-    profileErr.value = e?.data?.detail || 'Could not update profile.'
+  } catch (e) {
+    profileErr.value = errorMessage(e, 'Could not update profile.')
   } finally {
     savingProfile.value = false
   }
@@ -51,11 +51,12 @@ async function changePassword() {
     pwMsg.value = 'Password changed'
     currentPassword.value = ''
     newPassword.value = ''
-  } catch (e: any) {
-    const detail = e?.data?.detail
-    pwErr.value = Array.isArray(detail)
-      ? 'New password must be at least 6 characters.'
-      : detail || 'Could not change password.'
+  } catch (e) {
+    pwErr.value = errorMessage(
+      e,
+      'Could not change password.',
+      'New password must be at least 6 characters.'
+    )
   } finally {
     savingPw.value = false
   }
@@ -77,7 +78,7 @@ async function changePassword() {
       </header>
 
       <div class="cards">
-        <form class="panel card reveal" style="animation-delay: 0.05s" @submit.prevent="saveProfile">
+        <form class="panel panel-hover card reveal" style="animation-delay: 0.05s" @submit.prevent="saveProfile">
           <h2 class="card-title">Account details</h2>
 
           <p v-if="profileErr" class="msg err mono">{{ profileErr }}</p>
@@ -94,7 +95,7 @@ async function changePassword() {
           </button>
         </form>
 
-        <form class="panel card reveal" style="animation-delay: 0.1s" @submit.prevent="changePassword">
+        <form class="panel panel-hover card reveal" style="animation-delay: 0.1s" @submit.prevent="changePassword">
           <h2 class="card-title">Change password</h2>
 
           <p v-if="pwErr" class="msg err mono">{{ pwErr }}</p>
@@ -164,12 +165,6 @@ async function changePassword() {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-.card:hover {
-  border-color: var(--line-strong);
-  box-shadow: var(--shadow);
 }
 
 .card-title {

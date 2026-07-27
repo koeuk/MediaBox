@@ -195,12 +195,62 @@ a {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* ── Segmented filter control ───────────────────────────────────────── */
+/* Shared by the view tabs and the category carousel, which live in separate
+   components — scoped styles could not reach both. */
+
+.filters {
+  display: flex;
+  gap: 0.3rem;
+  /* --surface would vanish against the card these sit on */
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0.25rem;
+}
+
+.filter-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.42rem 0.8rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex: none;
+  white-space: nowrap;
+}
+
+.filter-btn:hover {
+  color: var(--text);
+}
+
+.filter-btn.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
 /* ── Cards / misc ───────────────────────────────────────────────────── */
 
 .panel {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
+}
+
+/* A .panel that lifts on hover — the media toolbar, profile and auth cards. */
+.panel-hover {
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.panel-hover:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
 }
 
 .badge {

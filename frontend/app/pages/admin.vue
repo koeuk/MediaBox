@@ -1,37 +1,7 @@
 <script setup lang="ts">
+import type { AdminDownload, AdminStats, AdminUser } from '~/types'
+
 definePageMeta({ middleware: 'auth' })
-
-interface AdminStats {
-  users: number
-  downloads: number
-  queued: number
-  downloading: number
-  completed: number
-  failed: number
-  favorites: number
-  bytes_stored: number
-}
-
-interface AdminUser {
-  id: number
-  email: string
-  username: string
-  is_admin: boolean
-  created_at: string
-  download_count: number
-  bytes_stored: number
-}
-
-interface AdminDownload {
-  id: number
-  username: string
-  title: string | null
-  filename: string | null
-  url: string
-  status: 'queued' | 'downloading' | 'completed' | 'failed'
-  total_bytes: number
-  created_at: string
-}
 
 const { request } = useApi()
 const { user, fetchUser } = useAuth()
@@ -40,17 +10,6 @@ const stats = ref<AdminStats | null>(null)
 const users = ref<AdminUser[]>([])
 const recent = ref<AdminDownload[]>([])
 const denied = ref(false)
-
-function formatBytes(n: number) {
-  if (!n) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1)
-  return `${(n / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${units[i]}`
-}
-
-function formatDate(s: string) {
-  return new Date(s).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-}
 
 onMounted(async () => {
   if (!user.value) await fetchUser()

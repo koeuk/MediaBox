@@ -1,11 +1,4 @@
-export interface Category {
-  id: number
-  name: string
-  color: string
-  position: number
-  created_at: string
-  download_count: number
-}
+import type { Category } from '~/types'
 
 /**
  * Shared category list. The tag dropdown on every card, the filter carousel

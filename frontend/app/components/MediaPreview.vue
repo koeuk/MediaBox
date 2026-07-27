@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Download } from '~/composables/useApi'
+import type { Download } from '~/types'
 
 const props = withDefaults(
   defineProps<{
@@ -80,13 +80,13 @@ function selectItem(item: Download) {
 function prevItem() {
   if (!playlist.value.length) return
   const prevIdx = currentIndex.value > 0 ? currentIndex.value - 1 : playlist.value.length - 1
-  selectAndReplay(playlist.value[prevIdx])
+  selectAndReplay(playlist.value[prevIdx]!)
 }
 
 function nextItem() {
   if (!playlist.value.length) return
   const nextIdx = currentIndex.value < playlist.value.length - 1 ? currentIndex.value + 1 : 0
-  selectAndReplay(playlist.value[nextIdx])
+  selectAndReplay(playlist.value[nextIdx]!)
 }
 
 /** Auto next advances through the playlist; Manual loops the current item.
@@ -105,13 +105,7 @@ function onEnded() {
   if (next) selectAndReplay(next)
 }
 
-const kind = computed(() => {
-  const ct = props.download?.content_type || ''
-  if (ct.startsWith('video/')) return 'video'
-  if (ct.startsWith('audio/')) return 'audio'
-  if (ct.startsWith('image/')) return 'image'
-  return 'file'
-})
+const kind = computed(() => mediaKind(props.download?.content_type))
 
 const name = computed(
   () => props.download?.title || props.download?.filename || props.download?.url || ''

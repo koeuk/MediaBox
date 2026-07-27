@@ -1,23 +1,7 @@
-export interface Download {
-  id: number
-  url: string
-  title: string | null
-  filename: string | null
-  status: 'queued' | 'downloading' | 'completed' | 'failed'
-  progress: number
-  total_bytes: number
-  downloaded_bytes: number
-  content_type: string | null
-  quality: string | null
-  category?: string | null
-  error: string | null
-  is_favorite: boolean
-  has_thumbnail: boolean
-  can_retry: boolean
-  created_at: string
-  completed_at: string | null
-}
-
+/**
+ * Thin wrapper over `$fetch` that carries the bearer token, plus the two URL
+ * builders that need the separate media token.
+ */
 export function useApi() {
   const config = useRuntimeConfig()
   const { token } = useAuth()

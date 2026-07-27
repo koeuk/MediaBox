@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Download } from '~/composables/useApi'
+import type { Download } from '~/types'
 
 const props = defineProps<{ download: Download }>()
 const emit = defineEmits<{
@@ -23,42 +23,21 @@ const name = computed(
   () => props.download.title || props.download.filename || props.download.url
 )
 
-const kind = computed(() => {
-  const ct = props.download.content_type || ''
-  if (ct.startsWith('video/')) return 'video'
-  if (ct.startsWith('audio/')) return 'audio'
-  if (ct.startsWith('image/')) return 'image'
-  return 'file'
-})
+const kind = computed(() => mediaKind(props.download.content_type))
 
 const active = computed(
   () => props.download.status === 'queued' || props.download.status === 'downloading'
 )
 
-function formatBytes(n: number) {
-  if (!n) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1)
-  return `${(n / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${units[i]}`
-}
-
 const previewable = computed(
-  () =>
-    props.download.status === 'completed' &&
-    ['video', 'audio', 'image'].includes(kind.value)
+  () => props.download.status === 'completed' && kind.value !== 'file'
 )
 
 function onThumbClick() {
   if (previewable.value) emit('preview', props.download.id)
 }
 
-const convertTargets = computed(() =>
-  kind.value === 'video'
-    ? ['mp4', 'webm', 'gif', 'mp3', 'm4a', 'wav']
-    : kind.value === 'audio'
-      ? ['mp3', 'm4a', 'wav']
-      : []
-)
+const targets = computed(() => convertTargets(kind.value))
 
 const catOpen = ref(false)
 const catAnchor = ref<HTMLElement>()
@@ -322,8 +301,8 @@ const orphanTag = computed(
           Stop
         </button>
         <ConvertMenu
-          v-if="download.status === 'completed' && convertTargets.length"
-          :targets="convertTargets"
+          v-if="download.status === 'completed' && targets.length"
+          :targets="targets"
           @pick="(target) => emit('convert', { id: download.id, target })"
         />
         <button

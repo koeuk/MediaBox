@@ -1,10 +1,4 @@
-interface User {
-  id: number
-  email: string
-  username: string
-  is_admin: boolean
-  created_at: string
-}
+import type { User } from '~/types'
 
 interface TokenOut {
   access_token: string
