@@ -42,9 +42,12 @@ const categoryFilter = ref<string | null>(
   typeof route.query.category === 'string' ? route.query.category : null
 )
 
+/** Hidden rows live on /hidden — this page never shows them, in the grid or
+ *  in the preview dialogs' playlist. */
+const unhidden = computed(() => downloads.value.filter((d) => !d.is_hidden))
+
 const visible = computed(() => {
-  // hidden rows live on /hidden; this grid never shows them
-  let list = downloads.value.filter((d) => !d.is_hidden)
+  let list = unhidden.value
   if (filter.value === 'favorites') list = list.filter((d) => d.is_favorite)
   if (filter.value === 'active') list = list.filter(isActive)
   if (filter.value === 'failed') list = list.filter((d) => d.status === 'failed')
@@ -56,7 +59,7 @@ const visible = computed(() => {
  *  so each number is exactly how many cards clicking it shows. `search` is
  *  applied server-side, so `downloads` already reflects it. */
 const counts = computed<Record<DownloadFilter, number>>(() => {
-  let list = downloads.value.filter((d) => !d.is_hidden)
+  let list = unhidden.value
   if (categoryFilter.value) list = list.filter((d) => d.category === categoryFilter.value)
   return {
     all: list.length,
@@ -158,14 +161,14 @@ onMounted(async () => {
 
     <MediaPreview
       :download="previewMedia"
-      :downloads="downloads"
+      :downloads="unhidden"
       @select="(d) => (previewTarget = d)"
       @close="previewTarget = null"
     />
 
     <ImagePreview
       :download="previewImage"
-      :images="downloads"
+      :images="unhidden"
       @select="(d) => (previewTarget = d)"
       @close="previewTarget = null"
     />
