@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -14,6 +14,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(80))
     hashed_password: Mapped[str] = mapped_column(String(255))
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    # absolute path to the profile picture; NULL means the initials fallback
+    avatar_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -21,3 +23,7 @@ class User(Base):
     downloads = relationship(
         "Download", back_populates="owner", cascade="all, delete-orphan"
     )
+
+    @property
+    def has_avatar(self) -> bool:
+        return self.avatar_path is not None

@@ -32,16 +32,25 @@ def run_migrations(conn) -> None:
     """
     from sqlalchemy import inspect, text
 
-    columns = {c["name"] for c in inspect(conn).get_columns("downloads")}
-    for name, ddl in [
-        ("quality", "quality VARCHAR(8)"),
-        ("convert_source", "convert_source TEXT"),
-        ("convert_target", "convert_target VARCHAR(8)"),
-        ("category", "category VARCHAR(50)"),
-        ("job_kind", "job_kind VARCHAR(16)"),
-        ("slides", "slides TEXT"),
-        # DEFAULT 0 so rows that predate the column are visible, not NULL
-        ("is_hidden", "is_hidden BOOLEAN NOT NULL DEFAULT 0"),
-    ]:
-        if name not in columns:
-            conn.execute(text(f"ALTER TABLE downloads ADD COLUMN {ddl}"))
+    added = {
+        "downloads": [
+            ("quality", "quality VARCHAR(8)"),
+            ("convert_source", "convert_source TEXT"),
+            ("convert_target", "convert_target VARCHAR(8)"),
+            ("category", "category VARCHAR(50)"),
+            ("job_kind", "job_kind VARCHAR(16)"),
+            ("slides", "slides TEXT"),
+            # DEFAULT 0 so rows that predate the column are visible, not NULL
+            ("is_hidden", "is_hidden BOOLEAN NOT NULL DEFAULT 0"),
+        ],
+        "users": [
+            ("avatar_path", "avatar_path TEXT"),
+        ],
+    }
+
+    inspector = inspect(conn)
+    for table, columns in added.items():
+        existing = {c["name"] for c in inspector.get_columns(table)}
+        for name, ddl in columns:
+            if name not in existing:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {ddl}"))

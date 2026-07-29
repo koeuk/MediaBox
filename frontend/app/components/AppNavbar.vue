@@ -5,6 +5,7 @@ const { user, logout } = useAuth()
 const theme = inject<Ref<string>>('theme')!
 const showLogoutConfirm = ref(false)
 const { open, anchor, menu, pos, placed, toggle, close } = usePopMenu()
+const { src: avatarSrc } = useAvatar()
 
 function toggleTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
@@ -23,7 +24,10 @@ function confirmLogout() {
 
 <template>
   <header class="nav">
-    <NuxtLink to="/" class="wordmark display">Media<span>Box</span></NuxtLink>
+    <NuxtLink to="/" class="brand">
+      <img v-if="avatarSrc" class="brand-logo" :src="avatarSrc" alt="" />
+      <span class="wordmark display">Media<span>Box</span></span>
+    </NuxtLink>
 
     <div class="nav-right">
       <NuxtLink to="/remove-bg" class="nav-link">
@@ -85,7 +89,8 @@ function confirmLogout() {
               @click.stop
             >
               <NuxtLink to="/profile" class="pop-item" role="menuitem" @click="close">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <img v-if="avatarSrc" class="pop-avatar" :src="avatarSrc" :alt="user.username" />
+                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="12" cy="8" r="3.5" />
                   <path d="M5 20a7 7 0 0 1 14 0" />
                 </svg>
@@ -188,6 +193,21 @@ function confirmLogout() {
   color: var(--accent);
 }
 
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.brand-logo {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--line);
+}
+
 .wordmark {
   font-size: 1.25rem;
 }
@@ -250,6 +270,16 @@ function confirmLogout() {
 .pop-item svg {
   color: var(--text-faint);
   flex: none;
+}
+
+/* sized to match the 14px icons it stands in for, so the rows stay aligned */
+.pop-avatar {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: -2px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .pop-item:hover {

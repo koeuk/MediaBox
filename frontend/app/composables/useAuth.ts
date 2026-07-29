@@ -61,11 +61,51 @@ export function useAuth() {
     })
   }
 
+  /**
+   * Replace the profile picture.
+   *
+   * `avatarVersion` bumps on every change: the URL is otherwise identical
+   * before and after, so the browser would keep serving the cached old image.
+   */
+  const avatarVersion = useState('auth-avatar-version', () => 0)
+
+  async function uploadAvatar(file: File) {
+    const body = new FormData()
+    body.append('file', file)
+    user.value = await $fetch<User>('/auth/me/avatar', {
+      baseURL: config.public.apiBase,
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token.value}` },
+      body,
+    })
+    avatarVersion.value++
+  }
+
+  async function removeAvatar() {
+    user.value = await $fetch<User>('/auth/me/avatar', {
+      baseURL: config.public.apiBase,
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token.value}` },
+    })
+    avatarVersion.value++
+  }
+
   function logout() {
     token.value = null
     user.value = null
     return navigateTo('/login')
   }
 
-  return { token, user, login, register, fetchUser, updateProfile, logout }
+  return {
+    token,
+    user,
+    avatarVersion,
+    login,
+    register,
+    fetchUser,
+    updateProfile,
+    uploadAvatar,
+    removeAvatar,
+    logout,
+  }
 }

@@ -1,7 +1,12 @@
-from fastapi import APIRouter, HTTPException, status
+from pathlib import Path
+from typing import Annotated
 
-from app.api.deps import CurrentUser, DbSession
+from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
+
+from app.api.deps import CurrentUser, DbSession, MediaUser
 from app.models import User
+from app.services import storage
 from app.schemas import (
     MediaTokenOut,
     ProfileUpdate,
@@ -78,6 +83,45 @@ def update_me(payload: ProfileUpdate, db: DbSession, user: CurrentUser):
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.put("/me/avatar", response_model=UserOut)
+def upload_avatar(file: Annotated[UploadFile, File()], db: DbSession, user: CurrentUser):
+    """Replace the current user's profile picture."""
+    try:
+        dest = storage.save_avatar(file, user.id)
+    except storage.UploadTooLarge as exc:
+        raise HTTPException(status_code=413, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    # only after the new one is safely on disk, so a failed write leaves the
+    # old picture intact rather than the account with none at all
+    previous = user.avatar_path
+    user.avatar_path = str(dest)
+    db.commit()
+    db.refresh(user)
+    storage.delete_files(previous)
+    return user
+
+
+@router.delete("/me/avatar", response_model=UserOut)
+def delete_avatar(db: DbSession, user: CurrentUser):
+    previous = user.avatar_path
+    user.avatar_path = None
+    db.commit()
+    db.refresh(user)
+    storage.delete_files(previous)
+    return user
+
+
+@router.get("/me/avatar")
+def get_avatar(user: MediaUser):
+    """The picture itself. MediaUser so an <img> can pass ?token= instead of a
+    header, the same way thumbnails work."""
+    if not user.avatar_path or not Path(user.avatar_path).exists():
+        raise HTTPException(status_code=404, detail="No avatar set")
+    return FileResponse(user.avatar_path)
 
 
 @router.post("/media-token", response_model=MediaTokenOut)

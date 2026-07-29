@@ -31,6 +31,8 @@ class UserOut(BaseModel):
     email: EmailStr
     username: str
     is_admin: bool
+    # fetch the picture itself from /auth/me/avatar
+    has_avatar: bool = False
     created_at: datetime
 
 

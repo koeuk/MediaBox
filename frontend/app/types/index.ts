@@ -46,6 +46,8 @@ export interface User {
   email: string
   username: string
   is_admin: boolean
+  /** Whether a profile picture is set; fetch it from /auth/me/avatar. */
+  has_avatar?: boolean
   created_at: string
 }
 
