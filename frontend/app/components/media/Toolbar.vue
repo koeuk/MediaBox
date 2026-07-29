@@ -2,14 +2,14 @@
 import type { DownloadFilter } from '~/types'
 
 /** View tabs, category carousel, live indicator and search box. */
-defineProps<{ activeCount: number; live: boolean }>()
+defineProps<{ activeCount: number; failedCount: number; live: boolean }>()
 
 const filter = defineModel<DownloadFilter>('filter', { required: true })
 const category = defineModel<string | null>('category', { required: true })
 const search = defineModel<string>('search', { required: true })
 
 // hidden items have their own page, so there is no tab for them here
-const views: DownloadFilter[] = ['all', 'favorites', 'active']
+const views: DownloadFilter[] = ['all', 'favorites', 'active', 'failed']
 </script>
 
 <template>
@@ -20,10 +20,11 @@ const views: DownloadFilter[] = ['all', 'favorites', 'active']
           v-for="f in views"
           :key="f"
           class="filter-btn"
-          :class="{ on: filter === f }"
+          :class="{ on: filter === f, alert: f === 'failed' && failedCount > 0 }"
           @click="filter = f"
         >
           {{ f }}<span v-if="f === 'active' && activeCount"> ({{ activeCount }})</span>
+          <span v-else-if="f === 'failed' && failedCount"> ({{ failedCount }})</span>
         </button>
       </div>
 
@@ -57,6 +58,12 @@ const views: DownloadFilter[] = ['all', 'favorites', 'active']
   gap: 0.8rem;
   /* lets the category carousel shrink below its content width */
   min-width: 0;
+}
+
+/* a non-zero failure count is worth noticing — but once the tab is selected
+   the accent fill already marks it, and red-on-accent is unreadable */
+.filter-btn.alert:not(.on) {
+  color: var(--err);
 }
 
 .live {

@@ -50,7 +50,7 @@ export interface User {
 }
 
 /** Which pane of the grid is showing — not a server-side filter. */
-export type DownloadFilter = 'all' | 'favorites' | 'active'
+export type DownloadFilter = 'all' | 'favorites' | 'active' | 'failed'
 
 /** Background-removal quality tier; see backend services/bgremove.py. */
 export type CutoutQuality = 'fast' | 'good' | 'best'

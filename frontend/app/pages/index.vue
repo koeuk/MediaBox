@@ -48,9 +48,15 @@ const visible = computed(() => {
   let list = downloads.value.filter((d) => !d.is_hidden)
   if (filter.value === 'favorites') list = list.filter((d) => d.is_favorite)
   if (filter.value === 'active') list = list.filter(isActive)
+  if (filter.value === 'failed') list = list.filter((d) => d.status === 'failed')
   if (categoryFilter.value) list = list.filter((d) => d.category === categoryFilter.value)
   return list
 })
+
+// counted off the same list the tab filters, so the number matches what opens
+const failedCount = computed(
+  () => downloads.value.filter((d) => !d.is_hidden && d.status === 'failed').length
+)
 
 // ── Modals ────────────────────────────────────────────────────────────
 
@@ -106,15 +112,20 @@ onMounted(async () => {
           v-model:category="categoryFilter"
           v-model:search="search"
           :active-count="activeCount"
+          :failed-count="failedCount"
           :live="live"
           class="toolbar"
         />
       </section>
 
       <section v-if="loaded && visible.length === 0" class="empty reveal" style="animation-delay: 0.1s">
-        <p class="display empty-title">Nothing here yet</p>
+        <p class="display empty-title">
+          {{ filter === 'failed' && !search ? 'Nothing failed' : 'Nothing here yet' }}
+        </p>
         <p class="empty-hint">
-          {{ filter === 'all' && !search ? 'Paste a URL above to start your first download.' : 'No downloads match this view.' }}
+          <template v-if="filter === 'failed' && !search">Every download so far has gone through.</template>
+          <template v-else-if="filter === 'all' && !search">Paste a URL above to start your first download.</template>
+          <template v-else>No downloads match this view.</template>
         </p>
       </section>
 
