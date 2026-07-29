@@ -18,7 +18,6 @@ const {
   error,
   note,
   search,
-  activeCount,
   isActive,
   refresh,
   submit,
@@ -53,10 +52,19 @@ const visible = computed(() => {
   return list
 })
 
-// counted off the same list the tab filters, so the number matches what opens
-const failedCount = computed(
-  () => downloads.value.filter((d) => !d.is_hidden && d.status === 'failed').length
-)
+/** Tab counts, narrowed the same way `visible` is — minus the tab's own rule —
+ *  so each number is exactly how many cards clicking it shows. `search` is
+ *  applied server-side, so `downloads` already reflects it. */
+const counts = computed<Record<DownloadFilter, number>>(() => {
+  let list = downloads.value.filter((d) => !d.is_hidden)
+  if (categoryFilter.value) list = list.filter((d) => d.category === categoryFilter.value)
+  return {
+    all: list.length,
+    favorites: list.filter((d) => d.is_favorite).length,
+    active: list.filter(isActive).length,
+    failed: list.filter((d) => d.status === 'failed').length,
+  }
+})
 
 // ── Modals ────────────────────────────────────────────────────────────
 
@@ -111,8 +119,7 @@ onMounted(async () => {
           v-model:filter="filter"
           v-model:category="categoryFilter"
           v-model:search="search"
-          :active-count="activeCount"
-          :failed-count="failedCount"
+          :counts="counts"
           :live="live"
           class="toolbar"
         />
