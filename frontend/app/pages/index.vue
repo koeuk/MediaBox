@@ -42,10 +42,11 @@ const categoryFilter = ref<string | null>(
   typeof route.query.category === 'string' ? route.query.category : null
 )
 
-/** Hidden rows live on /hidden — this page never shows them, in the grid or
- *  in the preview dialogs' playlist. */
+/** Hidden rows live on /hidden — this page never shows them anywhere. */
 const unhidden = computed(() => downloads.value.filter((d) => !d.is_hidden))
 
+/** The grid, and equally the playlist the preview dialogs step through: pick a
+ *  tag and the player walks only that tag, so a view stays a view. */
 const visible = computed(() => {
   let list = unhidden.value
   if (filter.value === 'favorites') list = list.filter((d) => d.is_favorite)
@@ -161,14 +162,14 @@ onMounted(async () => {
 
     <MediaPreview
       :download="previewMedia"
-      :downloads="unhidden"
+      :downloads="visible"
       @select="(d) => (previewTarget = d)"
       @close="previewTarget = null"
     />
 
     <ImagePreview
       :download="previewImage"
-      :images="unhidden"
+      :images="visible"
       @select="(d) => (previewTarget = d)"
       @close="previewTarget = null"
     />
