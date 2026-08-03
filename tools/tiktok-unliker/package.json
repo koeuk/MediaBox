@@ -1,0 +1,11 @@
+{
+  "name": "tiktok-unliker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node unlike.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}
