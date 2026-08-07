@@ -1,9 +1,18 @@
-from fastapi import APIRouter
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func
 
 from app.api.deps import AdminUser, DbSession
-from app.models import Download, DownloadStatus, User
-from app.schemas import AdminDownloadOut, AdminStats, AdminUserOut
+from app.models import Download, DownloadStatus, Review, User
+from app.schemas import (
+    AdminDownloadOut,
+    AdminStats,
+    AdminUserOut,
+    ReviewCreate,
+    ReviewEdit,
+    ReviewOut,
+)
 
 router = APIRouter()
 
@@ -16,6 +25,7 @@ def stats(db: DbSession, _: AdminUser):
     return AdminStats(
         users=db.query(func.count(User.id)).scalar() or 0,
         downloads=db.query(func.count(Download.id)).scalar() or 0,
+        reviews=db.query(func.count(Review.id)).scalar() or 0,
         queued=by_status.get(DownloadStatus.queued, 0),
         downloading=by_status.get(DownloadStatus.downloading, 0),
         completed=by_status.get(DownloadStatus.completed, 0),
@@ -77,3 +87,50 @@ def recent_downloads(db: DbSession, _: AdminUser, limit: int = 50):
         )
         for dl, username in rows
     ]
+
+
+def _review_or_404(db: DbSession, review_id: int) -> Review:
+    review = db.get(Review, review_id)
+    if review is None:
+        raise HTTPException(status_code=404, detail="Review not found")
+    return review
+
+
+@router.get("/reviews", response_model=list[ReviewOut])
+def list_reviews(db: DbSession, _: AdminUser):
+    return (
+        db.query(Review)
+        .order_by(Review.created_at.desc(), Review.id.desc())
+        .all()
+    )
+
+
+@router.post("/reviews", response_model=ReviewOut, status_code=status.HTTP_201_CREATED)
+def create_review(payload: ReviewCreate, db: DbSession, _: AdminUser):
+    review = Review(**payload.model_dump())
+    db.add(review)
+    db.commit()
+    db.refresh(review)
+    return review
+
+
+@router.patch("/reviews/{review_id}", response_model=ReviewOut)
+def update_review(review_id: int, payload: ReviewEdit, db: DbSession, _: AdminUser):
+    review = _review_or_404(db, review_id)
+    changes = payload.model_dump(exclude_unset=True)
+    for required in ("author_name", "body"):
+        if required in changes and changes[required] is None:
+            raise HTTPException(status_code=422, detail=f"{required} cannot be blank")
+    for field, value in changes.items():
+        setattr(review, field, value)
+    review.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(review)
+    return review
+
+
+@router.delete("/reviews/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_review(review_id: int, db: DbSession, _: AdminUser):
+    review = _review_or_404(db, review_id)
+    db.delete(review)
+    db.commit()

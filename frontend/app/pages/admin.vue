@@ -39,6 +39,7 @@ onMounted(async () => {
         <div v-for="(tile, i) in [
             { label: 'Users', value: String(stats.users) },
             { label: 'Downloads', value: String(stats.downloads) },
+            { label: 'Reviews', value: String(stats.reviews) },
             { label: 'Storage used', value: formatBytes(stats.bytes_stored) },
             { label: 'Favorites', value: String(stats.favorites) },
           ]" :key="tile.label" class="tile panel reveal" :style="{ animationDelay: `${i * 0.05}s` }">
@@ -54,7 +55,9 @@ onMounted(async () => {
         <span class="badge badge-failed">✕ failed {{ stats.failed }}</span>
       </section>
 
-      <section class="panel table-panel reveal" style="animation-delay: 0.26s">
+      <AdminReviewManager v-if="stats" />
+
+      <section class="panel table-panel reveal" style="animation-delay: 0.3s">
         <h2 class="label table-title">Users</h2>
         <div class="table-scroll">
           <table>
