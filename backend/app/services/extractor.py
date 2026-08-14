@@ -20,6 +20,27 @@ from app.services.tiktok_photos import photo_post_id
 # strips terminal color escapes yt-dlp puts in error strings
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
+# TikTok blocks requests whose User-Agent reports Chrome 140-149 (the range
+# yt-dlp's bundled impersonation profiles fall in), answering them with a
+# "Site Maintenance" page that surfaces as "Unexpected response from webpage
+# request" (yt-dlp/yt-dlp#17403). Versions outside that range still work.
+_TIKTOK_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+)
+
+
+def _is_tiktok_url(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return host == "tiktok.com" or host.endswith(".tiktok.com")
+
+
+# even with a good User-Agent, TikTok intermittently serves a page without the
+# rehydration JSON — a fresh request usually succeeds
+_TIKTOK_TRANSIENT_RE = re.compile(
+    r"Unable to extract universal data|Unexpected response from webpage"
+)
+
 
 def is_ytdlp_url(url: str) -> bool:
     """True when the URL's host is on the extractor allowlist (subdomains included)."""
@@ -84,7 +105,7 @@ def _downloaded_path(info: dict | None, out_dir: Path, prefix: str) -> Path | No
     return max(produced, key=lambda p: p.stat().st_mtime)
 
 
-def _build_opts(dl, out_template: str, hook) -> dict:
+def _build_opts(dl, out_template: str, hook, source: str) -> dict:
     fmt = (
         f"bv*[height<={dl.quality}]+ba/b[height<={dl.quality}]"
         if dl.quality
@@ -104,6 +125,8 @@ def _build_opts(dl, out_template: str, hook) -> dict:
         "retries": 5,
         "fragment_retries": 5,
     }
+    if _is_tiktok_url(source):
+        opts["http_headers"] = {"User-Agent": _TIKTOK_UA}
     if settings.ytdlp_cookies_file:
         opts["cookiefile"] = settings.ytdlp_cookies_file
     # YouTube needs a JavaScript runtime for full format extraction
@@ -154,27 +177,33 @@ def run_ytdlp(dl, db, url: str | None = None) -> None:
             dl.progress = min(round(dl.downloaded_bytes / total * 100, 1), 99.9)
         db.commit()
 
-    try:
-        with yt_dlp.YoutubeDL(_build_opts(dl, out_template, hook)) as ydl:
-            info = ydl.extract_info(source, download=True)
-    except Cancelled:
-        raise
-    except Exception as exc:
-        # yt-dlp may wrap the hook's cancel exception in its own error type
-        if cancelled:
-            raise Cancelled() from None
-        if isinstance(exc, yt_dlp.utils.DownloadError):
-            message = _ANSI_RE.sub("", str(exc)).replace("ERROR: ", "").strip()
-            # a short link that turned out to be a photo post: retry it on the
-            # slideshow path now that the redirect has given us the real URL
-            resolved = _UNSUPPORTED_PHOTO_RE.search(message)
-            if resolved and is_tiktok_photo_url(resolved.group(1)):
-                from app.services.tiktok_photos import run_photo_post
+    attempts = 3 if _is_tiktok_url(source) else 1
+    for attempt in range(1, attempts + 1):
+        try:
+            with yt_dlp.YoutubeDL(_build_opts(dl, out_template, hook, source)) as ydl:
+                info = ydl.extract_info(source, download=True)
+            break
+        except Cancelled:
+            raise
+        except Exception as exc:
+            # yt-dlp may wrap the hook's cancel exception in its own error type
+            if cancelled:
+                raise Cancelled() from None
+            if isinstance(exc, yt_dlp.utils.DownloadError):
+                message = _ANSI_RE.sub("", str(exc)).replace("ERROR: ", "").strip()
+                if attempt < attempts and _TIKTOK_TRANSIENT_RE.search(message):
+                    time.sleep(2)
+                    continue
+                # a short link that turned out to be a photo post: retry it on the
+                # slideshow path now that the redirect has given us the real URL
+                resolved = _UNSUPPORTED_PHOTO_RE.search(message)
+                if resolved and is_tiktok_photo_url(resolved.group(1)):
+                    from app.services.tiktok_photos import run_photo_post
 
-                run_photo_post(dl, db, url=resolved.group(1))
-                return
-            raise ValueError(f"Could not fetch this video: {message}") from exc
-        raise
+                    run_photo_post(dl, db, url=resolved.group(1))
+                    return
+                raise ValueError(f"Could not fetch this video: {message}") from exc
+            raise
 
     path = _downloaded_path(info, out_dir, prefix)
     if path is None:
