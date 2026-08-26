@@ -20,14 +20,24 @@ from app.services.tiktok_photos import photo_post_id
 # strips terminal color escapes yt-dlp puts in error strings
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
-# TikTok blocks requests whose User-Agent reports Chrome 140-149 (the range
-# yt-dlp's bundled impersonation profiles fall in), answering them with a
-# "Site Maintenance" page that surfaces as "Unexpected response from webpage
-# request" (yt-dlp/yt-dlp#17403). Versions outside that range still work.
-_TIKTOK_UA = (
+# TikTok answers a large, shifting fraction of requests with a page that has no
+# rehydration JSON, which surfaces as "Unexpected response from webpage request"
+# or "Unable to extract universal data" (yt-dlp/yt-dlp#17403). Which Chrome
+# versions get blocked moves over time, so pinning one User-Agent means every
+# retry repeats the same rejected fingerprint. Rotate instead: each attempt uses
+# the next version, so a blocked one costs a single attempt rather than all of
+# them. Measured success rates for individual versions are too noisy to rank
+# reliably — the rotation is what matters, not the order.
+_TIKTOK_UAS = tuple(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+    f"(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
+    for major in (139, 136, 150, 133)
 )
+
+
+def _tiktok_ua(attempt: int) -> str:
+    """User-Agent for a 1-based attempt number, cycling through the candidates."""
+    return _TIKTOK_UAS[(attempt - 1) % len(_TIKTOK_UAS)]
 
 
 def _is_tiktok_url(url: str) -> bool:
@@ -105,7 +115,7 @@ def _downloaded_path(info: dict | None, out_dir: Path, prefix: str) -> Path | No
     return max(produced, key=lambda p: p.stat().st_mtime)
 
 
-def _build_opts(dl, out_template: str, hook, source: str) -> dict:
+def _build_opts(dl, out_template: str, hook, source: str, attempt: int = 1) -> dict:
     fmt = (
         f"bv*[height<={dl.quality}]+ba/b[height<={dl.quality}]"
         if dl.quality
@@ -126,7 +136,7 @@ def _build_opts(dl, out_template: str, hook, source: str) -> dict:
         "fragment_retries": 5,
     }
     if _is_tiktok_url(source):
-        opts["http_headers"] = {"User-Agent": _TIKTOK_UA}
+        opts["http_headers"] = {"User-Agent": _tiktok_ua(attempt)}
     if settings.ytdlp_cookies_file:
         opts["cookiefile"] = settings.ytdlp_cookies_file
     # YouTube needs a JavaScript runtime for full format extraction
@@ -177,10 +187,11 @@ def run_ytdlp(dl, db, url: str | None = None) -> None:
             dl.progress = min(round(dl.downloaded_bytes / total * 100, 1), 99.9)
         db.commit()
 
-    attempts = 3 if _is_tiktok_url(source) else 1
+    # one attempt per candidate User-Agent, so each rotation is tried once
+    attempts = len(_TIKTOK_UAS) if _is_tiktok_url(source) else 1
     for attempt in range(1, attempts + 1):
         try:
-            with yt_dlp.YoutubeDL(_build_opts(dl, out_template, hook, source)) as ydl:
+            with yt_dlp.YoutubeDL(_build_opts(dl, out_template, hook, source, attempt)) as ydl:
                 info = ydl.extract_info(source, download=True)
             break
         except Cancelled:
@@ -192,7 +203,9 @@ def run_ytdlp(dl, db, url: str | None = None) -> None:
             if isinstance(exc, yt_dlp.utils.DownloadError):
                 message = _ANSI_RE.sub("", str(exc)).replace("ERROR: ", "").strip()
                 if attempt < attempts and _TIKTOK_TRANSIENT_RE.search(message):
-                    time.sleep(2)
+                    # back off a little further each time; TikTok's throttle is
+                    # IP-based, so hammering it makes the next attempt worse
+                    time.sleep(2 * attempt)
                     continue
                 # a short link that turned out to be a photo post: retry it on the
                 # slideshow path now that the redirect has given us the real URL
