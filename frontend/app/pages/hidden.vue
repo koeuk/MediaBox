@@ -42,13 +42,14 @@ const favoriteCount = computed(() => hidden.value.filter((d) => d.is_favorite).l
 
 // ── Dialogs ───────────────────────────────────────────────────────────
 
-const previewTarget = ref<Download | null>(null)
 const deleteTarget = ref<Download | null>(null)
 const infoTarget = ref<Download | null>(null)
 
-const isStill = (d: Download | null) => !!d && mediaKind(d.content_type) === 'image'
-const previewImage = computed(() => (isStill(previewTarget.value) ? previewTarget.value : null))
-const previewMedia = computed(() => (isStill(previewTarget.value) ? null : previewTarget.value))
+// player lives in app.vue so it survives navigation — see usePlayer()
+const { target: previewTarget, playlist, open: openPreview } = usePlayer()
+watch(hidden, (items) => {
+  if (previewTarget.value) playlist.value = [...items]
+})
 
 async function confirmRemove() {
   const target = deleteTarget.value
@@ -127,7 +128,7 @@ onMounted(async () => {
           @retry="retry"
           @convert="convert"
           @remove="deleteTarget = find($event)"
-          @preview="previewTarget = find($event)"
+          @preview="openPreview(find($event), hidden)"
           @info="infoTarget = find($event)"
           @hide="toggleHidden"
           @cancel="cancel"
@@ -135,20 +136,6 @@ onMounted(async () => {
         />
       </section>
     </main>
-
-    <MediaPreview
-      :download="previewMedia"
-      :downloads="hidden"
-      @select="(d) => (previewTarget = d)"
-      @close="previewTarget = null"
-    />
-
-    <ImagePreview
-      :download="previewImage"
-      :images="hidden"
-      @select="(d) => (previewTarget = d)"
-      @close="previewTarget = null"
-    />
 
     <InfoDialog :download="infoTarget" @close="infoTarget = null" />
 

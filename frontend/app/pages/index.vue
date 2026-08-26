@@ -72,15 +72,16 @@ const counts = computed<Record<DownloadFilter, number>>(() => {
 
 // ── Modals ────────────────────────────────────────────────────────────
 
-const previewTarget = ref<Download | null>(null)
 const deleteTarget = ref<Download | null>(null)
 const infoTarget = ref<Download | null>(null)
 
-// stills get a lightbox, playable media gets the player — they want opposite
-// affordances, so each is its own dialog and only one is ever mounted
-const isStill = (d: Download | null) => !!d && mediaKind(d.content_type) === 'image'
-const previewImage = computed(() => (isStill(previewTarget.value) ? previewTarget.value : null))
-const previewMedia = computed(() => (isStill(previewTarget.value) ? null : previewTarget.value))
+// The player itself is mounted in app.vue so it survives navigation; this page
+// only says what to play. Retagging or filtering while it is open should still
+// re-aim the playlist, hence the watch.
+const { target: previewTarget, playlist, open: openPreview } = usePlayer()
+watch(visible, (items) => {
+  if (previewTarget.value) playlist.value = [...items]
+})
 
 async function confirmRemove() {
   const target = deleteTarget.value
@@ -151,7 +152,7 @@ onMounted(async () => {
           @retry="retry"
           @convert="convert"
           @remove="deleteTarget = find($event)"
-          @preview="previewTarget = find($event)"
+          @preview="openPreview(find($event), visible)"
           @info="infoTarget = find($event)"
           @hide="toggleHidden"
           @cancel="cancel"
@@ -159,20 +160,6 @@ onMounted(async () => {
         />
       </section>
     </main>
-
-    <MediaPreview
-      :download="previewMedia"
-      :downloads="visible"
-      @select="(d) => (previewTarget = d)"
-      @close="previewTarget = null"
-    />
-
-    <ImagePreview
-      :download="previewImage"
-      :images="visible"
-      @select="(d) => (previewTarget = d)"
-      @close="previewTarget = null"
-    />
 
     <InfoDialog :download="infoTarget" @close="infoTarget = null" />
 
