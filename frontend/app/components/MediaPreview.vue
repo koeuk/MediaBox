@@ -241,7 +241,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
               class="btn btn-ghost head-btn"
               :href="fileUrl(download.id, 'file')"
               :download="download.filename || true"
-              @click="interceptSave($event, fileUrl(download.id, 'file'), download.filename || 'download')"
+              @click="interceptSave($event, fileUrl(download.id, 'file'), download.filename || 'download', download.id)"
             >
               Save
             </a>

@@ -13,6 +13,7 @@ from app.schemas import (
     ConvertRequest,
     DownloadCategoryUpdate,
     DownloadCreate,
+    DownloadExportRequest,
     DownloadOut,
     RemoveBackgroundRequest,
 )
@@ -154,6 +155,42 @@ def delete_download(download_id: int, db: DbSession, user: CurrentUser):
     storage.delete_files(dl.file_path, dl.thumbnail_path, *dl.slide_paths)
     db.delete(dl)
     db.commit()
+
+
+@router.post("/{download_id}/export")
+def export_download(download_id: int, payload: DownloadExportRequest, db: DbSession, user: CurrentUser):
+    """Copy a finished file into a folder the user configured (backend and
+    browser run on the same machine, so this is their local disk)."""
+    import shutil
+
+    dl = _owned(db, download_id, user)
+    if (
+        dl.status != DownloadStatus.completed
+        or not dl.file_path
+        or not Path(dl.file_path).exists()
+    ):
+        raise HTTPException(status_code=404, detail="File not available")
+
+    target_dir = Path(payload.path).expanduser()
+    if not target_dir.is_absolute():
+        raise HTTPException(status_code=422, detail="Save path must be absolute, e.g. /home/you/Videos")
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        raise HTTPException(status_code=422, detail="Cannot create that folder")
+
+    name = dl.filename or Path(dl.file_path).name
+    dest = target_dir / name
+    # never overwrite: title (2).mp4, title (3).mp4, …
+    n = 2
+    while dest.exists():
+        dest = target_dir / f"{Path(name).stem} ({n}){Path(name).suffix}"
+        n += 1
+    try:
+        shutil.copy2(dl.file_path, dest)
+    except OSError:
+        raise HTTPException(status_code=422, detail="Could not write into that folder")
+    return {"saved_to": str(dest)}
 
 
 @router.get("/{download_id}/file")

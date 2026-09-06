@@ -18,6 +18,11 @@ class DownloadCreate(BaseModel):
     quality: str | None = Field(default=None, pattern=QUALITY_PATTERN)
 
 
+class DownloadExportRequest(BaseModel):
+    # absolute directory on the machine running the backend
+    path: str = Field(min_length=1, max_length=1024)
+
+
 class BatchDownloadCreate(BaseModel):
     urls: list[HttpUrl] = Field(min_length=1, max_length=50)
     quality: str | None = Field(default=None, pattern=QUALITY_PATTERN)

@@ -19,7 +19,7 @@ const { open, anchor, menu, pos, placed, toggle, close } = usePopMenu()
 const saveable = computed(() => props.download.status === 'completed' && !!mediaToken.value)
 
 function onSave(event: MouseEvent) {
-  interceptSave(event, fileUrl(props.download.id, 'file'), props.download.filename || 'download')
+  interceptSave(event, fileUrl(props.download.id, 'file'), props.download.filename || 'download', props.download.id)
   close()
 }
 

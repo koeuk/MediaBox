@@ -12,7 +12,8 @@ import type { CutoutQuality, Download } from '~/types'
 const CUTOUT_KINDS = ['cutout', 'cutout_src']
 
 export function useDownloads(scope: 'media' | 'cutout' = 'media') {
-  const { request, wsUrl, refreshMediaToken } = useApi()
+  const { request, fileUrl, wsUrl, refreshMediaToken } = useApi()
+  const { pickQueueTarget, armPendingSave, flushPendingSaves } = useSaveFile()
 
   /** Everything the server sent. The list endpoint and the live snapshot are
    *  both unscoped, so the split happens here. */
@@ -62,9 +63,16 @@ export function useDownloads(scope: 'media' | 'cutout' = 'media') {
     if (search.value) params.search = search.value
     all.value = await request<Download[]>('/downloads', { params })
     loaded.value = true
+    flushPendingSaves(all.value, (id) => fileUrl(id, 'file'))
   }
 
   // ── Queueing ──────────────────────────────────────────────────────────
+
+  /** Best-guess filename for the save dialog before the title is known. */
+  function suggestedName(link: string) {
+    const slug = (link.split('/').filter(Boolean).pop() || 'video').split('?')[0]
+    return /\.[a-z0-9]{2,4}$/i.test(slug) ? slug : `${slug || 'video'}.mp4`
+  }
 
   async function submit() {
     const urls = url.value.split(/[\s,]+/).filter(Boolean)
@@ -74,7 +82,18 @@ export function useDownloads(scope: 'media' | 'cutout' = 'media') {
     try {
       const q = quality.value || undefined
       if (urls.length === 1) {
-        await request<Download>('/downloads', { method: 'POST', body: { url: urls[0], quality: q } })
+        // decide the destination now, while we still have the click gesture
+        // (the 'ask' dialog needs it); the file goes there once the server
+        // finishes fetching it
+        const target = scope === 'media' ? await pickQueueTarget(suggestedName(urls[0])) : null
+        const created = await request<Download>('/downloads', {
+          method: 'POST',
+          body: { url: urls[0], quality: q },
+        })
+        if (target) {
+          armPendingSave(created.id, target)
+          note.value = 'Will save to your chosen location when the download finishes'
+        }
       } else {
         await request<Download[]>('/downloads/batch', { method: 'POST', body: { urls, quality: q } })
         note.value = `${urls.length} downloads queued`
@@ -232,6 +251,7 @@ export function useDownloads(scope: 'media' | 'cutout' = 'media') {
         if (msg.type === 'snapshot' && !search.value) {
           all.value = msg.items
           loaded.value = true
+          flushPendingSaves(all.value, (id) => fileUrl(id, 'file'))
         }
       } catch {}
     }

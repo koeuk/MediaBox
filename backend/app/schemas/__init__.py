@@ -15,6 +15,7 @@ from app.schemas.auth import (
 )
 from app.schemas.category import HEX_COLOR_PATTERN, CategoryCreate, CategoryEdit, CategoryOut
 from app.schemas.download import (
+    DownloadExportRequest,
     CONVERT_TARGET_PATTERN,
     CUTOUT_QUALITY_PATTERN,
     QUALITY_PATTERN,

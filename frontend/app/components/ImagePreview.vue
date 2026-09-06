@@ -42,9 +42,11 @@ function stepSlide(delta: number) {
 function onSave(event: MouseEvent) {
   if (!props.download) return
   let name = props.download.filename || 'photo.jpg'
-  // saving one slide of a slideshow: number it so slides don't overwrite each other
+  // saving one slide of a slideshow: number it so slides don't overwrite each
+  // other; no id is passed, so custom-folder mode falls back to a plain
+  // download (the export copies the whole post's file, not a single slide)
   if (isSlideshow.value) name = name.replace(/(\.[^.]*)?$/, `-${slide.value + 1}$1`)
-  interceptSave(event, src.value, name)
+  interceptSave(event, src.value, name, isSlideshow.value ? undefined : props.download.id)
 }
 
 const src = computed(() => {

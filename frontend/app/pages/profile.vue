@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { SaveMode } from '~/composables/useSavePrefs'
+
 definePageMeta({ middleware: 'auth' })
 
 const { user, fetchUser, updateProfile, uploadAvatar, removeAvatar } = useAuth()
@@ -38,11 +40,49 @@ async function clearPhoto() {
   }
 }
 
+/** Which panel the tabs are showing. Mirrored into `?tab=` so a reload — or a
+ *  link straight to the password form — lands where you expect. */
+type ProfileTab = 'account' | 'password' | 'saving'
+const route = useRoute()
+const router = useRouter()
+const tab = ref<ProfileTab>(
+  route.query.tab === 'password' ? 'password' : route.query.tab === 'saving' ? 'saving' : 'account'
+)
+
+watch(tab, (value) => {
+  router.replace({ query: value === 'account' ? {} : { tab: value } })
+})
+
 const username = ref('')
 const email = ref('')
 const profileMsg = ref('')
 const profileErr = ref('')
 const savingProfile = ref(false)
+
+// save-location preference (persisted per browser by useSavePrefs)
+const savePrefs = useSavePrefs()
+const saveMode = ref<SaveMode>('default')
+const savePath = ref('')
+const saveMsg = ref('')
+const saveErr = ref('')
+const pickerSupported = ref(true)
+
+onMounted(() => {
+  saveMode.value = savePrefs.mode.value
+  savePath.value = savePrefs.customPath.value
+  pickerSupported.value = 'showSaveFilePicker' in window
+})
+
+function saveSavePrefs() {
+  saveMsg.value = ''
+  saveErr.value = ''
+  if (saveMode.value === 'custom' && !savePath.value.trim().startsWith('/')) {
+    saveErr.value = 'Enter an absolute folder path, e.g. /home/you/Videos'
+    return
+  }
+  savePrefs.save(saveMode.value, savePath.value.trim())
+  saveMsg.value = 'Save location updated'
+}
 
 const currentPassword = ref('')
 const newPassword = ref('')
@@ -148,8 +188,32 @@ async function changePassword() {
         </div>
       </header>
 
+      <div class="filters tabs reveal" role="tablist" aria-label="Profile sections">
+        <button
+          v-for="t in (['account', 'password', 'saving'] as ProfileTab[])"
+          :key="t"
+          :id="`tab-${t}`"
+          class="filter-btn"
+          :class="{ on: tab === t }"
+          type="button"
+          role="tab"
+          :aria-selected="tab === t"
+          :aria-controls="`panel-${t}`"
+          @click="tab = t"
+        >
+          {{ t === 'account' ? 'Account details' : t === 'password' ? 'Change password' : 'Save location' }}
+        </button>
+      </div>
+
       <div class="cards">
-        <form class="panel panel-hover card reveal" style="animation-delay: 0.05s" @submit.prevent="saveProfile">
+        <form
+          v-show="tab === 'account'"
+          id="panel-account"
+          role="tabpanel"
+          aria-labelledby="tab-account"
+          class="panel panel-hover card reveal"
+          @submit.prevent="saveProfile"
+        >
           <h2 class="card-title">Account details</h2>
 
           <p v-if="profileErr" class="msg err mono">{{ profileErr }}</p>
@@ -166,7 +230,14 @@ async function changePassword() {
           </button>
         </form>
 
-        <form class="panel panel-hover card reveal" style="animation-delay: 0.1s" @submit.prevent="changePassword">
+        <form
+          v-show="tab === 'password'"
+          id="panel-password"
+          role="tabpanel"
+          aria-labelledby="tab-password"
+          class="panel panel-hover card reveal"
+          @submit.prevent="changePassword"
+        >
           <h2 class="card-title">Change password</h2>
 
           <p v-if="pwErr" class="msg err mono">{{ pwErr }}</p>
@@ -181,6 +252,59 @@ async function changePassword() {
           <button class="btn btn-accent" type="submit" :disabled="savingPw">
             {{ savingPw ? 'Updating…' : 'Update password' }}
           </button>
+        </form>
+
+        <form
+          v-show="tab === 'saving'"
+          id="panel-saving"
+          role="tabpanel"
+          aria-labelledby="tab-saving"
+          class="panel panel-hover card reveal"
+          @submit.prevent="saveSavePrefs"
+        >
+          <h2 class="card-title">Save location</h2>
+          <p class="save-hint">Where files go when you click Save or queue a download.</p>
+
+          <p v-if="saveErr" class="msg err mono">{{ saveErr }}</p>
+          <p v-else-if="saveMsg" class="msg ok mono">{{ saveMsg }}</p>
+
+          <label class="save-option" :class="{ on: saveMode === 'default' }">
+            <input v-model="saveMode" type="radio" value="default" name="save-mode" />
+            <span>
+              <strong>Default</strong>
+              <small>Files download to your browser's Downloads folder.</small>
+            </span>
+          </label>
+
+          <label class="save-option" :class="{ on: saveMode === 'custom' }">
+            <input v-model="saveMode" type="radio" value="custom" name="save-mode" />
+            <span>
+              <strong>Custom folder</strong>
+              <small>Files are placed straight into a folder you choose below.</small>
+            </span>
+          </label>
+
+          <input
+            v-if="saveMode === 'custom'"
+            v-model="savePath"
+            class="input mono save-path"
+            type="text"
+            placeholder="/home/you/Videos"
+            spellcheck="false"
+          />
+
+          <label class="save-option" :class="{ on: saveMode === 'ask' }">
+            <input v-model="saveMode" type="radio" value="ask" name="save-mode" />
+            <span>
+              <strong>Ask every time</strong>
+              <small>
+                A save dialog opens on each Save or Download click.
+                <template v-if="!pickerSupported"> Not supported by this browser — Chrome or Edge needed.</template>
+              </small>
+            </span>
+          </label>
+
+          <button class="btn btn-accent" type="submit">Save preference</button>
         </form>
       </div>
     </main>
@@ -301,10 +425,18 @@ async function changePassword() {
   color: var(--text-faint);
 }
 
+/* the tab bar sits inline rather than stretching, so it reads as a control
+   rather than a header rule */
+.tabs {
+  display: inline-flex;
+  margin-bottom: 1.1rem;
+}
+
+/* One panel shows at a time, so the old two-column grid is gone. Capped rather
+   than filling the 900px page — a login form stretched that wide is unpleasant
+   to read and to fill in. */
 .cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 1.2rem;
+  max-width: 480px;
 }
 
 .card {
@@ -341,4 +473,46 @@ async function changePassword() {
   background: var(--ok-soft);
   color: var(--ok);
 }
-</style>
+
+.save-hint {
+  margin: -0.4rem 0 1rem;
+  color: var(--text-dim, #9a9a9a);
+  font-size: 0.85rem;
+}
+
+.save-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.6rem;
+  border: 1px solid var(--border, #2c2c2e);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.save-option.on {
+  border-color: var(--accent, #f0a832);
+}
+
+.save-option input {
+  margin-top: 0.2rem;
+  accent-color: var(--accent, #f0a832);
+}
+
+.save-option strong {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.save-option small {
+  color: var(--text-dim, #9a9a9a);
+  font-size: 0.8rem;
+}
+
+.save-path {
+  margin: -0.2rem 0 0.6rem;
+  font-size: 0.85rem;
+}
+</style>\n
