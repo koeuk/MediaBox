@@ -2,10 +2,9 @@
 /**
  * Shown when a free account picks a paid rung of the quality ladder.
  *
- * Presents how to pay and nothing more: there is no billing integration, so
- * the account stays locked until an admin flips `is_premium` on the Admin
- * page once the money actually arrives. Saying that plainly here is the point
- * — a dialog that implied instant access would be lying.
+ * Pressing "I paid" applies the plan immediately — there is no verification
+ * step, so this is an honour system: the record it writes is a receipt of what
+ * was granted, not a request for someone to approve.
  */
 import type { Plan } from '~/types'
 
@@ -35,12 +34,55 @@ async function loadPlans() {
   }
 }
 
+/** Cash can be switched off by an admin, in which case the tab is not offered. */
+async function loadSettings() {
+  try {
+    const s = await $fetch<{ cash_enabled: boolean }>('/public/payment-settings', {
+      baseURL: config.public.apiBase,
+      timeout: 5000,
+    })
+    cashEnabled.value = s.cash_enabled
+    if (!cashEnabled.value && method.value === 'cash') method.value = 'qr'
+  } catch {
+    // leave cash visible: a settings blip should not remove a payment option
+  }
+}
+
+/** Apply the plan. Refreshes the user so the picker unlocks without a reload. */
+async function submitPaid() {
+  if (!amount.value) {
+    sendError.value = 'That plan has no price set yet.'
+    return
+  }
+  sendError.value = ''
+  sending.value = true
+  try {
+    await request('/payments', {
+      method: 'POST',
+      body: { plan_code: chosen.value, method: method.value },
+    })
+    sent.value = true
+    await fetchUser()
+  } catch (e) {
+    sendError.value = errorMessage(e, 'Could not send that. Try again.')
+  } finally {
+    sending.value = false
+  }
+}
+
 /** An unpriced plan is one the admin has not filled in yet. */
 function priceLabel(plan: Plan) {
   return plan.price > 0 ? plan.price.toFixed(2) : 'Ask admin'
 }
 
 const QR_IMAGE = '/payment-qr.svg'
+
+const { request } = useApi()
+const { fetchUser } = useAuth()
+const cashEnabled = ref(true)
+const sending = ref(false)
+const sent = ref(false)
+const sendError = ref('')
 
 /** The selected plan, which is what both payment tabs quote a price for. */
 const selected = computed(() => plans.value.find((p) => p.code === chosen.value) || null)
@@ -61,7 +103,10 @@ watch(
   (open) => {
     if (!open) return
     method.value = 'qr'
+    sent.value = false
+    sendError.value = ''
     loadPlans()
+    loadSettings()
   },
   { immediate: true }
 )
@@ -81,7 +126,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
           <h2 id="upgrade-title" class="display title">Upgrade for {{ label }}</h2>
           <p class="sub">
             Downloads above 720p need an upgraded account. Pay with either method
-            below, then an admin will unlock it on your account.
+            below, then press “I paid” to unlock it.
           </p>
 
           <div v-if="plans.length" class="plans">
@@ -109,6 +154,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
               QR code
             </button>
             <button
+              v-if="cashEnabled"
               class="filter-btn"
               :class="{ on: method === 'cash' }"
               type="button"
@@ -130,13 +176,39 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
             <p v-else class="hint mono">No price set for this plan yet.</p>
           </div>
 
-          <p class="pending mono">
-            Your account stays on 720p until the payment is confirmed and an admin
-            enables it.
-          </p>
+          <template v-if="sent">
+            <p class="done mono">
+              Upgraded. High quality is unlocked on your account — close this and
+              pick the quality you want.
+            </p>
+          </template>
+
+          <template v-else>
+            <div class="paid-row">
+              <div class="paid-total">
+                <span class="label">Total</span>
+                <span class="paid-amount mono">{{ amount ?? '—' }}</span>
+              </div>
+              <button
+                class="btn btn-accent"
+                type="button"
+                :disabled="sending || !chosen || !amount"
+                @click="submitPaid"
+              >
+                {{ sending ? 'Sending…' : 'I paid' }}
+              </button>
+            </div>
+
+            <p v-if="sendError" class="err-note mono">{{ sendError }}</p>
+            <p v-else class="pending mono">
+              Pressing “I paid” unlocks high quality straight away.
+            </p>
+          </template>
 
           <div class="actions">
-            <button class="btn" type="button" @click="emit('close')">Close</button>
+            <button class="btn" type="button" @click="emit('close')">
+              {{ sent ? 'Done' : 'Close' }}
+            </button>
           </div>
         </div>
       </div>
@@ -257,6 +329,16 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   text-align: center;
 }
 
+.done {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 6px;
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
 .pending {
   margin: 0;
   padding: 0.55rem 0.7rem;
@@ -265,6 +347,37 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   color: var(--accent);
   font-size: 0.68rem;
   line-height: 1.5;
+}
+
+.paid-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.paid-total {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.paid-amount {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.err-note {
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  background: var(--err-soft);
+  color: var(--err);
+  font-size: 0.68rem;
 }
 
 .actions {

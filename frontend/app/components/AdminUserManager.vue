@@ -188,10 +188,10 @@ async function confirmDelete() {
           <tr>
             <th>User</th>
             <th>Email</th>
-            <th>Role</th>
+            <th>Status</th>
             <th class="num">Downloads</th>
             <th class="num">Storage</th>
-            <th>Joined</th>
+            <th class="joined-col">Joined</th>
             <th class="actions-col">Actions</th>
           </tr>
         </thead>
@@ -218,22 +218,22 @@ async function confirmDelete() {
               </td>
               <td class="mono dim">{{ u.email }}</td>
               <td>
-                <span v-if="u.is_admin" class="badge badge-downloading">admin</span>
-                <span v-else class="dim">member</span>
-                <span
-                  v-if="u.is_premium"
-                  class="badge badge-completed paid-badge"
-                  :title="`Paid until ${expiryLabel(u)}`"
-                >paid · {{ expiryLabel(u) }}</span>
+                <div class="chips">
+                  <span v-if="u.is_admin" class="badge badge-downloading">admin</span>
+                  <span v-else class="badge badge-member">member</span>
+                  <span
+                    v-if="u.is_premium"
+                    class="badge badge-completed"
+                    :title="`Paid until ${expiryLabel(u)}`"
+                  >paid · {{ expiryLabel(u) }}</span>
+                  <span v-if="u.is_suspended" class="badge badge-failed">suspended</span>
+                </div>
               </td>
             </template>
 
             <td class="num mono">{{ u.download_count }}</td>
             <td class="num mono">{{ formatBytes(u.bytes_stored) }}</td>
-            <td class="dim">
-              <span v-if="u.is_suspended" class="badge badge-failed">suspended</span>
-              <span v-else>{{ formatDate(u.created_at) }}</span>
-            </td>
+            <td class="dim joined-col">{{ formatDate(u.created_at) }}</td>
 
             <td class="actions-col">
               <div class="actions">
@@ -269,6 +269,7 @@ async function confirmDelete() {
                     </option>
                     <option v-if="u.is_premium" value="">End plan</option>
                   </select>
+                  <span v-if="!isSelf(u)" class="action-sep" aria-hidden="true" />
                   <button
                     v-if="!isSelf(u)"
                     class="link-btn danger"
@@ -375,9 +376,39 @@ td.num {
   color: var(--text-dim);
 }
 
-/* a suspended account should read as switched-off at a glance */
+/* a suspended account should read as switched-off at a glance, but its
+   actions must stay legible enough to click Restore */
 tr.suspended td {
-  opacity: 0.5;
+  opacity: 0.62;
+}
+
+tr.suspended .actions-col {
+  opacity: 1;
+}
+
+tbody tr:hover td {
+  background: var(--surface-hover);
+}
+
+/* one chip row, so a paid or suspended account keeps the row height of a
+   plain one instead of wrapping onto a second line */
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+/* member is a chip too — a bare word beside a badge read as a missing value */
+.badge-member {
+  background: var(--bg-raised);
+  color: var(--text-faint);
+}
+
+/* short values that wrapped mid-cell at narrow widths */
+td.num,
+.joined-col {
+  white-space: nowrap;
 }
 
 .you {
@@ -395,7 +426,14 @@ tr.suspended td {
 
 .actions {
   display: inline-flex;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.action-sep {
+  width: 1px;
+  height: 0.9rem;
+  background: var(--line-strong);
 }
 
 .link-btn {
@@ -435,10 +473,6 @@ tr.suspended td {
   font-size: 0.8rem;
 }
 
-.paid-badge {
-  margin-left: 0.35rem;
-}
-
 /* a native select here rather than AppSelect: it lives inside a dense table
    row and acts as a menu of one-shot actions, not a bound value */
 .plan-select {
@@ -449,8 +483,16 @@ tr.suspended td {
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 0.15rem 0.3rem;
+  padding: 0.22rem 0.35rem;
+  line-height: 1.2;
+  /* fixed width so "Extend…" and "Give plan…" leave the buttons around them
+     in the same place on every row */
+  min-width: 6.8rem;
   cursor: pointer;
+}
+
+.plan-select:hover:not(:disabled) {
+  border-color: var(--line-strong);
 }
 
 .role-toggle {

@@ -69,3 +69,31 @@ class PlanOut(BaseModel):
 
 class PlanEdit(BaseModel):
     price: float = Field(ge=0)
+
+
+class PaymentRequestOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    username: str
+    plan_code: str
+    plan_label: str
+    method: str
+    amount: float
+    status: str
+    created_at: datetime
+
+
+class PaymentSubmit(BaseModel):
+    plan_code: str
+    method: str
+    # no amount: the server charges what the plan costs
+
+
+class PaymentSettingsOut(BaseModel):
+    cash_enabled: bool
+
+
+class PaymentSettingsEdit(BaseModel):
+    cash_enabled: bool

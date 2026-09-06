@@ -6,17 +6,24 @@ const emit = defineEmits<{ submit: []; upload: [files: File[]]; locked: [quality
 const url = defineModel<string>('url', { required: true })
 const picked = defineModel<string>('quality', { required: true })
 
-const qualityOptions = [
+const QUALITY_LADDER = [
   { value: '', label: 'Best', hint: 'auto' },
   { value: '2160', label: '4K', hint: '2160p' },
   { value: '1440', label: '1440p' },
   { value: '1080', label: '1080p' },
   { value: '720', label: '720p' },
   { value: '480', label: '480p' },
-].map((q) => ({
-  ...q,
-  hint: !props.premium && isPaidQuality(q.value) ? 'Upgrade' : q.hint,
-}))
+]
+
+// computed, not a plain map: `premium` flips the moment an upgrade goes
+// through, and a one-shot array would leave "Upgrade" on rungs the account
+// has just bought
+const qualityOptions = computed(() =>
+  QUALITY_LADDER.map((q) => ({
+    ...q,
+    hint: !props.premium && isPaidQuality(q.value) ? 'Upgrade' : q.hint,
+  }))
+)
 
 /**
  * Choosing a paid quality on a free account opens the upgrade dialog rather

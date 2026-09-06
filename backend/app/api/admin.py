@@ -7,13 +7,16 @@ from sqlalchemy import func
 
 from app.api.deps import AdminUser, DbSession
 from app.security import hash_password
-from app.services import plans, storage
-from app.models import Download, DownloadStatus, Plan, Review, User
+from app.services import payments, plans, storage
+from app.models import Download, DownloadStatus, PaymentRequest, PaymentStatus, Plan, Review, User
 from app.schemas import (
     AdminDownloadOut,
     AdminStats,
     AdminUserEdit,
     AdminUserOut,
+    PaymentRequestOut,
+    PaymentSettingsEdit,
+    PaymentSettingsOut,
     PlanEdit,
     PlanOut,
     ReviewCreate,
@@ -225,6 +228,64 @@ def delete_user(user_id: int, db: DbSession, admin: AdminUser):
         folder.rmdir()
     except OSError:
         pass
+
+
+@router.get("/payments", response_model=list[PaymentRequestOut])
+def list_payments(db: DbSession, _: AdminUser, pending_only: bool = True):
+    """The review queue. Pending first by default — that is the actionable set."""
+    query = (
+        db.query(PaymentRequest, User.username, Plan.label)
+        .join(User, User.id == PaymentRequest.user_id)
+        .outerjoin(Plan, Plan.code == PaymentRequest.plan_code)
+    )
+    if pending_only:
+        query = query.filter(PaymentRequest.status == PaymentStatus.pending)
+    rows = query.order_by(PaymentRequest.created_at.desc()).limit(100).all()
+    return [
+        PaymentRequestOut(
+            id=r.id,
+            user_id=r.user_id,
+            username=username,
+            plan_code=r.plan_code,
+            plan_label=label or r.plan_code,
+            method=r.method,
+            amount=float(r.amount),
+            status=r.status,
+            created_at=r.created_at,
+        )
+        for r, username, label in rows
+    ]
+
+
+@router.post("/payments/{request_id}/approve", response_model=AdminUserOut)
+def approve_payment(request_id: int, db: DbSession, admin: AdminUser):
+    """Accept a claim and put the member on their plan. Returns the updated user
+    so the table row refreshes without a second round trip."""
+    try:
+        request = payments.approve(db, admin, request_id)
+    except payments.PaymentError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+    return _user_response(db, _user_or_404(db, request.user_id))
+
+
+@router.post("/payments/{request_id}/reject", status_code=status.HTTP_204_NO_CONTENT)
+def reject_payment(request_id: int, db: DbSession, admin: AdminUser):
+    try:
+        payments.reject(db, admin, request_id)
+    except payments.PaymentError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+
+
+@router.get("/payment-settings", response_model=PaymentSettingsOut)
+def payment_settings(db: DbSession, _: AdminUser):
+    return PaymentSettingsOut(cash_enabled=payments.get_flag(db, "cash_enabled"))
+
+
+@router.patch("/payment-settings", response_model=PaymentSettingsOut)
+def update_payment_settings(payload: PaymentSettingsEdit, db: DbSession, _: AdminUser):
+    """Whether members are offered cash at all."""
+    payments.set_flag(db, "cash_enabled", payload.cash_enabled)
+    return PaymentSettingsOut(cash_enabled=payload.cash_enabled)
 
 
 @router.get("/plans", response_model=list[PlanOut])

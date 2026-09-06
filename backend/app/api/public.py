@@ -13,9 +13,9 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
-from app.schemas import GuestDownloadRequest, GuestLimitsOut, PlanOut
+from app.schemas import GuestDownloadRequest, GuestLimitsOut, PaymentSettingsOut, PlanOut
 from app.api.deps import DbSession
-from app.services import guest, plans, storage
+from app.services import guest, payments, plans, storage
 
 router = APIRouter()
 
@@ -46,6 +46,12 @@ def limits():
 def public_plans(db: DbSession):
     """Prices for the upgrade dialog. Public: it is a price list, not a secret."""
     return plans.listing(db)
+
+
+@router.get("/payment-settings", response_model=PaymentSettingsOut)
+def public_payment_settings(db: DbSession):
+    """Which payment methods the upgrade dialog should offer."""
+    return PaymentSettingsOut(cash_enabled=payments.get_flag(db, "cash_enabled"))
 
 
 @router.post("/download")

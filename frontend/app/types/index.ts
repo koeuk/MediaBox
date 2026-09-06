@@ -114,3 +114,16 @@ export interface Plan {
   price: number
   sort_order: number
 }
+
+
+export interface PaymentRequest {
+  id: number
+  user_id: number
+  username: string
+  plan_code: string
+  plan_label: string
+  method: string
+  amount: number
+  status: string
+  created_at: string
+}

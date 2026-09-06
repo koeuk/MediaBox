@@ -13,10 +13,11 @@ const denied = ref(false)
 
 /** Which panel the tabs are showing. Mirrored into `?tab=` so a reload — or a
  *  link straight to one section — lands where you expect. */
-type AdminTab = 'branding' | 'reviews' | 'plans' | 'users' | 'downloads'
+type AdminTab = 'branding' | 'reviews' | 'payments' | 'plans' | 'users' | 'downloads'
 const TABS: { id: AdminTab; label: string }[] = [
   { id: 'branding', label: 'Branding' },
   { id: 'reviews', label: 'Reviews' },
+  { id: 'payments', label: 'Payments' },
   { id: 'plans', label: 'Plans' },
   { id: 'users', label: 'Users' },
   { id: 'downloads', label: 'Downloads' },
@@ -26,6 +27,15 @@ const route = useRoute()
 const router = useRouter()
 const queryTab = TABS.find((t) => t.id === route.query.tab)?.id
 const tab = ref<AdminTab>(queryTab || 'branding')
+
+/** Pull the user list again — an approved payment changes someone's expiry. */
+async function reloadUsers() {
+  try {
+    users.value = await request<AdminUser[]>('/admin/users')
+  } catch {
+    // the queue already reported success; a stale row is not worth an error
+  }
+}
 
 watch(tab, (value) => {
   router.replace({ query: value === 'branding' ? {} : { tab: value } })
@@ -106,6 +116,14 @@ onMounted(async () => {
         id="panel-reviews"
         role="tabpanel"
         aria-labelledby="tab-reviews"
+      />
+
+      <AdminPaymentQueue
+        v-show="tab === 'payments'"
+        id="panel-payments"
+        role="tabpanel"
+        aria-labelledby="tab-payments"
+        @granted="reloadUsers"
       />
 
       <AdminPlanManager

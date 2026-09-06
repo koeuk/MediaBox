@@ -105,7 +105,10 @@ async function confirmRemove() {
 }
 
 onMounted(async () => {
-  if (!user.value) await fetchUser()
+  // Always refetch, not just when it is missing: `user` is cached from login,
+  // so an upgrade approved since then would otherwise stay invisible until the
+  // next sign-in and high quality would look broken.
+  await fetchUser()
   // the socket URL carries the media token, so mint it before connecting
   await Promise.all([refresh(), refreshMediaToken(), fetchCategories()])
   startLive()
@@ -180,7 +183,7 @@ onMounted(async () => {
     <UpgradeDialog
       :open="upgradeOpen"
       :quality="upgradeQuality"
-      @close="upgradeOpen = false"
+      @close="upgradeOpen = false; fetchUser()"
     />
 
     <InfoDialog :download="infoTarget" @close="infoTarget = null" />
