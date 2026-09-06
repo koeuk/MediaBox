@@ -33,21 +33,57 @@ async function setPlan(u: AdminUser, code: string) {
   )
 }
 
+/**
+ * Deleting an empty account is a small mistake; deleting one with files, or a
+ * subscription someone paid for, is not recoverable. Those get the stricter
+ * confirmation where the username has to be typed out.
+ */
+const deleteNeedsTyping = computed(() => {
+  const u = pendingDelete.value
+  // `premium_until` rather than `is_premium`: a lapsed plan still means money
+  // changed hands, and that history goes too
+  return !!u && (u.download_count > 0 || u.bytes_stored > 0 || !!u.premium_until)
+})
+
+/** Spells out what is actually being destroyed, rather than just "are you sure". */
+const deleteHint = computed(() => {
+  const u = pendingDelete.value
+  if (!u) return ''
+  const parts: string[] = []
+  if (u.download_count > 0) {
+    parts.push(`${u.download_count} download${u.download_count === 1 ? '' : 's'}`)
+  }
+  if (u.bytes_stored > 0) parts.push(formatBytes(u.bytes_stored))
+  if (u.premium_until) {
+    parts.push(
+      u.is_premium ? `a paid plan running to ${expiryLabel(u)}` : 'a past paid plan'
+    )
+  }
+  return parts.length ? `This account has ${parts.join(' · ')}. None of it can be recovered.` : ''
+})
+
 function expiryLabel(u: AdminUser) {
   if (!u.premium_until) return null
   return new Date(u.premium_until).toLocaleDateString()
 }
 
 const rows = computed(() => props.users)
-const editingId = ref<number | null>(null)
+/** The account open in the edit dialog, or null when it is closed. */
+const editing = ref<AdminUser | null>(null)
 const pendingDelete = ref<AdminUser | null>(null)
-/** Set while a password change waits on the confirm dialog. */
+/** Set while a suspend/restore waits on its confirm dialog. */
+const pendingSuspend = ref<AdminUser | null>(null)
+/** Whose password is being changed — its own flow, separate from Edit. */
+const pwTarget = ref<AdminUser | null>(null)
+const pwValue = ref('')
+const pwError = ref('')
+/** Set while that password change waits on its confirm dialog. */
 const pendingPassword = ref<AdminUser | null>(null)
 const busyId = ref<number | null>(null)
 const error = ref('')
 const notice = ref('')
 
-const draft = reactive({ username: '', email: '', is_admin: false, new_password: '' })
+const draft = reactive({ username: '', email: '', is_admin: false })
 
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
 function flash(msg: string) {
@@ -64,17 +100,17 @@ function isSelf(u: AdminUser) {
 
 function startEdit(u: AdminUser) {
   error.value = ''
-  editingId.value = u.id
+  editing.value = u
   draft.username = u.username
   draft.email = u.email
   draft.is_admin = u.is_admin
   // never prefilled — the current password is not knowable, and a blank field
   // is what "leave it alone" looks like
-  draft.new_password = ''
 }
 
 function cancelEdit() {
-  editingId.value = null
+  editing.value = null
+  error.value = ''
 }
 
 /** Replace one row in place, so sort order and the rest of the table hold. */
@@ -102,22 +138,17 @@ async function patch(u: AdminUser, body: Record<string, unknown>, done: string) 
 }
 
 /** Send the edit. Password is included only once confirmed. */
-async function applyEdit(u: AdminUser, withPassword: boolean) {
-  const body: Record<string, unknown> = {
-    username: draft.username.trim(),
-    email: draft.email.trim(),
-    is_admin: draft.is_admin,
-  }
-  if (withPassword) body.new_password = draft.new_password
+async function applyEdit(u: AdminUser) {
   const ok = await patch(
     u,
-    body,
-    withPassword ? 'Account updated and password reset' : 'Account updated'
+    {
+      username: draft.username.trim(),
+      email: draft.email.trim(),
+      is_admin: draft.is_admin,
+    },
+    'Account updated'
   )
-  if (ok) {
-    editingId.value = null
-    draft.new_password = ''
-  }
+  if (ok) editing.value = null
 }
 
 function saveEdit(u: AdminUser) {
@@ -130,27 +161,45 @@ function saveEdit(u: AdminUser) {
     error.value = 'Email cannot be blank.'
     return
   }
-  // Resetting someone's password locks them out of the one they know, so it
-  // asks first. A plain rename is reversible and saves straight through.
-  if (draft.new_password) {
-    if (draft.new_password.length < 6) {
-      error.value = 'New password must be at least 6 characters.'
-      return
-    }
-    pendingPassword.value = u
+  return applyEdit(u)
+}
+
+/** Open the password flow. Kept apart from Edit so a rename cannot quietly
+ *  reset someone's password, and so the confirm step only guards the thing
+ *  that actually needs guarding. */
+function startPassword(u: AdminUser) {
+  pwTarget.value = u
+  pwValue.value = ''
+  pwError.value = ''
+}
+
+function submitPassword() {
+  pwError.value = ''
+  if (pwValue.value.length < 6) {
+    pwError.value = 'New password must be at least 6 characters.'
     return
   }
-  return applyEdit(u, false)
+  pendingPassword.value = pwTarget.value
 }
 
-function confirmPassword() {
+async function applyPassword() {
   const u = pendingPassword.value
   pendingPassword.value = null
-  if (u) applyEdit(u, true)
+  if (!u) return
+  const ok = await patch(u, { new_password: pwValue.value }, 'Password changed')
+  if (ok) {
+    pwTarget.value = null
+    pwValue.value = ''
+  }
 }
 
-function toggleSuspend(u: AdminUser) {
-  return patch(
+
+
+function confirmSuspend() {
+  const u = pendingSuspend.value
+  pendingSuspend.value = null
+  if (!u) return
+  patch(
     u,
     { is_suspended: !u.is_suspended },
     u.is_suspended ? 'Account restored' : 'Account suspended'
@@ -196,22 +245,7 @@ async function confirmDelete() {
           </tr>
         </thead>
         <tbody>
-          <template v-for="u in rows" :key="u.id">
-          <tr :class="{ suspended: u.is_suspended }">
-            <!-- editing swaps the first three cells for inputs, so the row keeps
-                 its place in the table instead of opening a dialog -->
-            <template v-if="editingId === u.id">
-              <td><input v-model="draft.username" class="input cell-input" maxlength="80" /></td>
-              <td><input v-model="draft.email" class="input cell-input" type="email" /></td>
-              <td>
-                <label class="role-toggle">
-                  <input v-model="draft.is_admin" type="checkbox" :disabled="isSelf(u)" />
-                  <span>admin</span>
-                </label>
-
-              </td>
-            </template>
-            <template v-else>
+          <tr v-for="u in rows" :key="u.id" :class="{ suspended: u.is_suspended }">
               <td>
                 {{ u.username }}
                 <span v-if="isSelf(u)" class="you mono">you</span>
@@ -229,7 +263,6 @@ async function confirmDelete() {
                   <span v-if="u.is_suspended" class="badge badge-failed">suspended</span>
                 </div>
               </td>
-            </template>
 
             <td class="num mono">{{ u.download_count }}</td>
             <td class="num mono">{{ formatBytes(u.bytes_stored) }}</td>
@@ -237,13 +270,6 @@ async function confirmDelete() {
 
             <td class="actions-col">
               <div class="actions">
-                <template v-if="editingId === u.id">
-                  <button class="link-btn" :disabled="busyId === u.id" @click="saveEdit(u)">
-                    {{ busyId === u.id ? 'Saving…' : 'Save' }}
-                  </button>
-                  <button class="link-btn dim" @click="cancelEdit">Cancel</button>
-                </template>
-                <template v-else>
                   <button class="link-btn" :disabled="busyId === u.id" @click="startEdit(u)">
                     Edit
                   </button>
@@ -251,7 +277,15 @@ async function confirmDelete() {
                     v-if="!isSelf(u)"
                     class="link-btn"
                     :disabled="busyId === u.id"
-                    @click="toggleSuspend(u)"
+                    @click="startPassword(u)"
+                  >
+                    Password
+                  </button>
+                  <button
+                    v-if="!isSelf(u)"
+                    class="link-btn"
+                    :disabled="busyId === u.id"
+                    @click="pendingSuspend = u"
                   >
                     {{ u.is_suspended ? 'Restore' : 'Suspend' }}
                   </button>
@@ -278,40 +312,117 @@ async function confirmDelete() {
                   >
                     Delete
                   </button>
-                </template>
               </div>
             </td>
           </tr>
-
-          <!-- password gets its own row: the columns above are too narrow for
-               it, and it is optional, so it needs room to say so -->
-          <tr v-if="editingId === u.id" class="pw-row">
-            <td :colspan="7">
-              <label class="pw-label" :for="`pw-${u.id}`">
-                Reset password
-                <span class="pw-hint">optional — leave blank to keep the current one</span>
-              </label>
-              <PasswordInput
-                :id="`pw-${u.id}`"
-                v-model="draft.new_password"
-                :minlength="6"
-                autocomplete="new-password"
-                placeholder="Min. 6 characters"
-                class="pw-input"
-              />
-            </td>
-          </tr>
-          </template>
         </tbody>
       </table>
     </div>
+
+    <!-- editing is a dialog rather than inline inputs: the row is too narrow
+         for an email field plus a password reset, and a half-edited row that
+         scrolls out of view is easy to lose track of -->
+    <Teleport to="body">
+      <Transition name="dialog">
+        <div v-if="editing" class="overlay" @click.self="cancelEdit">
+          <form
+            class="dialog panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Edit account"
+            @submit.prevent="saveEdit(editing)"
+          >
+            <h3 class="dialog-title">Edit account</h3>
+            <p class="dialog-message">{{ editing.email }}</p>
+
+            <p v-if="error" class="msg err mono dialog-msg">{{ error }}</p>
+
+            <label class="label" for="edit-username">Username</label>
+            <input
+              id="edit-username"
+              v-model="draft.username"
+              class="input"
+              maxlength="80"
+              autocomplete="off"
+            />
+
+            <label class="label" for="edit-email">Email</label>
+            <input id="edit-email" v-model="draft.email" class="input" type="email" autocomplete="off" />
+
+            <label class="role-toggle edit-role">
+              <input v-model="draft.is_admin" type="checkbox" :disabled="isSelf(editing)" />
+              <span>Administrator</span>
+            </label>
+
+            <div class="dialog-actions">
+              <button type="button" class="btn btn-ghost" @click="cancelEdit">Cancel</button>
+              <button type="submit" class="btn btn-accent" :disabled="busyId === editing.id">
+                {{ busyId === editing.id ? 'Saving…' : 'Save changes' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <Transition name="dialog">
+        <div v-if="pwTarget" class="overlay" @click.self="pwTarget = null">
+          <form
+            class="dialog panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Change password"
+            @submit.prevent="submitPassword"
+          >
+            <h3 class="dialog-title">Change password</h3>
+            <p class="dialog-message">
+              Set a new password for “{{ pwTarget.username }}”. They are not
+              notified — pass it on yourself.
+            </p>
+
+            <p v-if="pwError" class="msg err mono pw-msg">{{ pwError }}</p>
+
+            <label class="label" for="new-password">New password</label>
+            <PasswordInput
+              id="new-password"
+              v-model="pwValue"
+              :minlength="6"
+              autocomplete="new-password"
+              placeholder="Min. 6 characters"
+            />
+
+            <div class="dialog-actions">
+              <button type="button" class="btn btn-ghost" @click="pwTarget = null">
+                Cancel
+              </button>
+              <button type="submit" class="btn btn-accent" :disabled="busyId === pwTarget.id">
+                {{ busyId === pwTarget.id ? 'Saving…' : 'Change password' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <ConfirmDialog
+      :open="!!pendingSuspend"
+      :title="pendingSuspend?.is_suspended ? 'Restore this account?' : 'Suspend this account?'"
+      :message="pendingSuspend?.is_suspended
+        ? `“${pendingSuspend?.username}” will be able to sign in and use the API again.`
+        : `“${pendingSuspend?.username}” keeps their downloads but cannot sign in or use the API until you restore them.`"
+      :confirm-label="pendingSuspend?.is_suspended ? 'Restore' : 'Suspend'"
+      :danger="!pendingSuspend?.is_suspended"
+      @confirm="confirmSuspend"
+      @cancel="pendingSuspend = null"
+    />
 
     <ConfirmDialog
       :open="!!pendingPassword"
       title="Reset this password?"
       :message="`“${pendingPassword?.username}” will be signed out of the password they know and must use the new one. They are not notified — you will need to pass it on yourself.`"
       confirm-label="Reset password"
-      @confirm="confirmPassword"
+      @confirm="applyPassword"
       @cancel="pendingPassword = null"
     />
 
@@ -319,6 +430,8 @@ async function confirmDelete() {
       :open="!!pendingDelete"
       title="Delete this account?"
       :message="`“${pendingDelete?.username}” and all ${pendingDelete?.download_count ?? 0} of their downloads will be permanently removed.`"
+      :require-text="deleteNeedsTyping ? pendingDelete?.username : undefined"
+      :require-hint="deleteNeedsTyping ? deleteHint : undefined"
       confirm-label="Delete"
       danger
       @confirm="confirmDelete"
@@ -465,12 +578,59 @@ td.num,
   color: var(--text-dim);
 }
 
-/* inputs sit inside table cells, so they lose the usual block sizing */
-.cell-input {
+/* dialog shell copied from ConfirmDialog for the same reason the table shell
+   was copied from the admin page: those styles are scoped to that component */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--bg) 65%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.dialog {
   width: 100%;
-  min-width: 120px;
-  padding: 0.3rem 0.45rem;
-  font-size: 0.8rem;
+  max-width: 400px;
+  padding: 1.4rem 1.5rem 1.3rem;
+  box-shadow: var(--shadow);
+}
+
+.dialog-title {
+  margin: 0 0 0.3rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.dialog-message {
+  margin: 0 0 1rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.dialog .label {
+  display: block;
+  margin: 0.9rem 0 0.3rem;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.3rem;
+}
+
+/* the password confirm opens on top of this one */
+.dialog-msg {
+  margin: 0;
+}
+
+.edit-role {
+  margin-top: 0.9rem;
 }
 
 /* a native select here rather than AppSelect: it lives inside a dense table
@@ -518,6 +678,10 @@ td.num,
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--text-faint);
+}
+
+.pw-msg {
+  margin: 0 0 0.2rem;
 }
 
 .pw-hint {

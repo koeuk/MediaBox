@@ -1,10 +1,16 @@
 <script setup lang="ts">
-defineProps<{
-  id?: string
-  placeholder?: string
-  autocomplete?: string
-  minlength?: number
-}>()
+withDefaults(
+  defineProps<{
+    id?: string
+    placeholder?: string
+    autocomplete?: string
+    minlength?: number
+    /** Off for optional fields — an empty `required` input blocks the whole
+     *  form from submitting, with no visible reason. */
+    required?: boolean
+  }>(),
+  { required: true }
+)
 const model = defineModel<string>({ required: true })
 const show = ref(false)
 </script>
@@ -16,7 +22,7 @@ const show = ref(false)
       v-model="model"
       class="input pw-input"
       :type="show ? 'text' : 'password'"
-      required
+      :required="required"
       :minlength="minlength"
       :autocomplete="autocomplete"
       :placeholder="placeholder"

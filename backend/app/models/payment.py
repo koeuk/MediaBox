@@ -35,7 +35,7 @@ class PaymentRequest(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reviewed_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    user = relationship("User")
+    user = relationship("User", overlaps="payments")
 
 
 class AppSetting(Base):

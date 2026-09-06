@@ -5,10 +5,21 @@ const props = defineProps<{
   message?: string
   confirmLabel?: string
   danger?: boolean
+  /** When set, the exact text the operator must type before Confirm unlocks.
+   *  For destructive actions that cannot be undone and where the target has
+   *  something worth losing. */
+  requireText?: string
+  /** Shown above the input to say what is about to be destroyed. */
+  requireHint?: string
 }>()
 const emit = defineEmits<{ confirm: []; cancel: [] }>()
 
 const confirmBtn = ref<HTMLButtonElement>()
+const typed = ref('')
+const textInput = ref<HTMLInputElement>()
+
+/** Without `requireText` the dialog behaves exactly as before. */
+const locked = computed(() => !!props.requireText && typed.value.trim() !== props.requireText)
 
 const isZooming = ref(false)
 let zoomTimeout: ReturnType<typeof setTimeout> | undefined
@@ -33,8 +44,11 @@ watch(
   () => props.open,
   async (open) => {
     if (open) {
+      typed.value = ''
       await nextTick()
-      confirmBtn.value?.focus()
+      // focus the box they have to fill in, not a button they cannot press yet
+      if (props.requireText) textInput.value?.focus()
+      else confirmBtn.value?.focus()
     }
   }
 )
@@ -56,12 +70,30 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
         >
           <h3 class="dialog-title">{{ title }}</h3>
           <p v-if="message" class="dialog-message">{{ message }}</p>
+
+          <div v-if="requireText" class="confirm-type">
+            <p v-if="requireHint" class="dialog-message hint">{{ requireHint }}</p>
+            <label class="label" :for="'confirm-text'">
+              Type <b>{{ requireText }}</b> to confirm
+            </label>
+            <input
+              id="confirm-text"
+              ref="textInput"
+              v-model="typed"
+              class="input mono"
+              autocomplete="off"
+              spellcheck="false"
+              @keydown.enter="!locked && emit('confirm')"
+            />
+          </div>
+
           <div class="dialog-actions">
             <button class="btn btn-ghost" @click="emit('cancel')">Cancel</button>
             <button
               ref="confirmBtn"
               class="btn"
               :class="danger ? 'btn-danger' : 'btn-accent'"
+              :disabled="locked"
               @click="emit('confirm')"
             >
               {{ confirmLabel || 'Confirm' }}
@@ -74,6 +106,21 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 </template>
 
 <style scoped>
+.confirm-type {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.9rem 0 0.2rem;
+}
+
+.confirm-type .hint {
+  margin: 0 0 0.3rem;
+}
+
+.confirm-type b {
+  color: var(--text);
+}
+
 .overlay {
   position: fixed;
   inset: 0;

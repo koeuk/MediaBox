@@ -31,6 +31,11 @@ class User(Base):
     downloads = relationship(
         "Download", back_populates="owner", cascade="all, delete-orphan"
     )
+    # Categories are per-user too, and their foreign key is ON DELETE NO ACTION,
+    # so without this cascade the database refuses to delete any account that
+    # has ever opened the categories page.
+    categories = relationship("Category", cascade="all, delete-orphan")
+    payments = relationship("PaymentRequest", cascade="all, delete-orphan")
 
     @property
     def has_avatar(self) -> bool:
