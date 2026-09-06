@@ -12,6 +12,23 @@ const props = defineProps<{ users: AdminUser[]; currentUserId?: number }>()
 const emit = defineEmits<{ changed: [users: AdminUser[]] }>()
 
 const { request } = useApi()
+const { open: menuOpen, anchor, menu, pos, placed, toggle, close: closeMenu } = usePopMenu()
+
+/** Which row's menu is showing — usePopMenu only tracks open/closed. */
+const menuFor = ref<AdminUser | null>(null)
+
+function openMenu(event: MouseEvent, u: AdminUser) {
+  // reopening on a different row should move the menu, not close it
+  if (menuOpen.value && menuFor.value?.id !== u.id) closeMenu()
+  menuFor.value = u
+  toggle(event)
+}
+
+/** Run an action and shut the menu, so it never lingers over the result. */
+function pick(fn: () => void) {
+  closeMenu()
+  fn()
+}
 
 // plan codes for the grant dropdown; prices are managed in AdminPlanManager
 const plans = ref<Plan[]>([])
@@ -193,8 +210,6 @@ async function applyPassword() {
   }
 }
 
-
-
 function confirmSuspend() {
   const u = pendingSuspend.value
   pendingSuspend.value = null
@@ -269,50 +284,23 @@ async function confirmDelete() {
             <td class="dim joined-col">{{ formatDate(u.created_at) }}</td>
 
             <td class="actions-col">
-              <div class="actions">
-                  <button class="link-btn" :disabled="busyId === u.id" @click="startEdit(u)">
-                    Edit
-                  </button>
-                  <button
-                    v-if="!isSelf(u)"
-                    class="link-btn"
-                    :disabled="busyId === u.id"
-                    @click="startPassword(u)"
-                  >
-                    Password
-                  </button>
-                  <button
-                    v-if="!isSelf(u)"
-                    class="link-btn"
-                    :disabled="busyId === u.id"
-                    @click="pendingSuspend = u"
-                  >
-                    {{ u.is_suspended ? 'Restore' : 'Suspend' }}
-                  </button>
-                  <select
-                    class="plan-select mono"
-                    :disabled="busyId === u.id"
-                    :aria-label="`Give ${u.username} a plan`"
-                    @change="setPlan(u, ($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
-                  >
-                    <option value="" disabled selected>
-                      {{ u.is_premium ? 'Extend…' : 'Give plan…' }}
-                    </option>
-                    <option v-for="p in plans" :key="p.code" :value="p.code">
-                      +{{ p.label }}
-                    </option>
-                    <option v-if="u.is_premium" value="">End plan</option>
-                  </select>
-                  <span v-if="!isSelf(u)" class="action-sep" aria-hidden="true" />
-                  <button
-                    v-if="!isSelf(u)"
-                    class="link-btn danger"
-                    :disabled="busyId === u.id"
-                    @click="pendingDelete = u"
-                  >
-                    Delete
-                  </button>
-              </div>
+              <button
+                ref="anchor"
+                class="btn btn-ghost btn-icon kebab"
+                :class="{ on: menuOpen && menuFor?.id === u.id }"
+                :disabled="busyId === u.id"
+                title="Account actions"
+                :aria-label="`Actions for ${u.username}`"
+                aria-haspopup="menu"
+                :aria-expanded="menuOpen && menuFor?.id === u.id"
+                @click.stop="openMenu($event, u)"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <circle cx="12" cy="5" r="1.8" />
+                  <circle cx="12" cy="12" r="1.8" />
+                  <circle cx="12" cy="19" r="1.8" />
+                </svg>
+              </button>
             </td>
           </tr>
         </tbody>
@@ -361,6 +349,68 @@ async function confirmDelete() {
               </button>
             </div>
           </form>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- teleported: the table scrolls horizontally and would clip this -->
+    <Teleport to="body">
+      <Transition name="pop">
+        <div
+          v-if="menuOpen && menuFor"
+          ref="menu"
+          class="pop-menu panel"
+          role="menu"
+          :style="{ top: `${pos.top}px`, left: `${pos.left}px`, visibility: placed ? 'visible' : 'hidden' }"
+          @click.stop
+        >
+          <button class="pop-item" role="menuitem" @click="pick(() => startEdit(menuFor!))">
+            Edit account
+          </button>
+
+          <button
+            v-if="!isSelf(menuFor)"
+            class="pop-item"
+            role="menuitem"
+            @click="pick(() => startPassword(menuFor!))"
+          >
+            Change password
+          </button>
+
+          <div class="pop-sep" />
+
+          <p class="pop-label mono">{{ menuFor.is_premium ? 'Extend plan' : 'Give plan' }}</p>
+          <button
+            v-for="p in plans"
+            :key="p.code"
+            class="pop-item"
+            role="menuitem"
+            @click="pick(() => setPlan(menuFor!, p.code))"
+          >
+            +{{ p.label }}
+          </button>
+          <button
+            v-if="menuFor.premium_until"
+            class="pop-item"
+            role="menuitem"
+            @click="pick(() => setPlan(menuFor!, ''))"
+          >
+            End plan
+          </button>
+
+          <template v-if="!isSelf(menuFor)">
+            <div class="pop-sep" />
+            <button class="pop-item" role="menuitem" @click="pick(() => (pendingSuspend = menuFor))">
+              {{ menuFor.is_suspended ? 'Restore access' : 'Suspend' }}
+            </button>
+            <button
+              class="pop-item danger"
+              role="menuitem"
+              @click="pick(() => (pendingDelete = menuFor))"
+            >
+              Delete account
+            </button>
+          </template>
         </div>
       </Transition>
     </Teleport>
@@ -495,7 +545,22 @@ tr.suspended td {
   opacity: 0.62;
 }
 
-tr.suspended .actions-col {
+tr.suspended .kebab.on {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+/* section heading inside the menu, e.g. "Give plan" */
+.pop-label {
+  margin: 0.2rem 0 0.15rem;
+  padding: 0 0.6rem;
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+}
+
+.actions-col {
   opacity: 1;
 }
 
@@ -541,41 +606,6 @@ td.num,
   display: inline-flex;
   align-items: center;
   gap: 0.7rem;
-}
-
-.action-sep {
-  width: 1px;
-  height: 0.9rem;
-  background: var(--line-strong);
-}
-
-.link-btn {
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--accent);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-}
-
-.link-btn:hover:not(:disabled) {
-  text-decoration: underline;
-}
-
-.link-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.link-btn.danger {
-  color: var(--err);
-}
-
-.link-btn.dim {
-  color: var(--text-dim);
 }
 
 /* dialog shell copied from ConfirmDialog for the same reason the table shell
@@ -635,25 +665,6 @@ td.num,
 
 /* a native select here rather than AppSelect: it lives inside a dense table
    row and acts as a menu of one-shot actions, not a bound value */
-.plan-select {
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: var(--bg-raised);
-  color: var(--accent);
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0.22rem 0.35rem;
-  line-height: 1.2;
-  /* fixed width so "Extend…" and "Give plan…" leave the buttons around them
-     in the same place on every row */
-  min-width: 6.8rem;
-  cursor: pointer;
-}
-
-.plan-select:hover:not(:disabled) {
-  border-color: var(--line-strong);
-}
 
 .role-toggle {
   display: inline-flex;
