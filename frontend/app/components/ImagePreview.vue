@@ -17,6 +17,7 @@ const props = withDefaults(
 const emit = defineEmits<{ close: []; select: [download: Download] }>()
 
 const { fileUrl, slideUrl } = useApi()
+const { interceptSave } = useSaveFile()
 
 const name = computed(
   () => props.download?.title || props.download?.filename || props.download?.url || ''
@@ -36,6 +37,14 @@ watch(() => props.download?.id, () => (slide.value = 0))
 
 function stepSlide(delta: number) {
   slide.value = (slide.value + delta + slideCount.value) % slideCount.value
+}
+
+function onSave(event: MouseEvent) {
+  if (!props.download) return
+  let name = props.download.filename || 'photo.jpg'
+  // saving one slide of a slideshow: number it so slides don't overwrite each other
+  if (isSlideshow.value) name = name.replace(/(\.[^.]*)?$/, `-${slide.value + 1}$1`)
+  interceptSave(event, src.value, name)
 }
 
 const src = computed(() => {
@@ -182,6 +191,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
               :href="src"
               :download="download.filename || true"
               :title="isSlideshow ? `Save photo ${slide + 1}` : 'Save'"
+              @click="onSave"
             >
               Save
             </a>

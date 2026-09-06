@@ -17,6 +17,7 @@ const emit = defineEmits<{
 }>()
 
 const { fileUrl, mediaToken } = useApi()
+const { interceptSave } = useSaveFile()
 const autoNext = useCookie<'on' | 'off'>('mediabox_auto_next', {
   default: () => 'on',
   maxAge: 60 * 60 * 24 * 365,
@@ -240,6 +241,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
               class="btn btn-ghost head-btn"
               :href="fileUrl(download.id, 'file')"
               :download="download.filename || true"
+              @click="interceptSave($event, fileUrl(download.id, 'file'), download.filename || 'download')"
             >
               Save
             </a>

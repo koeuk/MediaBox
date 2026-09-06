@@ -13,9 +13,15 @@ const props = withDefaults(
 const emit = defineEmits<{ info: []; hide: []; remove: [] }>()
 
 const { fileUrl, mediaToken } = useApi()
+const { interceptSave } = useSaveFile()
 const { open, anchor, menu, pos, placed, toggle, close } = usePopMenu()
 
 const saveable = computed(() => props.download.status === 'completed' && !!mediaToken.value)
+
+function onSave(event: MouseEvent) {
+  interceptSave(event, fileUrl(props.download.id, 'file'), props.download.filename || 'download')
+  close()
+}
 
 function pick(fn: () => void) {
   fn()
@@ -59,7 +65,7 @@ function pick(fn: () => void) {
             role="menuitem"
             :href="fileUrl(download.id, 'file')"
             :download="download.filename || true"
-            @click="close"
+            @click="onSave"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
