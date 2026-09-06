@@ -14,6 +14,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(80))
     hashed_password: Mapped[str] = mapped_column(String(255))
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    # a suspended account keeps its data but cannot log in or use the API
+    is_suspended: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # absolute path to the profile picture; NULL means the initials fallback
     avatar_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

@@ -85,6 +85,7 @@ export interface AdminUser {
   email: string
   username: string
   is_admin: boolean
+  is_suspended: boolean
   created_at: string
   download_count: number
   bytes_stored: number

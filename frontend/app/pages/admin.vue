@@ -57,36 +57,13 @@ onMounted(async () => {
 
       <AdminReviewManager v-if="stats" />
 
-      <section class="panel table-panel reveal" style="animation-delay: 0.3s">
-        <h2 class="label table-title">Users</h2>
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>User</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th class="num">Downloads</th>
-                <th class="num">Storage</th>
-                <th>Joined</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="u in users" :key="u.id">
-                <td>{{ u.username }}</td>
-                <td class="mono dim">{{ u.email }}</td>
-                <td>
-                  <span v-if="u.is_admin" class="badge badge-downloading">admin</span>
-                  <span v-else class="dim">member</span>
-                </td>
-                <td class="num mono">{{ u.download_count }}</td>
-                <td class="num mono">{{ formatBytes(u.bytes_stored) }}</td>
-                <td class="dim">{{ formatDate(u.created_at) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <AdminUserManager
+        class="reveal"
+        style="animation-delay: 0.3s"
+        :users="users"
+        :current-user-id="user?.id"
+        @changed="users = $event"
+      />
 
       <section class="panel table-panel reveal" style="animation-delay: 0.32s">
         <h2 class="label table-title">Recent downloads</h2>

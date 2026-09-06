@@ -49,6 +49,10 @@ def login(payload: UserLogin, db: DbSession):
     user = db.query(User).filter(User.email == payload.email).first()
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    # told apart from a bad password on purpose — someone whose account was
+    # suspended should not be left retyping a password that is in fact correct
+    if user.is_suspended:
+        raise HTTPException(status_code=403, detail="This account has been suspended.")
     return TokenOut(access_token=create_access_token(user.id), user=UserOut.model_validate(user))
 
 

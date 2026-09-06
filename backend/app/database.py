@@ -45,6 +45,8 @@ def run_migrations(conn) -> None:
         ],
         "users": [
             ("avatar_path", "avatar_path TEXT"),
+            # DEFAULT 0 so existing accounts stay active, not NULL
+            ("is_suspended", "is_suspended BOOLEAN NOT NULL DEFAULT 0"),
         ],
     }
 

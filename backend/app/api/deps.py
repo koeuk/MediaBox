@@ -11,6 +11,13 @@ _credentials_error = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
 )
 
+# 403, not 401: the credentials are valid, the account just is not allowed in.
+# A 401 would send the client off to refresh a token that was never the problem.
+_suspended_error = HTTPException(
+    status_code=status.HTTP_403_FORBIDDEN,
+    detail="This account has been suspended.",
+)
+
 
 def _resolve_user(token: str | None, db: Session, allow_query_scope: bool) -> User:
     if not token:
@@ -25,6 +32,11 @@ def _resolve_user(token: str | None, db: Session, allow_query_scope: bool) -> Us
     user = db.get(User, user_id)
     if user is None:
         raise _credentials_error
+    # Checked on every request, not just at login: suspending someone has to
+    # cut off the tokens they are already holding, or the account stays usable
+    # until those expire.
+    if user.is_suspended:
+        raise _suspended_error
     return user
 
 

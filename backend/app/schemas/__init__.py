@@ -4,7 +4,7 @@ Everything is re-exported here, so `from app.schemas import DownloadOut` keeps
 working regardless of which module a model actually lives in.
 """
 
-from app.schemas.admin import AdminDownloadOut, AdminStats, AdminUserOut
+from app.schemas.admin import AdminDownloadOut, AdminStats, AdminUserEdit, AdminUserOut
 from app.schemas.auth import (
     MediaTokenOut,
     ProfileUpdate,
@@ -57,5 +57,6 @@ __all__ = [
     # admin
     "AdminStats",
     "AdminUserOut",
+    "AdminUserEdit",
     "AdminDownloadOut",
 ]
