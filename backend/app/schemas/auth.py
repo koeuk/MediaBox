@@ -31,6 +31,8 @@ class UserOut(BaseModel):
     email: EmailStr
     username: str
     is_admin: bool
+    is_premium: bool = False
+    premium_until: datetime | None = None
     # fetch the picture itself from /auth/me/avatar
     has_avatar: bool = False
     created_at: datetime

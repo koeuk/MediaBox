@@ -23,6 +23,8 @@ class AdminUserOut(BaseModel):
     username: str
     is_admin: bool
     is_suspended: bool
+    is_premium: bool
+    premium_until: datetime | None
     created_at: datetime
     download_count: int
     bytes_stored: int
@@ -35,6 +37,8 @@ class AdminUserEdit(BaseModel):
     email: EmailStr | None = None
     is_admin: bool | None = None
     is_suspended: bool | None = None
+    # grant a subscription: a plan code extends the account, "" ends it now
+    plan: str | None = None
     # an admin reset: no current password, because the whole point is that the
     # account holder cannot supply one
     new_password: str | None = Field(default=None, min_length=6, max_length=128)
@@ -51,3 +55,17 @@ class AdminDownloadOut(BaseModel):
     status: DownloadStatus
     total_bytes: int
     created_at: datetime
+
+
+class PlanOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    code: str
+    label: str
+    days: int
+    price: float
+    sort_order: int
+
+
+class PlanEdit(BaseModel):
+    price: float = Field(ge=0)

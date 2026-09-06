@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Payment QR placeholder">
+  <title>Payment QR placeholder</title>
+  <rect width="200" height="200" fill="#fff"/>
+  <g fill="#111">
+    <!-- finder patterns, so it reads as a QR at a glance -->
+    <path d="M16 16h48v48H16zm8 8v32h32V24z"/><rect x="32" y="32" width="16" height="16"/>
+    <path d="M136 16h48v48h-48zm8 8v32h32V24z"/><rect x="152" y="32" width="16" height="16"/>
+    <path d="M16 136h48v48H16zm8 8v32h32v-32z"/><rect x="32" y="152" width="16" height="16"/>
+  </g>
+  <text x="100" y="96" text-anchor="middle" font-family="monospace" font-size="13" fill="#111">
+    Replace with
+  </text>
+  <text x="100" y="114" text-anchor="middle" font-family="monospace" font-size="13" fill="#111">
+    your real QR
+  </text>
+  <text x="100" y="136" text-anchor="middle" font-family="monospace" font-size="9" fill="#666">
+    public/payment-qr.svg
+  </text>
+</svg>

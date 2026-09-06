@@ -11,6 +11,26 @@ const users = ref<AdminUser[]>([])
 const recent = ref<AdminDownload[]>([])
 const denied = ref(false)
 
+/** Which panel the tabs are showing. Mirrored into `?tab=` so a reload — or a
+ *  link straight to one section — lands where you expect. */
+type AdminTab = 'branding' | 'reviews' | 'plans' | 'users' | 'downloads'
+const TABS: { id: AdminTab; label: string }[] = [
+  { id: 'branding', label: 'Branding' },
+  { id: 'reviews', label: 'Reviews' },
+  { id: 'plans', label: 'Plans' },
+  { id: 'users', label: 'Users' },
+  { id: 'downloads', label: 'Downloads' },
+]
+
+const route = useRoute()
+const router = useRouter()
+const queryTab = TABS.find((t) => t.id === route.query.tab)?.id
+const tab = ref<AdminTab>(queryTab || 'branding')
+
+watch(tab, (value) => {
+  router.replace({ query: value === 'branding' ? {} : { tab: value } })
+})
+
 onMounted(async () => {
   if (!user.value) await fetchUser()
   if (!user.value?.is_admin) {
@@ -55,19 +75,63 @@ onMounted(async () => {
         <span class="badge badge-failed">✕ failed {{ stats.failed }}</span>
       </section>
 
-      <AdminBranding v-if="stats" class="reveal" style="animation-delay: 0.24s" />
+      <div class="filters tabs reveal" role="tablist" aria-label="Admin sections" style="animation-delay: 0.24s">
+        <button
+          v-for="t in TABS"
+          :id="`tab-${t.id}`"
+          :key="t.id"
+          class="filter-btn"
+          :class="{ on: tab === t.id }"
+          type="button"
+          role="tab"
+          :aria-selected="tab === t.id"
+          :aria-controls="`panel-${t.id}`"
+          @click="tab = t.id"
+        >
+          {{ t.label }}
+        </button>
+      </div>
 
-      <AdminReviewManager v-if="stats" />
+      <AdminBranding
+        v-if="stats"
+        v-show="tab === 'branding'"
+        id="panel-branding"
+        role="tabpanel"
+        aria-labelledby="tab-branding"
+      />
+
+      <AdminReviewManager
+        v-if="stats"
+        v-show="tab === 'reviews'"
+        id="panel-reviews"
+        role="tabpanel"
+        aria-labelledby="tab-reviews"
+      />
+
+      <AdminPlanManager
+        v-show="tab === 'plans'"
+        id="panel-plans"
+        role="tabpanel"
+        aria-labelledby="tab-plans"
+      />
 
       <AdminUserManager
-        class="reveal"
-        style="animation-delay: 0.3s"
+        v-show="tab === 'users'"
+        id="panel-users"
+        role="tabpanel"
+        aria-labelledby="tab-users"
         :users="users"
         :current-user-id="user?.id"
         @changed="users = $event"
       />
 
-      <section class="panel table-panel reveal" style="animation-delay: 0.32s">
+      <section
+        v-show="tab === 'downloads'"
+        id="panel-downloads"
+        role="tabpanel"
+        aria-labelledby="tab-downloads"
+        class="panel table-panel"
+      >
         <h2 class="label table-title">Recent downloads</h2>
         <div class="table-scroll">
           <table>
@@ -183,5 +247,11 @@ td.num {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* inline rather than stretching, so the bar reads as a control not a header */
+.tabs {
+  display: inline-flex;
+  margin-bottom: 1.1rem;
 }
 </style>

@@ -47,6 +47,9 @@ def run_migrations(conn) -> None:
             ("avatar_path", "avatar_path TEXT"),
             # DEFAULT 0 so existing accounts stay active, not NULL
             ("is_suspended", "is_suspended BOOLEAN NOT NULL DEFAULT 0"),
+            # is_premium (a plain boolean) was superseded by premium_until;
+            # the old column is left in place because this helper only adds
+            ("premium_until", "premium_until DATETIME NULL"),
         ],
     }
 

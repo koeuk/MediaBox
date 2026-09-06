@@ -13,8 +13,9 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
-from app.schemas import GuestDownloadRequest, GuestLimitsOut
-from app.services import guest, storage
+from app.schemas import GuestDownloadRequest, GuestLimitsOut, PlanOut
+from app.api.deps import DbSession
+from app.services import guest, plans, storage
 
 router = APIRouter()
 
@@ -39,6 +40,12 @@ def limits():
         rate_limit=guest.RATE_LIMIT,
         rate_window_seconds=guest.RATE_WINDOW_SECONDS,
     )
+
+
+@router.get("/plans", response_model=list[PlanOut])
+def public_plans(db: DbSession):
+    """Prices for the upgrade dialog. Public: it is a price list, not a secret."""
+    return plans.listing(db)
 
 
 @router.post("/download")

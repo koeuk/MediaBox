@@ -46,6 +46,8 @@ export interface User {
   email: string
   username: string
   is_admin: boolean
+  is_premium: boolean
+  premium_until: string | null
   /** Whether a profile picture is set; fetch it from /auth/me/avatar. */
   has_avatar?: boolean
   created_at: string
@@ -86,6 +88,8 @@ export interface AdminUser {
   username: string
   is_admin: boolean
   is_suspended: boolean
+  is_premium: boolean
+  premium_until: string | null
   created_at: string
   download_count: number
   bytes_stored: number
@@ -100,4 +104,13 @@ export interface AdminDownload {
   status: DownloadStatus
   total_bytes: number
   created_at: string
+}
+
+
+export interface Plan {
+  code: string
+  label: string
+  days: number
+  price: number
+  sort_order: number
 }

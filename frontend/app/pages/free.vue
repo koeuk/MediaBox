@@ -135,6 +135,12 @@ async function submit() {
 
 <template>
   <div class="wrap">
+    <header class="topbar">
+      <NuxtLink to="/free" class="topbar-brand" aria-label="MediaBox">
+        <img class="mark" src="/logo.svg" alt="" />
+      </NuxtLink>
+    </header>
+
     <div class="brand reveal">
       <div class="wordmark display">Media<span>Box</span></div>
       <p class="label">Download · No account needed</p>
@@ -189,8 +195,29 @@ async function submit() {
 
 <style scoped>
 .wrap {
+  position: relative;
   min-height: 100vh;
   padding: 3rem 0 4rem;
+}
+
+/* the mark sits in the corner like a site header, leaving the wordmark to
+   carry the centred brand block on its own */
+.topbar {
+  position: absolute;
+  top: 1.1rem;
+  left: 1.5rem;
+}
+
+.topbar-brand {
+  display: inline-flex;
+}
+
+.mark {
+  /* height-driven: the viewBox is taller than it is wide, so a fixed width
+     would letterbox the mark */
+  width: auto;
+  height: 60px;
+  display: block;
 }
 
 .brand {

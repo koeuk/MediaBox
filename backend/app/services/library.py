@@ -53,15 +53,46 @@ def _persist(db: Session, dl: Download) -> Download:
     return dl
 
 
+# The rungs above 720p are the paid tier. "" means "best available", so it
+# belongs here too — it is the most expensive option, not a neutral default.
+PAID_QUALITIES = frozenset({"", "1080", "1440", "2160"})
+
+# What a free account gets when it asks for something it has not paid for.
+FREE_FALLBACK_QUALITY = "720"
+
+
+class PaymentRequired(LibraryError):
+    """A free account asked for a paid rung of the quality ladder."""
+
+    status = 402
+
+
+def ensure_quality_allowed(user: User, quality: str | None) -> None:
+    """Gate the paid qualities.
+
+    Enforced here rather than in the router so every entry point — single,
+    batch, retry — goes through the same check.
+    """
+    if user.is_premium:
+        return
+    if (quality or "") in PAID_QUALITIES:
+        raise PaymentRequired(
+            "1080p and above need an upgraded account. "
+            f"Free downloads run at up to {FREE_FALLBACK_QUALITY}p."
+        )
+
+
 def queue_download(
     db: Session, user: User, url: str, title: str | None = None, quality: str | None = None
 ) -> Download:
+    ensure_quality_allowed(user, quality)
     dl = _persist(db, Download(user_id=user.id, url=url, title=title, quality=quality))
     jobs.submit(run_download, dl.id)
     return dl
 
 
 def queue_batch(db: Session, user: User, urls: list[str], quality: str | None) -> list[Download]:
+    ensure_quality_allowed(user, quality)
     records = [Download(user_id=user.id, url=url, quality=quality) for url in urls]
     db.add_all(records)
     db.commit()

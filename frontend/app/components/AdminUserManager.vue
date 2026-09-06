@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AdminUser } from '~/types'
+import type { AdminUser, Plan } from '~/types'
 
 /**
  * The admin users table and everything that mutates it.
@@ -12,6 +12,31 @@ const props = defineProps<{ users: AdminUser[]; currentUserId?: number }>()
 const emit = defineEmits<{ changed: [users: AdminUser[]] }>()
 
 const { request } = useApi()
+
+// plan codes for the grant dropdown; prices are managed in AdminPlanManager
+const plans = ref<Plan[]>([])
+onMounted(async () => {
+  try {
+    plans.value = await request<Plan[]>('/admin/plans')
+  } catch {
+    // the grant control just stays empty — not worth an error banner here
+  }
+})
+
+/** Grant or extend a subscription. '' ends it immediately. */
+async function setPlan(u: AdminUser, code: string) {
+  if (!code && !u.is_premium) return
+  await patch(
+    u,
+    { plan: code },
+    code ? `${u.username} extended` : `${u.username} downgraded`
+  )
+}
+
+function expiryLabel(u: AdminUser) {
+  if (!u.premium_until) return null
+  return new Date(u.premium_until).toLocaleDateString()
+}
 
 const rows = computed(() => props.users)
 const editingId = ref<number | null>(null)
@@ -183,6 +208,7 @@ async function confirmDelete() {
                   <input v-model="draft.is_admin" type="checkbox" :disabled="isSelf(u)" />
                   <span>admin</span>
                 </label>
+
               </td>
             </template>
             <template v-else>
@@ -194,6 +220,11 @@ async function confirmDelete() {
               <td>
                 <span v-if="u.is_admin" class="badge badge-downloading">admin</span>
                 <span v-else class="dim">member</span>
+                <span
+                  v-if="u.is_premium"
+                  class="badge badge-completed paid-badge"
+                  :title="`Paid until ${expiryLabel(u)}`"
+                >paid · {{ expiryLabel(u) }}</span>
               </td>
             </template>
 
@@ -224,6 +255,20 @@ async function confirmDelete() {
                   >
                     {{ u.is_suspended ? 'Restore' : 'Suspend' }}
                   </button>
+                  <select
+                    class="plan-select mono"
+                    :disabled="busyId === u.id"
+                    :aria-label="`Give ${u.username} a plan`"
+                    @change="setPlan(u, ($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
+                  >
+                    <option value="" disabled selected>
+                      {{ u.is_premium ? 'Extend…' : 'Give plan…' }}
+                    </option>
+                    <option v-for="p in plans" :key="p.code" :value="p.code">
+                      +{{ p.label }}
+                    </option>
+                    <option v-if="u.is_premium" value="">End plan</option>
+                  </select>
                   <button
                     v-if="!isSelf(u)"
                     class="link-btn danger"
@@ -388,6 +433,24 @@ tr.suspended td {
   min-width: 120px;
   padding: 0.3rem 0.45rem;
   font-size: 0.8rem;
+}
+
+.paid-badge {
+  margin-left: 0.35rem;
+}
+
+/* a native select here rather than AppSelect: it lives inside a dense table
+   row and acts as a menu of one-shot actions, not a bound value */
+.plan-select {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg-raised);
+  color: var(--accent);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.15rem 0.3rem;
+  cursor: pointer;
 }
 
 .role-toggle {

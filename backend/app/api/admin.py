@@ -7,13 +7,15 @@ from sqlalchemy import func
 
 from app.api.deps import AdminUser, DbSession
 from app.security import hash_password
-from app.services import storage
-from app.models import Download, DownloadStatus, Review, User
+from app.services import plans, storage
+from app.models import Download, DownloadStatus, Plan, Review, User
 from app.schemas import (
     AdminDownloadOut,
     AdminStats,
     AdminUserEdit,
     AdminUserOut,
+    PlanEdit,
+    PlanOut,
     ReviewCreate,
     ReviewEdit,
     ReviewOut,
@@ -63,6 +65,8 @@ def list_users(db: DbSession, _: AdminUser):
             username=user.username,
             is_admin=user.is_admin,
             is_suspended=user.is_suspended,
+            is_premium=user.is_premium,
+            premium_until=user.premium_until,
             created_at=user.created_at,
             download_count=count,
             bytes_stored=int(size),
@@ -126,6 +130,8 @@ def _user_response(db: DbSession, user: User) -> AdminUserOut:
         username=user.username,
         is_admin=user.is_admin,
         is_suspended=user.is_suspended,
+        is_premium=user.is_premium,
+        premium_until=user.premium_until,
         created_at=user.created_at,
         download_count=count,
         bytes_stored=int(size),
@@ -172,6 +178,17 @@ def update_user(user_id: int, payload: AdminUserEdit, db: DbSession, admin: Admi
         if db.query(User).filter(User.email == email, User.id != user.id).first():
             raise HTTPException(status_code=409, detail="Email already registered")
 
+    # not a column — a plan code means "extend this account by that long"
+    plan_code = changes.pop("plan", None)
+    if plan_code is not None:
+        if plan_code == "":
+            plans.clear(db, user)
+        else:
+            plan = db.get(Plan, plan_code)
+            if plan is None:
+                raise HTTPException(status_code=404, detail=f"No such plan: {plan_code}")
+            plans.apply(db, user, plan)
+
     for field, value in changes.items():
         setattr(user, field, value)
     if new_password is not None:
@@ -208,6 +225,23 @@ def delete_user(user_id: int, db: DbSession, admin: AdminUser):
         folder.rmdir()
     except OSError:
         pass
+
+
+@router.get("/plans", response_model=list[PlanOut])
+def list_plans(db: DbSession, _: AdminUser):
+    return plans.listing(db)
+
+
+@router.patch("/plans/{code}", response_model=PlanOut)
+def update_plan(code: str, payload: PlanEdit, db: DbSession, _: AdminUser):
+    """Set what a plan costs. Prices are data, not code, so they live here."""
+    plan = db.get(Plan, code)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    plan.price = payload.price
+    db.commit()
+    db.refresh(plan)
+    return plan
 
 
 def _review_or_404(db: DbSession, review_id: int) -> Review:

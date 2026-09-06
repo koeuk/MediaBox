@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /** URL box + quality picker + upload button. Purely presentational. */
-defineProps<{ submitting: boolean; uploading: boolean }>()
-const emit = defineEmits<{ submit: []; upload: [files: File[]] }>()
+const props = defineProps<{ submitting: boolean; uploading: boolean; premium?: boolean }>()
+const emit = defineEmits<{ submit: []; upload: [files: File[]]; locked: [quality: string] }>()
 
 const url = defineModel<string>('url', { required: true })
-const quality = defineModel<string>('quality', { required: true })
+const picked = defineModel<string>('quality', { required: true })
 
 const qualityOptions = [
   { value: '', label: 'Best', hint: 'auto' },
@@ -13,7 +13,26 @@ const qualityOptions = [
   { value: '1080', label: '1080p' },
   { value: '720', label: '720p' },
   { value: '480', label: '480p' },
-]
+].map((q) => ({
+  ...q,
+  hint: !props.premium && isPaidQuality(q.value) ? 'Upgrade' : q.hint,
+}))
+
+/**
+ * Choosing a paid quality on a free account opens the upgrade dialog rather
+ * than selecting it, and the picker stays where it was — queuing it would only
+ * come back as a 402 from the server.
+ */
+const quality = computed({
+  get: () => picked.value,
+  set: (value: string) => {
+    if (!props.premium && isPaidQuality(value)) {
+      emit('locked', value)
+      return
+    }
+    picked.value = value
+  },
+})
 
 const fileInput = ref<HTMLInputElement>()
 

@@ -9,6 +9,12 @@ const emit = defineEmits<{ submit: [] }>()
 
 <template>
   <div class="auth-wrap">
+    <header class="auth-topbar">
+      <NuxtLink to="/free" class="auth-topbar-brand" aria-label="MediaBox">
+        <img class="auth-mark" src="/logo.svg" alt="" />
+      </NuxtLink>
+    </header>
+
     <div class="auth-brand reveal">
       <div class="wordmark display">Media<span>Box</span></div>
       <p class="label">{{ tagline }}</p>
@@ -33,7 +39,27 @@ const emit = defineEmits<{ submit: [] }>()
 </template>
 
 <style scoped>
+/* corner mark, matching the guest page */
+.auth-topbar {
+  position: absolute;
+  top: 1.1rem;
+  left: 1.5rem;
+}
+
+.auth-topbar-brand {
+  display: inline-flex;
+}
+
+.auth-mark {
+  /* height-driven: the viewBox is taller than it is wide, so a fixed width
+     would letterbox the mark */
+  width: auto;
+  height: 60px;
+  display: block;
+}
+
 .auth-wrap {
+  position: relative;
   min-height: 100vh;
   display: flex;
   flex-direction: column;

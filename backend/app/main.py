@@ -7,8 +7,8 @@ from fastapi.responses import JSONResponse
 import app.models  # noqa: F401  (register models with the metadata)
 from app.api import admin, auth, categories, downloads, public, reviews, ws
 from app.config import settings
-from app.database import Base, engine, run_migrations
-from app.services import jobs
+from app.database import Base, SessionLocal, engine, run_migrations
+from app.services import jobs, plans
 from app.services.library import LibraryError
 
 
@@ -17,6 +17,8 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     with engine.begin() as conn:
         run_migrations(conn)
+    with SessionLocal() as db:
+        plans.seed(db)
     jobs.reset_interrupted()
     yield
 

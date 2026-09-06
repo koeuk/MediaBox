@@ -72,6 +72,20 @@ const counts = computed<Record<DownloadFilter, number>>(() => {
 
 // ── Modals ────────────────────────────────────────────────────────────
 
+// upgrade prompt for the paid rungs of the quality ladder
+const upgradeOpen = ref(false)
+const upgradeQuality = ref<string>('')
+
+// The picker defaults to "Best", which is a paid rung — leaving a free account
+// there would fail on their first download with a 402 they never asked for.
+watch(
+  user,
+  (u) => {
+    if (u && !u.is_premium && isPaidQuality(quality.value)) quality.value = FREE_QUALITY
+  },
+  { immediate: true }
+)
+
 const deleteTarget = ref<Download | null>(null)
 const infoTarget = ref<Download | null>(null)
 
@@ -109,6 +123,8 @@ onMounted(async () => {
         <h1 class="display hero-title">Add to your box</h1>
 
         <MediaSubmitBar
+          :premium="user?.is_premium"
+          @locked="upgradeQuality = $event; upgradeOpen = true"
           v-model:url="url"
           v-model:quality="quality"
           :submitting="submitting"
@@ -160,6 +176,12 @@ onMounted(async () => {
         />
       </section>
     </main>
+
+    <UpgradeDialog
+      :open="upgradeOpen"
+      :quality="upgradeQuality"
+      @close="upgradeOpen = false"
+    />
 
     <InfoDialog :download="infoTarget" @close="infoTarget = null" />
 
