@@ -73,7 +73,9 @@ def ensure_quality_allowed(user: User, quality: str | None) -> None:
     Enforced here rather than in the router so every entry point — single,
     batch, retry — goes through the same check.
     """
-    if user.is_premium:
+    # Admins run the place — gating them behind a payment to themselves would
+    # be theatre, and they can grant themselves a plan anyway.
+    if user.is_admin or user.is_premium:
         return
     if (quality or "") in PAID_QUALITIES:
         raise PaymentRequired(

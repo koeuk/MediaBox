@@ -81,7 +81,9 @@ const upgradeQuality = ref<string>('')
 watch(
   user,
   (u) => {
-    if (u && !u.is_premium && isPaidQuality(quality.value)) quality.value = FREE_QUALITY
+    if (u && !u.is_premium && !u.is_admin && isPaidQuality(quality.value)) {
+      quality.value = FREE_QUALITY
+    }
   },
   { immediate: true }
 )
@@ -126,7 +128,7 @@ onMounted(async () => {
         <h1 class="display hero-title">Add to your box</h1>
 
         <MediaSubmitBar
-          :premium="user?.is_premium"
+          :premium="user?.is_premium || user?.is_admin"
           @locked="upgradeQuality = $event; upgradeOpen = true"
           v-model:url="url"
           v-model:quality="quality"
