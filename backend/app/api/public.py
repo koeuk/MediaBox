@@ -5,6 +5,7 @@ is rate limited and hands back only what a visitor is allowed: low-quality
 video, streamed once and not kept.
 """
 
+import mimetypes
 import shutil
 from pathlib import Path
 
@@ -13,9 +14,19 @@ from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
 from app.schemas import GuestDownloadRequest, GuestLimitsOut
-from app.services import guest
+from app.services import guest, storage
 
 router = APIRouter()
+
+
+@router.get("/logo")
+def site_logo():
+    """The uploaded site logo (navbar + favicon). 404 while none is set —
+    harmless to expose: it is exactly what every page header shows anyway."""
+    path = storage.find_logo()
+    if not path:
+        raise HTTPException(status_code=404, detail="No logo set")
+    return FileResponse(path, media_type=mimetypes.guess_type(path.name)[0] or "image/png")
 
 
 @router.get("/limits", response_model=GuestLimitsOut)

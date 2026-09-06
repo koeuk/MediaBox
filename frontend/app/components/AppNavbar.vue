@@ -2,6 +2,7 @@
 import type { Ref } from 'vue'
 
 const { user, logout } = useAuth()
+const { logoUrl, hasLogo } = useBranding()
 const theme = inject<Ref<string>>('theme')!
 const showLogoutConfirm = ref(false)
 const { open, anchor, menu, pos, placed, toggle, close } = usePopMenu()
@@ -25,7 +26,12 @@ function confirmLogout() {
 <template>
   <header class="nav">
     <NuxtLink to="/" class="brand">
-      <img v-if="avatarSrc" class="brand-logo" :src="avatarSrc" alt="" />
+      <img
+        class="brand-logo"
+        :class="{ 'is-mark': !hasLogo && !avatarSrc }"
+        :src="hasLogo ? logoUrl : avatarSrc || '/logo.svg'"
+        alt=""
+      />
       <span class="wordmark display">Media<span>Box</span></span>
     </NuxtLink>
 
@@ -213,6 +219,16 @@ function confirmLogout() {
   border-radius: 50%;
   object-fit: cover;
   border: 1px solid var(--line);
+}
+
+/* The circular crop and ring frame a photo; the logo is already a shape of its
+   own and gets clipped by both. */
+.brand-logo.is-mark {
+  width: auto;
+  height: 34px;
+  border: none;
+  border-radius: 0;
+  object-fit: contain;
 }
 
 .wordmark {

@@ -55,6 +55,8 @@ onMounted(async () => {
         <span class="badge badge-failed">✕ failed {{ stats.failed }}</span>
       </section>
 
+      <AdminBranding v-if="stats" class="reveal" style="animation-delay: 0.24s" />
+
       <AdminReviewManager v-if="stats" />
 
       <AdminUserManager

@@ -79,6 +79,56 @@ def save_avatar(file: UploadFile, user_id: int) -> Path:
     return dest
 
 
+def _branding_dir() -> Path:
+    path = settings.media_dir / "branding"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def find_logo() -> Path | None:
+    """The uploaded site logo, or None when the default branding is in use."""
+    return next(iter(_branding_dir().glob("logo.*")), None)
+
+
+def save_logo(file: UploadFile) -> Path:
+    """Replace the site logo (served as both navbar logo and favicon).
+
+    Same rules as an avatar: images only, AVATAR_MAX_BYTES cap. The file is
+    written under a temp name first so a failed upload leaves the old logo.
+    """
+    filename = Path(file.filename or "logo").name
+    content_type = (file.content_type or "").split(";")[0].strip()
+    if not content_type or content_type == "application/octet-stream":
+        content_type = mimetypes.guess_type(filename)[0] or ""
+    if not content_type.startswith("image/"):
+        raise ValueError("The logo must be an image")
+
+    suffix = Path(filename).suffix or mimetypes.guess_extension(content_type) or ".png"
+    dest = _branding_dir() / f"logo{suffix}"
+    tmp = dest.with_name(f"logo_tmp_{uuid.uuid4().hex[:8]}{suffix}")
+    size = 0
+    try:
+        with open(tmp, "wb") as fh:
+            while chunk := file.file.read(_UPLOAD_CHUNK):
+                size += len(chunk)
+                if size > AVATAR_MAX_BYTES:
+                    raise UploadTooLarge(
+                        f"Image exceeds the {AVATAR_MAX_BYTES // (1024 * 1024)} MB limit"
+                    )
+                fh.write(chunk)
+    except UploadTooLarge:
+        tmp.unlink(missing_ok=True)
+        raise
+    delete_logo()  # the old logo may have a different extension
+    tmp.rename(dest)
+    return dest
+
+
+def delete_logo() -> None:
+    for p in _branding_dir().glob("logo.*"):
+        p.unlink(missing_ok=True)
+
+
 def save_upload(file: UploadFile, user_id: int) -> tuple[Path, int, str]:
     """Stream an uploaded media file to disk.
 

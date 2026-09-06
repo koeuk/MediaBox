@@ -6,13 +6,24 @@ const theme = useCookie<string>('mediabox_theme', {
   maxAge: 60 * 60 * 24 * 365,
 })
 
-// the profile picture doubles as the tab icon; falls back to the default when
-// no photo is set, so the tab never goes blank
+// tab icon priority: admin-uploaded site logo, then the profile picture,
+// then the default /logo.svg from nuxt.config
 const { src: avatarSrc } = useAvatar()
+const { logoUrl, hasLogo } = useBranding()
 
+// the single owner of the tab icon (nuxt.config defines none), so exactly
+// one <link rel=icon> exists and the priority order always wins
 useHead(() => ({
   htmlAttrs: { 'data-theme': theme.value },
-  link: avatarSrc.value ? [{ rel: 'icon', href: avatarSrc.value }] : [],
+  // one keyed entry, so the server-rendered icon is replaced on the client
+  // instead of a second <link rel=icon> piling up beside it
+  link: [
+    hasLogo.value
+      ? { key: 'favicon', rel: 'icon', href: logoUrl.value }
+      : avatarSrc.value
+        ? { key: 'favicon', rel: 'icon', href: avatarSrc.value }
+        : { key: 'favicon', rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' },
+  ],
 }))
 
 provide('theme', theme)

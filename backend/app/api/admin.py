@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, status
+from typing import Annotated
+
+from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from sqlalchemy import func
 
 from app.api.deps import AdminUser, DbSession
@@ -213,6 +215,23 @@ def _review_or_404(db: DbSession, review_id: int) -> Review:
     if review is None:
         raise HTTPException(status_code=404, detail="Review not found")
     return review
+
+
+@router.put("/logo", status_code=status.HTTP_204_NO_CONTENT)
+def upload_logo(file: Annotated[UploadFile, File()], admin: AdminUser):
+    """Replace the site logo; it doubles as the favicon for everyone."""
+    try:
+        storage.save_logo(file)
+    except storage.UploadTooLarge as exc:
+        raise HTTPException(status_code=413, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.delete("/logo", status_code=status.HTTP_204_NO_CONTENT)
+def remove_logo(admin: AdminUser):
+    """Back to the default MediaBox wordmark and icon."""
+    storage.delete_logo()
 
 
 @router.get("/reviews", response_model=list[ReviewOut])
