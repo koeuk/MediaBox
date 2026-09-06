@@ -44,6 +44,8 @@ async function submit() {
     <template #footer>
       Already registered?
       <NuxtLink to="/login">Sign in</NuxtLink>
+      <span class="sep">·</span>
+      <NuxtLink to="/free">Download without an account</NuxtLink>
     </template>
   </AuthCard>
 </template>

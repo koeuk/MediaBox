@@ -96,6 +96,12 @@ const emit = defineEmits<{ submit: [] }>()
   text-align: center;
 }
 
+/* separator between the two footer links */
+.auth-alt .sep {
+  margin: 0 0.4rem;
+  color: var(--text-faint);
+}
+
 .auth-alt :deep(a) {
   color: var(--accent);
   font-weight: 600;

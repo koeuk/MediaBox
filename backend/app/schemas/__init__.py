@@ -14,6 +14,7 @@ from app.schemas.auth import (
     UserOut,
 )
 from app.schemas.category import HEX_COLOR_PATTERN, CategoryCreate, CategoryEdit, CategoryOut
+from app.schemas.public import GuestDownloadRequest, GuestLimitsOut
 from app.schemas.download import (
     DownloadExportRequest,
     CONVERT_TARGET_PATTERN,
@@ -59,5 +60,7 @@ __all__ = [
     "AdminStats",
     "AdminUserOut",
     "AdminUserEdit",
+    "GuestDownloadRequest",
+    "GuestLimitsOut",
     "AdminDownloadOut",
 ]

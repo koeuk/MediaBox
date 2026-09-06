@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 import app.models  # noqa: F401  (register models with the metadata)
-from app.api import admin, auth, categories, downloads, reviews, ws
+from app.api import admin, auth, categories, downloads, public, reviews, ws
 from app.config import settings
 from app.database import Base, engine, run_migrations
 from app.services import jobs
@@ -43,6 +43,7 @@ app.include_router(downloads.router, prefix="/api/downloads", tags=["downloads"]
 app.include_router(categories.router, prefix="/api/categories", tags=["categories"])
 app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
+app.include_router(public.router, prefix="/api/public", tags=["public"])
 app.include_router(ws.router, tags=["ws"])
 
 

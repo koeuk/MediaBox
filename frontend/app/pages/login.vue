@@ -35,6 +35,8 @@ async function submit() {
     <template #footer>
       No account?
       <NuxtLink to="/register">Create one</NuxtLink>
+      <span class="sep">·</span>
+      <NuxtLink to="/free">Download without an account</NuxtLink>
     </template>
   </AuthCard>
 </template>
