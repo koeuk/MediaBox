@@ -18,10 +18,14 @@ const { open: menuOpen, anchor, menu, pos, placed, toggle, close: closeMenu } = 
 const menuFor = ref<AdminUser | null>(null)
 
 function openMenu(event: MouseEvent, u: AdminUser) {
-  // reopening on a different row should move the menu, not close it
-  if (menuOpen.value && menuFor.value?.id !== u.id) closeMenu()
+  // Every row renders the same button, so a template `ref` here would collect
+  // them into an array and positioning would read the wrong element (or none).
+  // The clicked button is the anchor.
+  const sameRow = menuFor.value?.id === u.id
+  if (menuOpen.value && !sameRow) closeMenu()
   menuFor.value = u
-  toggle(event)
+  anchor.value = event.currentTarget as HTMLElement
+  toggle()
 }
 
 /** Run an action and shut the menu, so it never lingers over the result. */
@@ -285,7 +289,6 @@ async function confirmDelete() {
 
             <td class="actions-col">
               <button
-                ref="anchor"
                 class="btn btn-ghost btn-icon kebab"
                 :class="{ on: menuOpen && menuFor?.id === u.id }"
                 :disabled="busyId === u.id"
