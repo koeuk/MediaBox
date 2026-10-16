@@ -7,6 +7,14 @@ cd ~/Projects/MediaBox
 ./dev.sh
 ```
 
+cd ~/Projects/MediaBox/backend
+
+.venv/bin/python -m uvicorn app.main:app --reload --port 8005
+
+cd ~/Projects/MediaBox/frontend
+
+npm run dev -- --port 3005
+
 Then open **http://localhost:3005**. Press `Ctrl-C` to stop both servers.
 
 > **Never run this with `sudo`.** See [Never use sudo](#never-use-sudo) below —

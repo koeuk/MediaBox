@@ -32,6 +32,7 @@ fi
 [ -d frontend/node_modules ] \
   || die "frontend/node_modules is missing. Install first:
   cd frontend && npm install"
+  
 
 configured_media_dir="${MEDIA_DIR:-}"
 if [ -z "$configured_media_dir" ] && [ -f backend/.env ]; then
