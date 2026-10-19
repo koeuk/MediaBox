@@ -36,44 +36,47 @@ function confirmLogout() {
     </NuxtLink>
 
     <div class="nav-right">
-      <NuxtLink to="/remove-bg" class="nav-link">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <!-- a photo frame with the backdrop cut away, subject left standing -->
-          <path d="M3 3h5M16 3h5v5M21 16v5h-5M8 21H3v-5" stroke-dasharray="0" />
-          <circle cx="12" cy="10" r="2.6" />
-          <path d="M7.5 17.5a4.5 4.5 0 0 1 9 0" />
-        </svg>
-        Remove BG
-      </NuxtLink>
-      <NuxtLink to="/" class="nav-link">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3" y="3" width="7" height="7" rx="1" />
-          <rect x="14" y="3" width="7" height="7" rx="1" />
-          <rect x="3" y="14" width="7" height="7" rx="1" />
-          <rect x="14" y="14" width="7" height="7" rx="1" />
-        </svg>
-        Media
-      </NuxtLink>
-      <NuxtLink to="/reviews" class="nav-link">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
-          <path d="M8 9h8M8 13h5" />
-        </svg>
-        Reviews
-      </NuxtLink>
-      <NuxtLink to="/categories" class="nav-link">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2Z" />
-          <circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" />
-        </svg>
-        Categories
-      </NuxtLink>
-      <NuxtLink v-if="user?.is_admin" to="/admin" class="nav-link">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 2 4 5v6c0 5 3.4 8.3 8 10 4.6-1.7 8-5 8-10V5l-8-3Z" />
-        </svg>
-        Admin
-      </NuxtLink>
+      <div class="nav-links-desktop">
+        <NuxtLink to="/remove-bg" class="nav-link">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <!-- a photo frame with the backdrop cut away, subject left standing -->
+            <path d="M3 3h5M16 3h5v5M21 16v5h-5M8 21H3v-5" stroke-dasharray="0" />
+            <circle cx="12" cy="10" r="2.6" />
+            <path d="M7.5 17.5a4.5 4.5 0 0 1 9 0" />
+          </svg>
+          Remove BG
+        </NuxtLink>
+        <NuxtLink to="/" class="nav-link">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+          </svg>
+          Media
+        </NuxtLink>
+        <NuxtLink to="/reviews" class="nav-link">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
+            <path d="M8 9h8M8 13h5" />
+          </svg>
+          Reviews
+        </NuxtLink>
+        <NuxtLink to="/categories" class="nav-link">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2Z" />
+            <circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" />
+          </svg>
+          Categories
+        </NuxtLink>
+        <NuxtLink v-if="user?.is_admin" to="/admin" class="nav-link">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2 4 5v6c0 5 3.4 8.3 8 10 4.6-1.7 8-5 8-10V5l-8-3Z" />
+          </svg>
+          Admin
+        </NuxtLink>
+      </div>
+
       <div v-if="user" class="menu-wrap">
         <button
           ref="anchor"
@@ -88,7 +91,7 @@ function confirmLogout() {
             <circle cx="12" cy="12" r="3" />
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
           </svg>
-          Settings
+          <span class="settings-label">Settings</span>
         </button>
 
         <Teleport to="body">
@@ -152,6 +155,61 @@ function confirmLogout() {
       @cancel="showLogoutConfirm = false"
     />
   </header>
+
+  <!-- Mobile Bottom Navigation Bar -->
+  <nav class="mobile-bottom-nav" aria-label="Mobile Navigation">
+    <NuxtLink to="/" class="bnav-item">
+      <div class="bnav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </svg>
+      </div>
+      <span class="bnav-label">Media</span>
+    </NuxtLink>
+
+    <NuxtLink to="/categories" class="bnav-item">
+      <div class="bnav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2Z" />
+          <circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" />
+        </svg>
+      </div>
+      <span class="bnav-label">Categories</span>
+    </NuxtLink>
+
+    <NuxtLink to="/remove-bg" class="bnav-item">
+      <div class="bnav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 3h5M16 3h5v5M21 16v5h-5M8 21H3v-5" stroke-dasharray="0" />
+          <circle cx="12" cy="10" r="2.6" />
+          <path d="M7.5 17.5a4.5 4.5 0 0 1 9 0" />
+        </svg>
+      </div>
+      <span class="bnav-label">Remove BG</span>
+    </NuxtLink>
+
+    <NuxtLink to="/reviews" class="bnav-item">
+      <div class="bnav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
+          <path d="M8 9h8M8 13h5" />
+        </svg>
+      </div>
+      <span class="bnav-label">Reviews</span>
+    </NuxtLink>
+
+    <NuxtLink v-if="user?.is_admin" to="/admin" class="bnav-item">
+      <div class="bnav-icon-wrap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2 4 5v6c0 5 3.4 8.3 8 10 4.6-1.7 8-5 8-10V5l-8-3Z" />
+        </svg>
+      </div>
+      <span class="bnav-label">Admin</span>
+    </NuxtLink>
+  </nav>
 </template>
 
 <style scoped>
@@ -282,6 +340,119 @@ function confirmLogout() {
 }
 
 
+
+.nav-links-desktop {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mobile-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .nav {
+    padding: 0.75rem 1rem;
+  }
+
+  .wordmark {
+    font-size: 1.15rem;
+  }
+
+  .nav-links-desktop {
+    display: none;
+  }
+
+  .settings-label {
+    display: none;
+  }
+
+  .settings-btn {
+    padding: 0.5rem;
+  }
+
+  .mobile-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--line);
+    padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .bnav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    min-height: 48px;
+    padding: 0.25rem 0.2rem;
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.68rem;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: color 0.15s, transform 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .bnav-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 28px;
+    border-radius: 14px;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .bnav-item svg {
+    color: var(--text-faint);
+    transition: color 0.15s, stroke-width 0.15s;
+  }
+
+  .bnav-item:hover {
+    color: var(--text);
+  }
+
+  .bnav-item:hover svg {
+    color: var(--text);
+  }
+
+  .bnav-item.router-link-exact-active,
+  .bnav-item:not([href="/"]).router-link-active {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .bnav-item.router-link-exact-active .bnav-icon-wrap,
+  .bnav-item:not([href="/"]).router-link-active .bnav-icon-wrap {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .bnav-item.router-link-exact-active svg,
+  .bnav-item:not([href="/"]).router-link-active svg {
+    color: var(--accent);
+    stroke-width: 2.2;
+  }
+
+  .bnav-label {
+    margin-top: 2px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+}
 
 @media (max-width: 640px) {
   .nav-link {

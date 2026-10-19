@@ -867,4 +867,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     display: none;
   }
 }
+
+@media (max-width: 768px) {
+  .overlay.minimized {
+    padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+  }
+}
 </style>
