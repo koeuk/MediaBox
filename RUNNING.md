@@ -156,6 +156,19 @@ also watches `frontend/node_modules` and every restart crawls.
 
 ## Troubleshooting
 
+**Drive (/mnt/Drive or NTFS partition) fails to mount / "wrong fs type, bad superblock"**
+If Linux refuses to mount an NTFS partition with `volume is dirty and "force" flag is not set!`:
+1. Quick repair and mount from terminal:
+   ```bash
+   sudo ntfsfix -d /dev/nvme0n1p5
+   sudo mount /mnt/Drive
+   ```
+2. Or add `,force` to the partition's mount options in `/etc/fstab` to automatically allow mounting dirty volumes:
+   ```text
+   UUID=6626B02F26AFFDDD  /mnt/Drive  ntfs3  defaults,uid=1000,gid=1000,umask=022,nofail,force,x-gvfs-show,x-gvfs-name=Drive  0  0
+   ```
+3. If dual-booting with Windows, disable **Fast Startup** in Windows Control Panel -> Power Options to prevent Windows from leaving partitions in a hibernated/dirty state.
+
 **Downloads have a padlock / can't be deleted**
 Files are root-owned from a `sudo` run. Fix with the `chown` above and never
 start the servers as root.

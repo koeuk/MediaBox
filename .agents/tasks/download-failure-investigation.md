@@ -358,6 +358,14 @@ Current MEDIA_DIR (`/mnt/DriveBeltie/Projects/MediaBox/backend/media`) is:
 - ✅ Writable by user `koeuk`
 - ✅ Contains user upload directories
 
+### Note on `/mnt/Drive` Mount Failure Resolution
+When `/mnt/Drive` failed to mount with "wrong fs type, bad superblock on /dev/nvme0n1p5" (due to `volume is dirty and "force" flag is not set!` in kernel logs), it was resolved via:
+```bash
+sudo ntfsfix -d /dev/nvme0n1p5
+sudo mount /mnt/Drive
+```
+To permanently allow mounting even after Windows improper shutdown, add `,force` to the fstab options for `/mnt/Drive`.
+
 ---
 
 ## Conclusion
