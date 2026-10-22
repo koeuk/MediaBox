@@ -7,6 +7,7 @@ defineProps<{ counts: Record<DownloadFilter, number>; live: boolean }>()
 const filter = defineModel<DownloadFilter>('filter', { required: true })
 const category = defineModel<string | null>('category', { required: true })
 const search = defineModel<string>('search', { required: true })
+const layout = defineModel<'rows' | 'grid'>('layout', { default: 'rows' })
 
 // hidden items have their own page, so there is no tab for them here
 const views: DownloadFilter[] = ['all', 'favorites', 'active', 'failed']
@@ -38,7 +39,41 @@ const views: DownloadFilter[] = ['all', 'favorites', 'active', 'failed']
       </span>
     </div>
 
-    <input v-model="search" class="input search" type="search" placeholder="Search downloads…" />
+    <div class="toolbar-right">
+      <div class="layout-toggle" role="group" aria-label="View layout">
+        <button
+          type="button"
+          class="layout-btn"
+          :class="{ on: layout === 'rows' }"
+          title="Scrollable row groups"
+          aria-label="Scrollable row groups"
+          @click="layout = 'rows'"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="layout-btn"
+          :class="{ on: layout === 'grid' }"
+          title="Grid view"
+          aria-label="Grid view"
+          @click="layout = 'grid'"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+          </svg>
+        </button>
+      </div>
+
+      <input v-model="search" class="input search" type="search" placeholder="Search downloads…" />
+    </div>
   </div>
 </template>
 
@@ -81,15 +116,60 @@ const views: DownloadFilter[] = ['all', 'favorites', 'active', 'failed']
   color: var(--ok);
 }
 
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-left: auto;
+}
+
+.layout-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.layout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.layout-btn:hover {
+  color: var(--text);
+}
+
+.layout-btn.on {
+  color: var(--accent);
+  background: var(--surface-hover);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
 .search {
-  max-width: 260px;
+  max-width: 240px;
   font-size: 0.85rem;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
+  .toolbar-right {
+    width: 100%;
+    margin-left: 0;
+  }
+
   .search {
     max-width: none;
-    width: 100%;
+    flex: 1;
   }
 }
 </style>
