@@ -4,7 +4,7 @@ import type { Download } from '~/types'
  * What the preview dialogs are showing, shared across the whole app.
  *
  * The dialogs are mounted once in `app.vue` rather than per page, so the
- * mini-player keeps playing while you move between Media, Reviews, Settings
+ * mini-player keeps playing while you move between Media, Feedback, Settings
  * and the rest — navigating away unmounts the page, not the <video> node.
  * Pages only say what to play; they never own the player.
  */
