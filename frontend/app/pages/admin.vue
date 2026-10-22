@@ -13,10 +13,10 @@ const denied = ref(false)
 
 /** Which panel the tabs are showing. Mirrored into `?tab=` so a reload — or a
  *  link straight to one section — lands where you expect. */
-type AdminTab = 'branding' | 'reviews' | 'payments' | 'plans' | 'users' | 'downloads'
+type AdminTab = 'branding' | 'feedback' | 'payments' | 'plans' | 'users' | 'downloads'
 const TABS: { id: AdminTab; label: string }[] = [
   { id: 'branding', label: 'Branding' },
-  { id: 'reviews', label: 'Reviews' },
+  { id: 'feedback', label: 'Feedback' },
   { id: 'payments', label: 'Payments' },
   { id: 'plans', label: 'Plans' },
   { id: 'users', label: 'Users' },
@@ -69,7 +69,7 @@ onMounted(async () => {
         <div v-for="(tile, i) in [
             { label: 'Users', value: String(stats.users) },
             { label: 'Downloads', value: String(stats.downloads) },
-            { label: 'Reviews', value: String(stats.reviews) },
+            { label: 'Feedback', value: String(stats.feedback) },
             { label: 'Storage used', value: formatBytes(stats.bytes_stored) },
             { label: 'Favorites', value: String(stats.favorites) },
           ]" :key="tile.label" class="tile panel reveal" :style="{ animationDelay: `${i * 0.05}s` }">
@@ -110,12 +110,12 @@ onMounted(async () => {
         aria-labelledby="tab-branding"
       />
 
-      <AdminReviewManager
+      <AdminFeedbackManager
         v-if="stats"
-        v-show="tab === 'reviews'"
-        id="panel-reviews"
+        v-show="tab === 'feedback'"
+        id="panel-feedback"
         role="tabpanel"
-        aria-labelledby="tab-reviews"
+        aria-labelledby="tab-feedback"
       />
 
       <AdminPaymentQueue
