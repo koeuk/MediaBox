@@ -59,3 +59,13 @@ def run_migrations(conn) -> None:
         for name, ddl in columns:
             if name not in existing:
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {ddl}"))
+
+    table_names = set(inspector.get_table_names())
+    if "reviews" in table_names and "feedbacks" in table_names:
+        count = conn.execute(text("SELECT COUNT(*) FROM feedbacks")).scalar() or 0
+        if count == 0:
+            conn.execute(text("""
+                INSERT INTO feedbacks (id, author_name, category, rating, body, is_published, created_at, updated_at)
+                SELECT id, author_name, 'general', rating, body, is_published, created_at, updated_at FROM reviews
+            """))
+

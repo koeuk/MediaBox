@@ -38,7 +38,7 @@ from app.schemas.download import (
     DownloadOut,
     RemoveBackgroundRequest,
 )
-from app.schemas.review import ReviewCreate, ReviewEdit, ReviewOut
+from app.schemas.feedback import FeedbackCreate, FeedbackEdit, FeedbackOut
 
 __all__ = [
     # auth
@@ -63,10 +63,10 @@ __all__ = [
     "CategoryEdit",
     "CategoryOut",
     "HEX_COLOR_PATTERN",
-    # reviews
-    "ReviewCreate",
-    "ReviewEdit",
-    "ReviewOut",
+    # feedback
+    "FeedbackCreate",
+    "FeedbackEdit",
+    "FeedbackOut",
     # admin
     "AdminStats",
     "AdminUserOut",

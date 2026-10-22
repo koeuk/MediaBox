@@ -77,12 +77,29 @@ def get_admin_user(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+def get_optional_user(request: Request, db: Session = Depends(get_db)) -> User | None:
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        return None
+    token = auth.split(" ", 1)[1]
+    try:
+        payload = decode_token(token)
+        user_id = int(payload["sub"])
+        user = db.get(User, user_id)
+        if user and not user.is_suspended:
+            return user
+    except Exception:
+        pass
+    return None
+
+
 # Annotated aliases, so a route reads `user: CurrentUser` instead of repeating
 # `user: User = Depends(get_current_user)` on every handler. They also free
 # route signatures from the "defaults last" ordering rule, which is why query
 # parameters can now sit wherever they read best.
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 MediaUser = Annotated[User, Depends(get_media_user)]
 AdminUser = Annotated[User, Depends(get_admin_user)]
 

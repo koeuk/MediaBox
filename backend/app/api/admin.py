@@ -8,20 +8,20 @@ from sqlalchemy import func
 from app.api.deps import AdminUser, DbSession
 from app.security import hash_password
 from app.services import payments, plans, storage
-from app.models import Download, DownloadStatus, PaymentRequest, PaymentStatus, Plan, Review, User
+from app.models import Download, DownloadStatus, Feedback, PaymentRequest, PaymentStatus, Plan, User
 from app.schemas import (
     AdminDownloadOut,
     AdminStats,
     AdminUserEdit,
     AdminUserOut,
+    FeedbackCreate,
+    FeedbackEdit,
+    FeedbackOut,
     PaymentRequestOut,
     PaymentSettingsEdit,
     PaymentSettingsOut,
     PlanEdit,
     PlanOut,
-    ReviewCreate,
-    ReviewEdit,
-    ReviewOut,
 )
 
 router = APIRouter()
@@ -32,10 +32,12 @@ def stats(db: DbSession, _: AdminUser):
     by_status = dict(
         db.query(Download.status, func.count(Download.id)).group_by(Download.status).all()
     )
+    feedback_count = db.query(func.count(Feedback.id)).scalar() or 0
     return AdminStats(
         users=db.query(func.count(User.id)).scalar() or 0,
         downloads=db.query(func.count(Download.id)).scalar() or 0,
-        reviews=db.query(func.count(Review.id)).scalar() or 0,
+        feedback=feedback_count,
+        reviews=feedback_count,
         queued=by_status.get(DownloadStatus.queued, 0),
         downloading=by_status.get(DownloadStatus.downloading, 0),
         completed=by_status.get(DownloadStatus.completed, 0),
@@ -305,11 +307,11 @@ def update_plan(code: str, payload: PlanEdit, db: DbSession, _: AdminUser):
     return plan
 
 
-def _review_or_404(db: DbSession, review_id: int) -> Review:
-    review = db.get(Review, review_id)
-    if review is None:
-        raise HTTPException(status_code=404, detail="Review not found")
-    return review
+def _feedback_or_404(db: DbSession, feedback_id: int) -> Feedback:
+    item = db.get(Feedback, feedback_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+    return item
 
 
 @router.put("/logo", status_code=status.HTTP_204_NO_CONTENT)
@@ -329,41 +331,44 @@ def remove_logo(admin: AdminUser):
     storage.delete_logo()
 
 
-@router.get("/reviews", response_model=list[ReviewOut])
-def list_reviews(db: DbSession, _: AdminUser):
+@router.get("/feedback", response_model=list[FeedbackOut])
+def list_feedback(db: DbSession, _: AdminUser):
     return (
-        db.query(Review)
-        .order_by(Review.created_at.desc(), Review.id.desc())
+        db.query(Feedback)
+        .order_by(Feedback.created_at.desc(), Feedback.id.desc())
         .all()
     )
 
 
-@router.post("/reviews", response_model=ReviewOut, status_code=status.HTTP_201_CREATED)
-def create_review(payload: ReviewCreate, db: DbSession, _: AdminUser):
-    review = Review(**payload.model_dump())
-    db.add(review)
+@router.post("/feedback", response_model=FeedbackOut, status_code=status.HTTP_201_CREATED)
+def create_feedback(payload: FeedbackCreate, db: DbSession, _: AdminUser):
+    data = payload.model_dump()
+    if not data.get("author_name"):
+        data["author_name"] = "Admin"
+    feedback = Feedback(**data)
+    db.add(feedback)
     db.commit()
-    db.refresh(review)
-    return review
+    db.refresh(feedback)
+    return feedback
 
 
-@router.patch("/reviews/{review_id}", response_model=ReviewOut)
-def update_review(review_id: int, payload: ReviewEdit, db: DbSession, _: AdminUser):
-    review = _review_or_404(db, review_id)
+@router.patch("/feedback/{feedback_id}", response_model=FeedbackOut)
+def update_feedback(feedback_id: int, payload: FeedbackEdit, db: DbSession, _: AdminUser):
+    feedback = _feedback_or_404(db, feedback_id)
     changes = payload.model_dump(exclude_unset=True)
     for required in ("author_name", "body"):
         if required in changes and changes[required] is None:
             raise HTTPException(status_code=422, detail=f"{required} cannot be blank")
     for field, value in changes.items():
-        setattr(review, field, value)
-    review.updated_at = datetime.now(timezone.utc)
+        setattr(feedback, field, value)
+    feedback.updated_at = datetime.now(timezone.utc)
     db.commit()
-    db.refresh(review)
-    return review
+    db.refresh(feedback)
+    return feedback
 
 
-@router.delete("/reviews/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_review(review_id: int, db: DbSession, _: AdminUser):
-    review = _review_or_404(db, review_id)
-    db.delete(review)
+@router.delete("/feedback/{feedback_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_feedback(feedback_id: int, db: DbSession, _: AdminUser):
+    feedback = _feedback_or_404(db, feedback_id)
+    db.delete(feedback)
     db.commit()

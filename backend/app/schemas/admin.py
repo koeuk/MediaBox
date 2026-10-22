@@ -8,7 +8,8 @@ from app.models import DownloadStatus
 class AdminStats(BaseModel):
     users: int
     downloads: int
-    reviews: int
+    feedback: int = 0
+    reviews: int = 0
     queued: int
     downloading: int
     completed: int

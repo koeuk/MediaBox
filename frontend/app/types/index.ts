@@ -59,10 +59,12 @@ export type DownloadFilter = 'all' | 'favorites' | 'active' | 'failed'
 /** Background-removal quality tier; see backend services/bgremove.py. */
 export type CutoutQuality = 'fast' | 'good' | 'best'
 
-export interface Review {
+export interface Feedback {
   id: number
+  user_id?: number | null
   author_name: string
-  author_title: string | null
+  author_email?: string | null
+  category: string
   rating: number
   body: string
   is_published: boolean
@@ -73,7 +75,8 @@ export interface Review {
 export interface AdminStats {
   users: number
   downloads: number
-  reviews: number
+  feedback: number
+  reviews?: number
   queued: number
   downloading: number
   completed: number

@@ -6,8 +6,8 @@ from app.models.payment import (
     PaymentRequest,
     PaymentStatus,
 )
+from app.models.feedback import Feedback
 from app.models.plan import DEFAULT_PLANS, Plan
-from app.models.review import Review
 from app.models.user import User
 
-__all__ = ["User", "Download", "DownloadStatus", "Category", "DEFAULT_CATEGORIES", "Review", "Plan", "DEFAULT_PLANS", "PaymentRequest", "PaymentStatus", "AppSetting", "DEFAULT_SETTINGS"]
+__all__ = ["User", "Download", "DownloadStatus", "Category", "DEFAULT_CATEGORIES", "Feedback", "Plan", "DEFAULT_PLANS", "PaymentRequest", "PaymentStatus", "AppSetting", "DEFAULT_SETTINGS"]
