@@ -56,6 +56,23 @@ const visible = computed(() => {
   return list
 })
 
+// ── Pagination: show 20 cards, click more to show more ──────────────
+const PAGE_SIZE = 20
+const limit = ref(PAGE_SIZE)
+
+// Reset pagination when switching filters, categories, or search
+watch([filter, categoryFilter, search], () => {
+  limit.value = PAGE_SIZE
+})
+
+const displayedCards = computed(() => visible.value.slice(0, limit.value))
+const hasMore = computed(() => limit.value < visible.value.length)
+const remainingCount = computed(() => visible.value.length - displayedCards.value.length)
+
+function loadMore() {
+  limit.value += PAGE_SIZE
+}
+
 /** Tab counts, narrowed the same way `visible` is — minus the tab's own rule —
  *  so each number is exactly how many cards clicking it shows. `search` is
  *  applied server-side, so `downloads` already reflects it. */
@@ -162,24 +179,36 @@ onMounted(async () => {
         </p>
       </section>
 
-      <!-- Standard Grid layout: lists all cards cleanly -->
-      <section v-else class="grid">
-        <DownloadCard
-          v-for="(d, i) in visible"
-          :key="d.id"
-          :download="d"
-          class="reveal"
-          :style="{ animationDelay: `${Math.min(i * 0.04, 0.3)}s` }"
-          @favorite="toggleFavorite"
-          @retry="retry"
-          @convert="convert"
-          @remove="deleteTarget = find($event)"
-          @preview="openPreview(find($event), visible)"
-          @info="infoTarget = find($event)"
-          @hide="toggleHidden"
-          @cancel="cancel"
-          @set-category="setCategory"
-        />
+      <!-- Standard Grid layout: lists all cards cleanly with pagination -->
+      <section v-else>
+        <div class="grid">
+          <DownloadCard
+            v-for="(d, i) in displayedCards"
+            :key="d.id"
+            :download="d"
+            class="reveal"
+            :style="{ animationDelay: `${Math.min((i % PAGE_SIZE) * 0.03, 0.25)}s` }"
+            @favorite="toggleFavorite"
+            @retry="retry"
+            @convert="convert"
+            @remove="deleteTarget = find($event)"
+            @preview="openPreview(find($event), visible)"
+            @info="infoTarget = find($event)"
+            @hide="toggleHidden"
+            @cancel="cancel"
+            @set-category="setCategory"
+          />
+        </div>
+
+        <div v-if="hasMore" class="load-more-wrap">
+          <button type="button" class="btn btn-ghost load-more-btn" @click="loadMore">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Show more
+            <span class="load-more-count mono">({{ remainingCount }} remaining)</span>
+          </button>
+        </div>
       </section>
     </main>
 
@@ -240,6 +269,42 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 1rem;
+}
+
+.load-more-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 2.2rem;
+  padding-bottom: 0.5rem;
+}
+
+.load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.4rem;
+  font-size: 0.86rem;
+  font-weight: 500;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.load-more-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.load-more-count {
+  font-size: 0.76rem;
+  opacity: 0.65;
 }
 
 .empty {
