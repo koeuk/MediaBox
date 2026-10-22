@@ -201,12 +201,8 @@ onMounted(async () => {
         </div>
 
         <div v-if="hasMore" class="load-more-wrap">
-          <button type="button" class="btn btn-ghost load-more-btn" @click="loadMore">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            Show more
-            <span class="load-more-count mono">({{ remainingCount }} remaining)</span>
+          <button type="button" class="load-more-btn" @click="loadMore">
+            More ({{ remainingCount }})...
           </button>
         </div>
       </section>
@@ -275,36 +271,27 @@ onMounted(async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-top: 2.2rem;
+  margin-top: 1.8rem;
   padding-bottom: 0.5rem;
 }
 
 .load-more-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.65rem 1.4rem;
-  font-size: 0.86rem;
+  background: none;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  outline: none;
+  padding: 0.5rem 1rem;
+  font-family: inherit;
+  font-size: 0.88rem;
   font-weight: 500;
-  border-radius: 8px;
-  border: 1px solid var(--line-strong);
-  background: var(--surface-2, rgba(127, 127, 127, 0.08));
-  color: var(--text);
+  color: var(--text-dim);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: color 0.15s ease;
 }
 
 .load-more-btn:hover {
-  background: var(--surface-hover);
-  border-color: var(--accent);
   color: var(--accent);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.load-more-count {
-  font-size: 0.76rem;
-  opacity: 0.65;
 }
 
 .empty {
