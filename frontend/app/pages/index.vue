@@ -60,163 +60,39 @@ const visible = computed(() => {
   return list
 })
 
-interface MediaRowGroupItem {
-  id: string
-  title: string
-  color?: string
-  icon?: string
-  items: Download[]
+const scrollTrack = ref<HTMLElement>()
+const overflow = ref(false)
+const atStart = ref(true)
+const atEnd = ref(false)
+
+function syncScroll() {
+  const el = scrollTrack.value
+  if (!el) return
+  const slack = 4
+  const max = el.scrollWidth - el.clientWidth
+  overflow.value = max > slack
+  atStart.value = el.scrollLeft <= slack
+  atEnd.value = el.scrollLeft >= max - slack
 }
 
-/** Group visible downloads into rows (by Category or Status/Date) */
-const rowGroups = computed<MediaRowGroupItem[]>(() => {
-  const list = visible.value
-  if (!list.length) return []
+function scrollRow(direction: 'prev' | 'next') {
+  const el = scrollTrack.value
+  if (!el) return
+  const offset = Math.max(el.clientWidth * 0.75, 280)
+  el.scrollBy({
+    left: direction === 'next' ? offset : -offset,
+    behavior: 'smooth',
+  })
+}
 
-  // If a category filter is specifically selected
-  if (categoryFilter.value) {
-    const cat = categories.value.find((c) => c.name === categoryFilter.value)
-    return [
-      {
-        id: `cat-${categoryFilter.value}`,
-        title: categoryFilter.value,
-        color: cat?.color || colorOf(categoryFilter.value),
-        items: list,
-      },
-    ]
-  }
+let resizeObserver: ResizeObserver | undefined
 
-  if (filter.value === 'active') {
-    return [
-      {
-        id: 'active',
-        title: 'Active Downloads',
-        icon: '⚡',
-        items: list,
-      },
-    ]
-  }
+watch(visible, () => {
+  nextTick(syncScroll)
+})
 
-  if (filter.value === 'failed') {
-    return [
-      {
-        id: 'failed',
-        title: 'Failed Downloads',
-        icon: '⚠️',
-        items: list,
-      },
-    ]
-  }
-
-  const groups: MediaRowGroupItem[] = []
-
-  // In 'all' view: show active downloads row if any exist
-  if (filter.value === 'all') {
-    const activeItems = list.filter(isActive)
-    if (activeItems.length > 0) {
-      groups.push({
-        id: 'active',
-        title: 'In Progress',
-        icon: '⚡',
-        items: activeItems,
-      })
-    }
-  }
-
-  // In 'all' view: show favorites row if any exist
-  if (filter.value === 'all') {
-    const favItems = list.filter((d) => d.is_favorite)
-    if (favItems.length > 0) {
-      groups.push({
-        id: 'favorites',
-        title: 'Favorites',
-        icon: '⭐',
-        color: '#f5a623',
-        items: favItems,
-      })
-    }
-  }
-
-  // Group by Category if items have categories
-  const hasCategories = list.some((d) => !!d.category)
-
-  if (hasCategories) {
-    for (const cat of categories.value) {
-      const catItems = list.filter((d) => d.category === cat.name)
-      if (catItems.length > 0) {
-        groups.push({
-          id: `cat-${cat.id}`,
-          title: cat.name,
-          color: cat.color,
-          items: catItems,
-        })
-      }
-    }
-
-    const uncategorized = list.filter((d) => !d.category)
-    if (uncategorized.length > 0) {
-      groups.push({
-        id: 'uncategorized',
-        title: 'Other Media',
-        icon: '📁',
-        items: uncategorized,
-      })
-    }
-  } else {
-    // If no downloads have categories assigned at all, group by Date/Timeline
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    const thisWeek = new Date(today)
-    thisWeek.setDate(thisWeek.getDate() - 7)
-
-    const todayItems: Download[] = []
-    const yesterdayItems: Download[] = []
-    const thisWeekItems: Download[] = []
-    const earlierItems: Download[] = []
-
-    for (const d of list) {
-      if (!d.created_at) {
-        earlierItems.push(d)
-        continue
-      }
-      const itemDate = new Date(d.created_at)
-      if (itemDate >= today) {
-        todayItems.push(d)
-      } else if (itemDate >= yesterday) {
-        yesterdayItems.push(d)
-      } else if (itemDate >= thisWeek) {
-        thisWeekItems.push(d)
-      } else {
-        earlierItems.push(d)
-      }
-    }
-
-    if (todayItems.length > 0) {
-      groups.push({ id: 'date-today', title: 'Added Today', icon: '🕒', items: todayItems })
-    }
-    if (yesterdayItems.length > 0) {
-      groups.push({ id: 'date-yesterday', title: 'Yesterday', icon: '📅', items: yesterdayItems })
-    }
-    if (thisWeekItems.length > 0) {
-      groups.push({ id: 'date-week', title: 'This Week', icon: '📆', items: thisWeekItems })
-    }
-    if (earlierItems.length > 0) {
-      groups.push({ id: 'date-earlier', title: 'Earlier', icon: '📦', items: earlierItems })
-    }
-  }
-
-  // Fallback if no specific groups were created
-  if (!groups.length) {
-    groups.push({
-      id: 'all',
-      title: filter.value === 'favorites' ? 'Favorites' : 'All Media',
-      items: list,
-    })
-  }
-
-  return groups
+watch(layout, () => {
+  nextTick(syncScroll)
 })
 
 /** Tab counts, narrowed the same way `visible` is — minus the tab's own rule —
@@ -277,6 +153,16 @@ onMounted(async () => {
   // the socket URL carries the media token, so mint it before connecting
   await Promise.all([refresh(), refreshMediaToken(), fetchCategories()])
   startLive()
+  await nextTick()
+  syncScroll()
+  if (scrollTrack.value) {
+    resizeObserver = new ResizeObserver(syncScroll)
+    resizeObserver.observe(scrollTrack.value)
+  }
+})
+
+onUnmounted(() => {
+  resizeObserver?.disconnect()
 })
 </script>
 
@@ -326,33 +212,52 @@ onMounted(async () => {
         </p>
       </section>
 
-      <!-- Scrollable Row Groups layout -->
-      <section v-else-if="layout === 'rows'" class="row-groups">
-        <MediaRowGroup
-          v-for="group in rowGroups"
-          :key="group.id"
-          :title="group.title"
-          :count="group.items.length"
-          :color="group.color"
-          :icon="group.icon"
+      <!-- Scrollable Row layout (all cards in one row, horizontally scrollable) -->
+      <section v-else-if="layout === 'rows'" class="scroll-row-wrap">
+        <button
+          v-if="overflow && !atStart"
+          type="button"
+          class="scroll-arrow prev"
+          aria-label="Scroll left"
+          title="Scroll left"
+          @click="scrollRow('prev')"
         >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+        </button>
+
+        <div ref="scrollTrack" class="scroll-row" @scroll.passive="syncScroll">
           <DownloadCard
-            v-for="(d, i) in group.items"
+            v-for="(d, i) in visible"
             :key="d.id"
             :download="d"
             class="reveal"
-            :style="{ animationDelay: `${Math.min(i * 0.03, 0.2)}s` }"
+            :style="{ animationDelay: `${Math.min(i * 0.04, 0.3)}s` }"
             @favorite="toggleFavorite"
             @retry="retry"
             @convert="convert"
             @remove="deleteTarget = find($event)"
-            @preview="openPreview(find($event), group.items)"
+            @preview="openPreview(find($event), visible)"
             @info="infoTarget = find($event)"
             @hide="toggleHidden"
             @cancel="cancel"
             @set-category="setCategory"
           />
-        </MediaRowGroup>
+        </div>
+
+        <button
+          v-if="overflow && !atEnd"
+          type="button"
+          class="scroll-arrow next"
+          aria-label="Scroll right"
+          title="Scroll right"
+          @click="scrollRow('next')"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+        </button>
       </section>
 
       <!-- Standard Grid layout -->
@@ -435,10 +340,94 @@ onMounted(async () => {
   gap: 1rem;
 }
 
-.row-groups {
+.scroll-row-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.scroll-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  gap: 1rem;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.35rem 0.2rem 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.scroll-row::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scroll-row::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 4px;
+}
+
+.scroll-row::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}
+
+.scroll-row > * {
+  flex: 0 0 260px;
+  min-width: 240px;
+  max-width: 280px;
+  scroll-snap-align: start;
+}
+
+.scroll-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 8;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.scroll-arrow:hover {
+  background: var(--surface-hover);
+  color: var(--accent);
+  transform: translateY(-50%) scale(1.08);
+  border-color: var(--accent);
+}
+
+.scroll-arrow.prev {
+  left: -14px;
+}
+
+.scroll-arrow.next {
+  right: -14px;
+}
+
+@media (max-width: 640px) {
+  .scroll-row {
+    gap: 0.75rem;
+    padding-bottom: 0.6rem;
+  }
+
+  .scroll-row > * {
+    flex: 0 0 215px;
+    min-width: 195px;
+    max-width: 235px;
+  }
+
+  .scroll-arrow {
+    display: none;
+  }
 }
 
 .empty {
