@@ -5,7 +5,7 @@ definePageMeta({ middleware: 'auth' })
 
 const { refreshMediaToken } = useApi()
 const { user, fetchUser } = useAuth()
-const { categories, fetchCategories, colorOf } = useCategories()
+const { fetchCategories } = useCategories()
 
 const {
   downloads,
@@ -41,10 +41,6 @@ const route = useRoute()
 const categoryFilter = ref<string | null>(
   typeof route.query.category === 'string' ? route.query.category : null
 )
-const layout = useCookie<'rows' | 'grid'>('mediabox_layout', {
-  default: () => 'rows',
-  maxAge: 60 * 60 * 24 * 365,
-})
 
 /** Hidden rows live on /hidden — this page never shows them anywhere. */
 const unhidden = computed(() => downloads.value.filter((d) => !d.is_hidden))
@@ -58,41 +54,6 @@ const visible = computed(() => {
   if (filter.value === 'failed') list = list.filter((d) => d.status === 'failed')
   if (categoryFilter.value) list = list.filter((d) => d.category === categoryFilter.value)
   return list
-})
-
-const scrollTrack = ref<HTMLElement>()
-const overflow = ref(false)
-const atStart = ref(true)
-const atEnd = ref(false)
-
-function syncScroll() {
-  const el = scrollTrack.value
-  if (!el) return
-  const slack = 4
-  const max = el.scrollWidth - el.clientWidth
-  overflow.value = max > slack
-  atStart.value = el.scrollLeft <= slack
-  atEnd.value = el.scrollLeft >= max - slack
-}
-
-function scrollRow(direction: 'prev' | 'next') {
-  const el = scrollTrack.value
-  if (!el) return
-  const offset = Math.max(el.clientWidth * 0.75, 280)
-  el.scrollBy({
-    left: direction === 'next' ? offset : -offset,
-    behavior: 'smooth',
-  })
-}
-
-let resizeObserver: ResizeObserver | undefined
-
-watch(visible, () => {
-  nextTick(syncScroll)
-})
-
-watch(layout, () => {
-  nextTick(syncScroll)
 })
 
 /** Tab counts, narrowed the same way `visible` is — minus the tab's own rule —
@@ -153,16 +114,6 @@ onMounted(async () => {
   // the socket URL carries the media token, so mint it before connecting
   await Promise.all([refresh(), refreshMediaToken(), fetchCategories()])
   startLive()
-  await nextTick()
-  syncScroll()
-  if (scrollTrack.value) {
-    resizeObserver = new ResizeObserver(syncScroll)
-    resizeObserver.observe(scrollTrack.value)
-  }
-})
-
-onUnmounted(() => {
-  resizeObserver?.disconnect()
 })
 </script>
 
@@ -194,7 +145,6 @@ onUnmounted(() => {
           v-model:filter="filter"
           v-model:category="categoryFilter"
           v-model:search="search"
-          v-model:layout="layout"
           :counts="counts"
           :live="live"
           class="toolbar"
@@ -212,55 +162,7 @@ onUnmounted(() => {
         </p>
       </section>
 
-      <!-- Scrollable Row layout (all cards in one row, horizontally scrollable) -->
-      <section v-else-if="layout === 'rows'" class="scroll-row-wrap">
-        <button
-          v-if="overflow && !atStart"
-          type="button"
-          class="scroll-arrow prev"
-          aria-label="Scroll left"
-          title="Scroll left"
-          @click="scrollRow('prev')"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m15 18-6-6 6-6" />
-          </svg>
-        </button>
-
-        <div ref="scrollTrack" class="scroll-row" @scroll.passive="syncScroll">
-          <DownloadCard
-            v-for="(d, i) in visible"
-            :key="d.id"
-            :download="d"
-            class="reveal"
-            :style="{ animationDelay: `${Math.min(i * 0.04, 0.3)}s` }"
-            @favorite="toggleFavorite"
-            @retry="retry"
-            @convert="convert"
-            @remove="deleteTarget = find($event)"
-            @preview="openPreview(find($event), visible)"
-            @info="infoTarget = find($event)"
-            @hide="toggleHidden"
-            @cancel="cancel"
-            @set-category="setCategory"
-          />
-        </div>
-
-        <button
-          v-if="overflow && !atEnd"
-          type="button"
-          class="scroll-arrow next"
-          aria-label="Scroll right"
-          title="Scroll right"
-          @click="scrollRow('next')"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m9 18 6-6-6-6" />
-          </svg>
-        </button>
-      </section>
-
-      <!-- Standard Grid layout -->
+      <!-- Standard Grid layout: lists all cards cleanly -->
       <section v-else class="grid">
         <DownloadCard
           v-for="(d, i) in visible"
@@ -338,96 +240,6 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 1rem;
-}
-
-.scroll-row-wrap {
-  position: relative;
-  width: 100%;
-}
-
-.scroll-row {
-  display: flex;
-  gap: 1rem;
-  overflow-x: auto;
-  scroll-behavior: smooth;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  padding: 0.35rem 0.2rem 1rem;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
-}
-
-.scroll-row::-webkit-scrollbar {
-  height: 6px;
-}
-
-.scroll-row::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
-  border-radius: 4px;
-}
-
-.scroll-row::-webkit-scrollbar-thumb:hover {
-  background: var(--text-faint);
-}
-
-.scroll-row > * {
-  flex: 0 0 260px;
-  min-width: 240px;
-  max-width: 280px;
-  scroll-snap-align: start;
-}
-
-.scroll-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 8;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  border: 1px solid var(--line-strong);
-  background: color-mix(in srgb, var(--bg) 85%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: var(--text);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.scroll-arrow:hover {
-  background: var(--surface-hover);
-  color: var(--accent);
-  transform: translateY(-50%) scale(1.08);
-  border-color: var(--accent);
-}
-
-.scroll-arrow.prev {
-  left: -14px;
-}
-
-.scroll-arrow.next {
-  right: -14px;
-}
-
-@media (max-width: 640px) {
-  .scroll-row {
-    gap: 0.75rem;
-    padding-bottom: 0.6rem;
-  }
-
-  .scroll-row > * {
-    flex: 0 0 215px;
-    min-width: 195px;
-    max-width: 235px;
-  }
-
-  .scroll-arrow {
-    display: none;
-  }
 }
 
 .empty {
