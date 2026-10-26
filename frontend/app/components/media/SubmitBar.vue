@@ -58,13 +58,13 @@ function onFilesPicked(e: Event) {
       v-model="url"
       class="input submit-input mono"
       type="text"
-      placeholder="https:// — paste direct media URLs or TikTok/Facebook video links (authorized content only)"
+      placeholder="https:// — paste a supported video link or direct media URL (authorized content only)"
       required
     />
     <AppSelect
       v-model="quality"
       :options="qualityOptions"
-      aria-label="Max resolution for TikTok/Facebook/YouTube links (direct file URLs are unaffected)"
+      aria-label="Max resolution for supported video links (direct file URLs are unaffected)"
     />
     <button class="btn btn-accent submit-btn" type="submit" :disabled="submitting">
       {{ submitting ? 'Queuing…' : 'Download' }}

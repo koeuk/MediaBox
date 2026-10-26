@@ -71,7 +71,13 @@ mediabox/
 - 🎞️ Media conversion with FFmpeg (mp4, webm, gif, mp3, m4a, wav)
 - 🛠️ Admin dashboard (first registered user is admin)
 - 📖 REST API documentation (Swagger at `/docs`)
-- 📹 TikTok / Facebook video links resolved via yt-dlp (configurable allowlist; authorized content only)
+- 📹 TikTok / Facebook / YouTube / Pornhub video links resolved via yt-dlp (configurable allowlist; authorized content only)
+
+Video-site links work in both the library and guest downloader. If you set
+`YTDLP_HOSTS` in `backend/.env`, include `pornhub.com` to enable Pornhub links;
+subdomains such as `www.pornhub.com` are included automatically. Restart the
+backend after changing this setting. Videos that require login can use a
+Netscape-format cookies file configured with `YTDLP_COOKIES_FILE`.
 
 ## Future Features
 

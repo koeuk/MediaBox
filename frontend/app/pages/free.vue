@@ -159,7 +159,7 @@ async function submit() {
             class="input submit-input mono"
             type="url"
             required
-            placeholder="https:// — paste a TikTok/Facebook link or a direct media URL"
+            placeholder="https:// — paste a supported video link or direct media URL"
           />
           <AppSelect v-model="quality" :options="options" aria-label="Download quality" />
           <button class="btn btn-accent submit-btn" type="submit" :disabled="busy || !url.trim()">

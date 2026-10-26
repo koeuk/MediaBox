@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     max_concurrent_downloads: int = 3
     # hosts routed through yt-dlp instead of a direct stream (comma-separated,
     # subdomains included automatically); empty string disables extraction
-    ytdlp_hosts: str = "tiktok.com,facebook.com,fb.watch,youtube.com,youtu.be"
+    ytdlp_hosts: str = "tiktok.com,facebook.com,fb.watch,youtube.com,youtu.be,pornhub.com"
     # optional Netscape cookies.txt for login-gated videos (age-restricted etc.)
     ytdlp_cookies_file: str = ""
     # YouTube JS-challenge solver components (comma-separated, e.g. "ejs:github").

@@ -55,7 +55,7 @@ def _reject_web_page(url: str, content_type: str) -> None:
     if content_type in _PAGE_TYPES and not wants_html:
         raise ValueError(
             "This link is a web page, not a media file. Use a direct file URL "
-            "(one ending in .mp4, .mp3, .jpg, …) or a TikTok/Facebook video link."
+            "(one ending in .mp4, .mp3, .jpg, …) or a supported video-site link."
         )
 
 
