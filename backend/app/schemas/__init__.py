@@ -5,7 +5,9 @@ working regardless of which module a model actually lives in.
 """
 
 from app.schemas.admin import (
+    AdminAnalytics,
     AdminDownloadOut,
+    AdminMonthStats,
     AdminStats,
     AdminUserEdit,
     AdminUserOut,
@@ -68,6 +70,8 @@ __all__ = [
     "FeedbackEdit",
     "FeedbackOut",
     # admin
+    "AdminAnalytics",
+    "AdminMonthStats",
     "AdminStats",
     "AdminUserOut",
     "AdminUserEdit",

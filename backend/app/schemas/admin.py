@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -16,6 +16,18 @@ class AdminStats(BaseModel):
     failed: int
     favorites: int
     bytes_stored: int
+
+
+class AdminMonthStats(BaseModel):
+    month: date
+    downloads: int
+    new_users: int
+
+
+class AdminAnalytics(BaseModel):
+    start_date: date
+    end_date: date
+    months: list[AdminMonthStats]
 
 
 class AdminUserOut(BaseModel):

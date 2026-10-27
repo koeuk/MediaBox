@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func
 
 from app.api.deps import AdminUser, DbSession
@@ -10,7 +10,9 @@ from app.security import hash_password
 from app.services import payments, plans, storage
 from app.models import Download, DownloadStatus, Feedback, PaymentRequest, PaymentStatus, Plan, User
 from app.schemas import (
+    AdminAnalytics,
     AdminDownloadOut,
+    AdminMonthStats,
     AdminStats,
     AdminUserEdit,
     AdminUserOut,
@@ -25,6 +27,66 @@ from app.schemas import (
 )
 
 router = APIRouter()
+
+
+def _date_bounds(
+    start_date: date | None, end_date: date | None,
+) -> tuple[datetime | None, datetime | None]:
+    """Calendar dates include the entire day, consistently in UTC."""
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(status_code=422, detail="Start date must be on or before end date.")
+    return (
+        datetime.combine(start_date, time.min, tzinfo=timezone.utc) if start_date else None,
+        datetime.combine(end_date, time.max, tzinfo=timezone.utc) if end_date else None,
+    )
+
+
+@router.get("/analytics", response_model=AdminAnalytics)
+def analytics(
+    db: DbSession,
+    _: AdminUser,
+    start_date: date | None = None,
+    end_date: date | None = None,
+):
+    end_date = end_date or datetime.now(timezone.utc).date()
+    if start_date is None:
+        first_month = max(12, end_date.year * 12 + end_date.month - 12)
+        start_date = date(first_month // 12, first_month % 12 + 1, 1)
+    start, end = _date_bounds(start_date, end_date)
+    month_count = (end_date.year - start_date.year) * 12 + end_date.month - start_date.month + 1
+    if month_count > 120:
+        raise HTTPException(status_code=422, detail="Choose a date range of 10 years or less.")
+
+    def monthly_counts(model: type[Download] | type[User]) -> dict[tuple[int, int], int]:
+        # SQLAlchemy compiles EXTRACT for SQLite, MySQL and PostgreSQL.
+        # PostgreSQL timestamps carry a zone: normalize before extracting so
+        # the connection's TimeZone cannot move a UTC event into another month.
+        timestamp = model.created_at
+        if db.get_bind().dialect.name == "postgresql":
+            timestamp = func.timezone("UTC", timestamp)
+        year = func.extract("year", timestamp)
+        month = func.extract("month", timestamp)
+        rows = (
+            db.query(year, month, func.count(model.id))
+            .filter(model.created_at >= start, model.created_at <= end)
+            .group_by(year, month)
+            .all()
+        )
+        return {(int(y), int(m)): count for y, m, count in rows}
+
+    downloads = monthly_counts(Download)
+    registrations = monthly_counts(User)
+    first_month = start_date.year * 12 + start_date.month - 1
+    months = []
+    for offset in range(month_count):
+        year, month = divmod(first_month + offset, 12)
+        key = (year, month + 1)
+        months.append(AdminMonthStats(
+            month=date(*key, 1),
+            downloads=downloads.get(key, 0),
+            new_users=registrations.get(key, 0),
+        ))
+    return AdminAnalytics(start_date=start_date, end_date=end_date, months=months)
 
 
 @router.get("/stats", response_model=AdminStats)
@@ -81,14 +143,23 @@ def list_users(db: DbSession, _: AdminUser):
 
 
 @router.get("/downloads", response_model=list[AdminDownloadOut])
-def recent_downloads(db: DbSession, _: AdminUser, limit: int = 50):
-    rows = (
+def recent_downloads(
+    db: DbSession,
+    _: AdminUser,
+    limit: Annotated[int, Query(ge=1)] = 50,
+    start_date: date | None = None,
+    end_date: date | None = None,
+):
+    start, end = _date_bounds(start_date, end_date)
+    query = (
         db.query(Download, User.username)
         .join(User, User.id == Download.user_id)
-        .order_by(Download.created_at.desc())
-        .limit(min(limit, 200))
-        .all()
     )
+    if start:
+        query = query.filter(Download.created_at >= start)
+    if end:
+        query = query.filter(Download.created_at <= end)
+    rows = query.order_by(Download.created_at.desc(), Download.id.desc()).limit(min(limit, 200)).all()
     return [
         AdminDownloadOut(
             id=dl.id,

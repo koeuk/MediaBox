@@ -85,6 +85,21 @@ export interface AdminStats {
   bytes_stored: number
 }
 
+export interface AdminDateRange {
+  start_date: string
+  end_date: string
+}
+
+export interface AdminMonthStats {
+  month: string
+  downloads: number
+  new_users: number
+}
+
+export interface AdminAnalytics extends AdminDateRange {
+  months: AdminMonthStats[]
+}
+
 export interface AdminUser {
   id: number
   email: string

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AdminDownload, AdminStats, AdminUser } from '~/types'
+import type { AdminAnalytics, AdminDateRange, AdminDownload, AdminStats, AdminUser } from '~/types'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -10,6 +10,29 @@ const stats = ref<AdminStats | null>(null)
 const users = ref<AdminUser[]>([])
 const recent = ref<AdminDownload[]>([])
 const denied = ref(false)
+const analytics = ref<AdminAnalytics | null>(null)
+const activityRange = ref<AdminDateRange>(adminDateRange())
+const activityLoading = ref(false)
+const activityError = ref('')
+
+async function loadActivity(range: AdminDateRange) {
+  if (activityLoading.value) return
+  activityLoading.value = true
+  activityError.value = ''
+  try {
+    const [activity, downloads] = await Promise.all([
+      request<AdminAnalytics>('/admin/analytics', { params: range }),
+      request<AdminDownload[]>('/admin/downloads', { params: { ...range, limit: 20 } }),
+    ])
+    analytics.value = activity
+    recent.value = downloads
+    activityRange.value = { start_date: activity.start_date, end_date: activity.end_date }
+  } catch (e) {
+    activityError.value = errorMessage(e, 'Could not load activity. Please try again.')
+  } finally {
+    activityLoading.value = false
+  }
+}
 
 /** Which panel the tabs are showing. Mirrored into `?tab=` so a reload — or a
  *  link straight to one section — lands where you expect. */
@@ -47,14 +70,13 @@ onMounted(async () => {
     denied.value = true
     return navigateTo('/')
   }
-  const [s, u, d] = await Promise.all([
+  const [s, u] = await Promise.all([
     request<AdminStats>('/admin/stats'),
     request<AdminUser[]>('/admin/users'),
-    request<AdminDownload[]>('/admin/downloads', { params: { limit: 20 } }),
+    loadActivity(activityRange.value),
   ])
   stats.value = s
   users.value = u
-  recent.value = d
 })
 </script>
 
@@ -65,6 +87,7 @@ onMounted(async () => {
     <main v-if="!denied" class="page">
       <h1 class="display page-title reveal">Admin</h1>
 
+      <p v-if="stats" class="label totals-label">All-time totals</p>
       <section v-if="stats" class="tiles">
         <div v-for="(tile, i) in [
             { label: 'Users', value: String(stats.users) },
@@ -84,6 +107,15 @@ onMounted(async () => {
         <span class="badge badge-completed">✓ completed {{ stats.completed }}</span>
         <span class="badge badge-failed">✕ failed {{ stats.failed }}</span>
       </section>
+
+      <AdminAnalytics
+        v-if="stats"
+        :data="analytics"
+        :range="activityRange"
+        :loading="activityLoading"
+        :error="activityError"
+        @apply="loadActivity"
+      />
 
       <div class="filters tabs reveal" role="tablist" aria-label="Admin sections" style="animation-delay: 0.24s">
         <button
@@ -151,6 +183,7 @@ onMounted(async () => {
         class="panel table-panel"
       >
         <h2 class="label table-title">Recent downloads</h2>
+        <p class="table-note mono">Latest 20 within the selected dates · UTC</p>
         <div class="table-scroll">
           <table>
             <thead>
@@ -163,12 +196,15 @@ onMounted(async () => {
               </tr>
             </thead>
             <tbody>
+              <tr v-if="!recent.length">
+                <td colspan="5" class="empty-row dim">{{ activityError ? 'Downloads could not be loaded. Apply a date range to try again.' : 'No downloads in this date range.' }}</td>
+              </tr>
               <tr v-for="d in recent" :key="d.id">
                 <td class="clip" :title="d.title || d.filename || d.url">{{ d.title || d.filename || d.url }}</td>
                 <td class="dim">{{ d.username }}</td>
                 <td><span class="badge" :class="`badge-${d.status}`">{{ d.status }}</span></td>
                 <td class="num mono">{{ formatBytes(d.total_bytes) }}</td>
-                <td class="dim">{{ formatDate(d.created_at) }}</td>
+                <td class="dim">{{ adminActivityDate(d.created_at) }}</td>
               </tr>
             </tbody>
           </table>
@@ -194,6 +230,11 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1rem;
+}
+
+.totals-label {
+  margin: 0 0 0.6rem;
+  font-size: 0.6rem;
 }
 
 .tile {
@@ -227,6 +268,17 @@ onMounted(async () => {
 
 .table-scroll {
   overflow-x: auto;
+}
+
+.table-note {
+  color: var(--text-dim);
+  font-size: 0.62rem;
+  margin: 0.55rem 1.2rem 0;
+}
+
+.empty-row {
+  padding: 2rem 1.2rem;
+  text-align: center;
 }
 
 table {
@@ -271,5 +323,7 @@ td.num {
 .tabs {
   display: inline-flex;
   margin-bottom: 1.1rem;
+  max-width: 100%;
+  overflow-x: auto;
 }
 </style>
