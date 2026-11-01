@@ -36,8 +36,9 @@ async function loadActivity(range: AdminDateRange) {
 
 /** Which panel the tabs are showing. Mirrored into `?tab=` so a reload — or a
  *  link straight to one section — lands where you expect. */
-type AdminTab = 'branding' | 'feedback' | 'payments' | 'plans' | 'users' | 'downloads'
+type AdminTab = 'dashboard' | 'branding' | 'feedback' | 'payments' | 'plans' | 'users' | 'downloads'
 const TABS: { id: AdminTab; label: string }[] = [
+  { id: 'dashboard', label: 'Dashboard' },
   { id: 'branding', label: 'Branding' },
   { id: 'feedback', label: 'Feedback' },
   { id: 'payments', label: 'Payments' },
@@ -49,7 +50,7 @@ const TABS: { id: AdminTab; label: string }[] = [
 const route = useRoute()
 const router = useRouter()
 const queryTab = TABS.find((t) => t.id === route.query.tab)?.id
-const tab = ref<AdminTab>(queryTab || 'branding')
+const tab = ref<AdminTab>(queryTab || 'dashboard')
 
 /** Pull the user list again — an approved payment changes someone's expiry. */
 async function reloadUsers() {
@@ -61,8 +62,20 @@ async function reloadUsers() {
 }
 
 watch(tab, (value) => {
-  router.replace({ query: value === 'branding' ? {} : { tab: value } })
+  router.replace({ query: value === 'dashboard' ? {} : { tab: value } })
 })
+
+watch(
+  () => route.query.tab,
+  (newTab) => {
+    const matched = TABS.find((t) => t.id === newTab)?.id
+    if (matched && matched !== tab.value) {
+      tab.value = matched
+    } else if (!newTab && tab.value !== 'dashboard') {
+      tab.value = 'dashboard'
+    }
+  },
+)
 
 onMounted(async () => {
   if (!user.value) await fetchUser()
@@ -87,37 +100,7 @@ onMounted(async () => {
     <main v-if="!denied" class="page">
       <h1 class="display page-title reveal">Admin</h1>
 
-      <p v-if="stats" class="label totals-label">All-time totals</p>
-      <section v-if="stats" class="tiles">
-        <div v-for="(tile, i) in [
-            { label: 'Users', value: String(stats.users) },
-            { label: 'Downloads', value: String(stats.downloads) },
-            { label: 'Feedback', value: String(stats.feedback) },
-            { label: 'Storage used', value: formatBytes(stats.bytes_stored) },
-            { label: 'Favorites', value: String(stats.favorites) },
-          ]" :key="tile.label" class="tile panel reveal" :style="{ animationDelay: `${i * 0.05}s` }">
-          <span class="label">{{ tile.label }}</span>
-          <span class="tile-value display">{{ tile.value }}</span>
-        </div>
-      </section>
-
-      <section v-if="stats" class="status-row reveal" style="animation-delay: 0.2s">
-        <span class="badge badge-queued"><span class="dot" /> queued {{ stats.queued }}</span>
-        <span class="badge badge-downloading"><span class="dot" /> downloading {{ stats.downloading }}</span>
-        <span class="badge badge-completed">✓ completed {{ stats.completed }}</span>
-        <span class="badge badge-failed">✕ failed {{ stats.failed }}</span>
-      </section>
-
-      <AdminAnalytics
-        v-if="stats"
-        :data="analytics"
-        :range="activityRange"
-        :loading="activityLoading"
-        :error="activityError"
-        @apply="loadActivity"
-      />
-
-      <div class="filters tabs reveal" role="tablist" aria-label="Admin sections" style="animation-delay: 0.24s">
+      <div class="filters tabs reveal" role="tablist" aria-label="Admin sections" style="animation-delay: 0.05s">
         <button
           v-for="t in TABS"
           :id="`tab-${t.id}`"
@@ -134,6 +117,87 @@ onMounted(async () => {
         </button>
       </div>
 
+      <!-- DASHBOARD TAB -->
+      <section
+        v-if="stats"
+        v-show="tab === 'dashboard'"
+        id="panel-dashboard"
+        role="tabpanel"
+        aria-labelledby="tab-dashboard"
+      >
+        <p class="label totals-label">All-time totals</p>
+        <div class="tiles">
+          <div
+            v-for="(tile, i) in [
+              { label: 'Users', value: String(stats.users) },
+              { label: 'Downloads', value: String(stats.downloads) },
+              { label: 'Feedback', value: String(stats.feedback) },
+              { label: 'Storage used', value: formatBytes(stats.bytes_stored) },
+              { label: 'Favorites', value: String(stats.favorites) },
+            ]"
+            :key="tile.label"
+            class="tile panel reveal"
+            :style="{ animationDelay: `${i * 0.05}s` }"
+          >
+            <span class="label">{{ tile.label }}</span>
+            <span class="tile-value display">{{ tile.value }}</span>
+          </div>
+        </div>
+
+        <div class="status-row reveal" style="animation-delay: 0.15s">
+          <span class="badge badge-queued"><span class="dot" /> queued {{ stats.queued }}</span>
+          <span class="badge badge-downloading"><span class="dot" /> downloading {{ stats.downloading }}</span>
+          <span class="badge badge-completed">✓ completed {{ stats.completed }}</span>
+          <span class="badge badge-failed">✕ failed {{ stats.failed }}</span>
+        </div>
+
+        <AdminAnalytics
+          :data="analytics"
+          :range="activityRange"
+          :loading="activityLoading"
+          :error="activityError"
+          @apply="loadActivity"
+        />
+
+        <div class="panel table-panel reveal" style="animation-delay: 0.2s">
+          <div class="dash-table-head">
+            <div>
+              <h2 class="label table-title">Recent downloads</h2>
+              <p class="table-note mono">Latest 20 within the selected dates · UTC</p>
+            </div>
+            <button class="btn btn-ghost view-all-btn" type="button" @click="tab = 'downloads'">
+              View tab →
+            </button>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>User</th>
+                  <th>Status</th>
+                  <th class="num">Size</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!recent.length">
+                  <td colspan="5" class="empty-row dim">{{ activityError ? 'Downloads could not be loaded. Apply a date range to try again.' : 'No downloads in this date range.' }}</td>
+                </tr>
+                <tr v-for="d in recent" :key="d.id">
+                  <td class="clip" :title="d.title || d.filename || d.url">{{ d.title || d.filename || d.url }}</td>
+                  <td class="dim">{{ d.username }}</td>
+                  <td><span class="badge" :class="`badge-${d.status}`">{{ d.status }}</span></td>
+                  <td class="num mono">{{ formatBytes(d.total_bytes) }}</td>
+                  <td class="dim">{{ adminActivityDate(d.created_at) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- BRANDING TAB -->
       <AdminBranding
         v-if="stats"
         v-show="tab === 'branding'"
@@ -142,6 +206,7 @@ onMounted(async () => {
         aria-labelledby="tab-branding"
       />
 
+      <!-- FEEDBACK TAB -->
       <AdminFeedbackManager
         v-if="stats"
         v-show="tab === 'feedback'"
@@ -150,6 +215,7 @@ onMounted(async () => {
         aria-labelledby="tab-feedback"
       />
 
+      <!-- PAYMENTS TAB -->
       <AdminPaymentQueue
         v-show="tab === 'payments'"
         id="panel-payments"
@@ -158,6 +224,7 @@ onMounted(async () => {
         @granted="reloadUsers"
       />
 
+      <!-- PLANS TAB -->
       <AdminPlanManager
         v-show="tab === 'plans'"
         id="panel-plans"
@@ -165,6 +232,7 @@ onMounted(async () => {
         aria-labelledby="tab-plans"
       />
 
+      <!-- USERS TAB -->
       <AdminUserManager
         v-show="tab === 'users'"
         id="panel-users"
@@ -175,39 +243,48 @@ onMounted(async () => {
         @changed="users = $event"
       />
 
+      <!-- DOWNLOADS TAB -->
       <section
         v-show="tab === 'downloads'"
         id="panel-downloads"
         role="tabpanel"
         aria-labelledby="tab-downloads"
-        class="panel table-panel"
       >
-        <h2 class="label table-title">Recent downloads</h2>
-        <p class="table-note mono">Latest 20 within the selected dates · UTC</p>
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>User</th>
-                <th>Status</th>
-                <th class="num">Size</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="!recent.length">
-                <td colspan="5" class="empty-row dim">{{ activityError ? 'Downloads could not be loaded. Apply a date range to try again.' : 'No downloads in this date range.' }}</td>
-              </tr>
-              <tr v-for="d in recent" :key="d.id">
-                <td class="clip" :title="d.title || d.filename || d.url">{{ d.title || d.filename || d.url }}</td>
-                <td class="dim">{{ d.username }}</td>
-                <td><span class="badge" :class="`badge-${d.status}`">{{ d.status }}</span></td>
-                <td class="num mono">{{ formatBytes(d.total_bytes) }}</td>
-                <td class="dim">{{ adminActivityDate(d.created_at) }}</td>
-              </tr>
-            </tbody>
-          </table>
+        <div v-if="stats" class="status-row" style="margin-top: 0">
+          <span class="badge badge-queued"><span class="dot" /> queued {{ stats.queued }}</span>
+          <span class="badge badge-downloading"><span class="dot" /> downloading {{ stats.downloading }}</span>
+          <span class="badge badge-completed">✓ completed {{ stats.completed }}</span>
+          <span class="badge badge-failed">✕ failed {{ stats.failed }}</span>
+        </div>
+
+        <div class="panel table-panel">
+          <h2 class="label table-title">Recent downloads</h2>
+          <p class="table-note mono">Latest 20 within the selected dates · UTC</p>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>User</th>
+                  <th>Status</th>
+                  <th class="num">Size</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!recent.length">
+                  <td colspan="5" class="empty-row dim">{{ activityError ? 'Downloads could not be loaded. Apply a date range to try again.' : 'No downloads in this date range.' }}</td>
+                </tr>
+                <tr v-for="d in recent" :key="d.id">
+                  <td class="clip" :title="d.title || d.filename || d.url">{{ d.title || d.filename || d.url }}</td>
+                  <td class="dim">{{ d.username }}</td>
+                  <td><span class="badge" :class="`badge-${d.status}`">{{ d.status }}</span></td>
+                  <td class="num mono">{{ formatBytes(d.total_bytes) }}</td>
+                  <td class="dim">{{ adminActivityDate(d.created_at) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </main>
@@ -223,7 +300,7 @@ onMounted(async () => {
 
 .page-title {
   font-size: clamp(1.6rem, 4vw, 2.4rem);
-  margin: 0 0 1.4rem;
+  margin: 0 0 1rem;
 }
 
 .tiles {
@@ -259,6 +336,36 @@ onMounted(async () => {
 .table-panel {
   margin-bottom: 1.4rem;
   overflow: hidden;
+}
+
+.dash-table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.2rem 0;
+}
+
+.dash-table-head .table-title {
+  padding: 0;
+}
+
+.dash-table-head .table-note {
+  margin: 0.35rem 0 0;
+}
+
+.view-all-btn {
+  font-size: 0.72rem;
+  padding: 0.3rem 0.65rem;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  white-space: nowrap;
+}
+
+.view-all-btn:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
 }
 
 .table-title {
@@ -322,7 +429,7 @@ td.num {
 /* inline rather than stretching, so the bar reads as a control not a header */
 .tabs {
   display: inline-flex;
-  margin-bottom: 1.1rem;
+  margin-bottom: 1.4rem;
   max-width: 100%;
   overflow-x: auto;
 }

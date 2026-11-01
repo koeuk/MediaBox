@@ -41,16 +41,25 @@ async function clearPhoto() {
 }
 
 /** Which panel the tabs are showing. Mirrored into `?tab=` so a reload — or a
- *  link straight to the password form — lands where you expect. */
-type ProfileTab = 'account' | 'password' | 'saving'
+ *  link straight to one section — lands where you expect. */
+type ProfileTab = 'account' | 'password' | 'saving' | 'branding'
 const route = useRoute()
 const router = useRouter()
+const queryTab = route.query.tab as ProfileTab
 const tab = ref<ProfileTab>(
-  route.query.tab === 'password' ? 'password' : route.query.tab === 'saving' ? 'saving' : 'account'
+  queryTab === 'password' || queryTab === 'saving' || queryTab === 'branding'
+    ? queryTab
+    : 'account'
 )
 
 watch(tab, (value) => {
   router.replace({ query: value === 'account' ? {} : { tab: value } })
+})
+
+watch(user, (u) => {
+  if (tab.value === 'branding' && !u?.is_admin) {
+    tab.value = 'account'
+  }
 })
 
 const username = ref('')
@@ -164,7 +173,7 @@ async function changePassword() {
         </button>
 
         <div class="head-text">
-          <h1 class="display page-title">Profile</h1>
+          <h1 class="display page-title">Settings</h1>
           <p class="sub mono">
             {{ user?.email }}
             <span v-if="user?.is_admin" class="admin-tag">admin</span>
@@ -188,9 +197,9 @@ async function changePassword() {
         </div>
       </header>
 
-      <div class="filters tabs reveal" role="tablist" aria-label="Profile sections">
+      <div class="filters tabs reveal" role="tablist" aria-label="Settings sections">
         <button
-          v-for="t in (['account', 'password', 'saving'] as ProfileTab[])"
+          v-for="t in (['account', 'password', 'saving', ...(user?.is_admin ? ['branding'] : [])] as ProfileTab[])"
           :key="t"
           :id="`tab-${t}`"
           class="filter-btn"
@@ -201,7 +210,7 @@ async function changePassword() {
           :aria-controls="`panel-${t}`"
           @click="tab = t"
         >
-          {{ t === 'account' ? 'Account details' : t === 'password' ? 'Change password' : 'Save location' }}
+          {{ t === 'account' ? 'Account details' : t === 'password' ? 'Change password' : t === 'saving' ? 'Save location' : 'Branding' }}
         </button>
       </div>
 
@@ -306,6 +315,15 @@ async function changePassword() {
 
           <button class="btn btn-accent" type="submit">Save preference</button>
         </form>
+
+        <AdminBranding
+          v-if="user?.is_admin"
+          v-show="tab === 'branding'"
+          id="panel-branding"
+          role="tabpanel"
+          aria-labelledby="tab-branding"
+          class="reveal"
+        />
       </div>
     </main>
   </div>

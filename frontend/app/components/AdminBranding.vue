@@ -43,8 +43,8 @@ async function removeLogo() {
 </script>
 
 <template>
-  <section class="panel branding-panel">
-    <h2 class="label table-title">Site branding</h2>
+  <section class="panel panel-hover card branding-card">
+    <h2 class="card-title">Site branding</h2>
     <input ref="fileInput" type="file" accept="image/*" hidden @change="onPicked" />
 
     <div class="branding-row">
@@ -73,8 +73,17 @@ async function removeLogo() {
 </template>
 
 <style scoped>
-.branding-panel {
-  padding: 1.1rem 1.3rem;
+.branding-card {
+  padding: 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.card-title {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .branding-row {
@@ -93,6 +102,7 @@ async function removeLogo() {
   border-radius: 12px;
   overflow: hidden;
   flex-shrink: 0;
+  background: var(--surface-hover);
 }
 
 .logo-box img {
@@ -111,13 +121,27 @@ async function removeLogo() {
 }
 
 .branding-hint {
-  margin: 0 0 0.6rem;
+  margin: 0 0 0.8rem;
   color: var(--text-dim, #9a9a9a);
   font-size: 0.85rem;
+  line-height: 1.45;
 }
 
 .branding-actions {
   display: flex;
   gap: 0.6rem;
 }
+
+.msg {
+  margin: 0 0 0.6rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.76rem;
+}
+
+.msg.err {
+  background: var(--err-soft);
+  color: var(--err);
+}
 </style>
+
