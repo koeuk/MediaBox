@@ -51,12 +51,11 @@ class MediaTokenOut(BaseModel):
 
 
 class HiddenPasswordSet(BaseModel):
-    current_password: str | None = None
     new_password: str = Field(min_length=1, max_length=128)
 
 
 class HiddenPasswordRemove(BaseModel):
-    password: str
+    pass
 
 
 class HiddenPasswordVerify(BaseModel):

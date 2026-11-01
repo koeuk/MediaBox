@@ -143,12 +143,6 @@ def media_token(user: CurrentUser):
 @router.put("/me/hidden-password", response_model=UserOut)
 def set_hidden_password(payload: HiddenPasswordSet, db: DbSession, user: CurrentUser):
     """Set or update the password required to access hidden media."""
-    if user.hidden_password_hash:
-        if not payload.current_password or (
-            not verify_password(payload.current_password, user.hidden_password_hash)
-            and not verify_password(payload.current_password, user.hashed_password)
-        ):
-            raise HTTPException(status_code=400, detail="Current hidden password is incorrect")
     user.hidden_password_hash = hash_password(payload.new_password)
     db.commit()
     db.refresh(user)
@@ -156,14 +150,9 @@ def set_hidden_password(payload: HiddenPasswordSet, db: DbSession, user: Current
 
 
 @router.post("/me/hidden-password/remove", response_model=UserOut)
-def remove_hidden_password(payload: HiddenPasswordRemove, db: DbSession, user: CurrentUser):
+@router.delete("/me/hidden-password", response_model=UserOut)
+def remove_hidden_password(db: DbSession, user: CurrentUser):
     """Remove the password protecting the hidden media section."""
-    if not user.hidden_password_hash:
-        return user
-    if not verify_password(payload.password, user.hidden_password_hash) and not verify_password(
-        payload.password, user.hashed_password
-    ):
-        raise HTTPException(status_code=400, detail="Password is incorrect")
     user.hidden_password_hash = None
     db.commit()
     db.refresh(user)
