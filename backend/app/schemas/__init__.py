@@ -7,6 +7,7 @@ working regardless of which module a model actually lives in.
 from app.schemas.admin import (
     AdminAnalytics,
     AdminDownloadOut,
+    AdminDownloadPageOut,
     AdminMonthStats,
     AdminStats,
     AdminUserEdit,
@@ -17,6 +18,8 @@ from app.schemas.admin import (
     PaymentSubmit,
     PlanEdit,
     PlanOut,
+    SiteBrandingOut,
+    SiteTitleEdit,
 )
 from app.schemas.auth import (
     MediaTokenOut,

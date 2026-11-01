@@ -5,18 +5,21 @@
  */
 defineProps<{ tagline: string; title: string; error?: string }>()
 const emit = defineEmits<{ submit: [] }>()
+const { logoUrl, hasLogo, siteTitle, titleParts } = useBranding()
 </script>
 
 <template>
   <div class="auth-wrap">
     <header class="auth-topbar">
-      <NuxtLink to="/free" class="auth-topbar-brand" aria-label="MediaBox">
-        <img class="auth-mark" src="/logo.svg" alt="" />
+      <NuxtLink to="/free" class="auth-topbar-brand" :aria-label="siteTitle">
+        <img class="auth-mark" :src="hasLogo ? logoUrl : '/logo.svg'" alt="" />
       </NuxtLink>
     </header>
 
     <div class="auth-brand reveal">
-      <div class="wordmark display">Media<span>Box</span></div>
+      <div class="wordmark display">
+        {{ titleParts.first }}<span v-if="titleParts.highlight">{{ titleParts.highlight }}</span>
+      </div>
       <p class="label">{{ tagline }}</p>
     </div>
 

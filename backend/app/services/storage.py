@@ -129,6 +129,36 @@ def delete_logo() -> None:
         p.unlink(missing_ok=True)
 
 
+def get_site_title() -> str:
+    """The configured site title, or settings.app_name."""
+    path = _branding_dir() / "title.txt"
+    if path.exists():
+        try:
+            val = path.read_text(encoding="utf-8").strip()
+            if val:
+                return val
+        except Exception:
+            pass
+    return settings.app_name
+
+
+def save_site_title(title: str) -> str:
+    """Save the site title. If empty, reverts to settings.app_name."""
+    clean = title.strip()
+    path = _branding_dir() / "title.txt"
+    if not clean or clean == settings.app_name:
+        path.unlink(missing_ok=True)
+        return settings.app_name
+    path.write_text(clean, encoding="utf-8")
+    return clean
+
+
+def delete_site_title() -> None:
+    """Delete custom site title, reverting to default."""
+    (_branding_dir() / "title.txt").unlink(missing_ok=True)
+
+
+
 def save_upload(file: UploadFile, user_id: int) -> tuple[Path, int, str]:
     """Stream an uploaded media file to disk.
 

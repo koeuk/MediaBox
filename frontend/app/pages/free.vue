@@ -33,6 +33,8 @@ const { data: limits } = await useAsyncData(
   { server: false }
 )
 
+const { logoUrl, hasLogo, siteTitle, titleParts } = useBranding()
+
 const url = ref('')
 const picked = ref('480')
 const touched = ref(false)
@@ -136,13 +138,15 @@ async function submit() {
 <template>
   <div class="wrap">
     <header class="topbar">
-      <NuxtLink to="/free" class="topbar-brand" aria-label="MediaBox">
-        <img class="mark" src="/logo.svg" alt="" />
+      <NuxtLink to="/free" class="topbar-brand" :aria-label="siteTitle">
+        <img class="mark" :src="hasLogo ? logoUrl : '/logo.svg'" alt="" />
       </NuxtLink>
     </header>
 
     <div class="brand reveal">
-      <div class="wordmark display">Media<span>Box</span></div>
+      <div class="wordmark display">
+        {{ titleParts.first }}<span v-if="titleParts.highlight">{{ titleParts.highlight }}</span>
+      </div>
       <p class="label">Download · No account needed</p>
     </div>
 

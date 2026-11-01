@@ -124,6 +124,15 @@ export interface AdminDownload {
   created_at: string
 }
 
+export interface AdminDownloadPage {
+  items: AdminDownload[]
+  total: number
+  page: number
+  limit: number
+  total_pages: number
+}
+
+
 
 export interface Plan {
   code: string

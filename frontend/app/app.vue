@@ -9,11 +9,14 @@ const theme = useCookie<string>('mediabox_theme', {
 // tab icon priority: admin-uploaded site logo, then the profile picture,
 // then the default /logo.svg from nuxt.config
 const { src: avatarSrc } = useAvatar()
-const { logoUrl, hasLogo } = useBranding()
+const { logoUrl, hasLogo, siteTitle } = useBranding()
 
 // the single owner of the tab icon (nuxt.config defines none), so exactly
 // one <link rel=icon> exists and the priority order always wins
 useHead(() => ({
+  titleTemplate: (titleChunk) => {
+    return titleChunk ? `${titleChunk} · ${siteTitle.value}` : siteTitle.value
+  },
   htmlAttrs: { 'data-theme': theme.value },
   // one keyed entry, so the server-rendered icon is replaced on the client
   // instead of a second <link rel=icon> piling up beside it

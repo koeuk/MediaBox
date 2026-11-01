@@ -2,7 +2,7 @@
 import type { Ref } from 'vue'
 
 const { user, logout } = useAuth()
-const { logoUrl, hasLogo } = useBranding()
+const { logoUrl, hasLogo, titleParts } = useBranding()
 const theme = inject<Ref<string>>('theme')!
 const showLogoutConfirm = ref(false)
 const { open, anchor, menu, pos, placed, toggle, close } = usePopMenu()
@@ -32,7 +32,7 @@ function confirmLogout() {
         :src="hasLogo ? logoUrl : avatarSrc || '/logo.svg'"
         alt=""
       />
-      <span class="wordmark display">Media<span>Box</span></span>
+      <span class="wordmark display">{{ titleParts.first }}<span v-if="titleParts.highlight">{{ titleParts.highlight }}</span></span>
     </NuxtLink>
 
     <div class="nav-right">

@@ -1,30 +1,63 @@
 /**
- * The admin-uploaded site logo, used in the navbar and as the favicon.
- * Served unauthenticated from /public/logo; `version` busts caches after an
- * upload or removal so every open tab flips without a reload.
+ * The admin-uploaded site logo and site title, used in the navbar and favicon.
+ * Served unauthenticated from /public/branding and /public/logo; `version` busts caches
+ * after an update so every open tab updates without a reload.
  */
+export function formatTitleParts(title: string): { first: string; highlight: string } {
+  const clean = (title || 'MediaBox').trim()
+  if (clean === 'MediaBox') {
+    return { first: 'Media', highlight: 'Box' }
+  }
+  const spaceIdx = clean.lastIndexOf(' ')
+  if (spaceIdx > 0) {
+    return { first: clean.slice(0, spaceIdx + 1), highlight: clean.slice(spaceIdx + 1) }
+  }
+  return { first: clean, highlight: '' }
+}
+
 export function useBranding() {
   const config = useRuntimeConfig()
   const version = useState('branding-version', () => Date.now())
-  // null = not probed yet; the navbar/favicon only render the logo once true
   const hasLogo = useState<boolean | null>('branding-has-logo', () => null)
+  const siteTitle = useState<string>('branding-site-title', () => 'MediaBox')
+  const probed = useState<boolean>('branding-probed', () => false)
 
   const logoUrl = computed(() => `${config.public.apiBase}/public/logo?v=${version.value}`)
+  const titleParts = computed(() => formatTitleParts(siteTitle.value))
 
-  if (import.meta.client && hasLogo.value === null) {
-    hasLogo.value = false // settle a value in case the probe fails
-    // GET, not HEAD: FastAPI routes don't answer HEAD; the byte cost is one
-    // small image the navbar is about to fetch anyway
-    fetch(logoUrl.value)
-      .then((res) => (hasLogo.value = res.ok))
-      .catch(() => {})
+  async function fetchBranding() {
+    try {
+      const res = await $fetch<{ site_title: string; has_logo: boolean }>(
+        `${config.public.apiBase}/public/branding?v=${version.value}`
+      )
+      siteTitle.value = res.site_title || 'MediaBox'
+      hasLogo.value = res.has_logo
+      probed.value = true
+    } catch {
+      // Fallback: probe logo directly
+      if (hasLogo.value === null) {
+        hasLogo.value = false
+        fetch(logoUrl.value)
+          .then((res) => (hasLogo.value = res.ok))
+          .catch(() => {})
+      }
+    }
   }
 
-  /** Call after the admin changes the logo, so URLs re-resolve everywhere. */
-  function refresh(exists: boolean) {
+  if (import.meta.client && !probed.value) {
+    probed.value = true
+    fetchBranding()
+  }
+
+  /** Call after the admin changes the logo or title, so state re-resolves everywhere. */
+  function refresh(exists?: boolean, newTitle?: string) {
     version.value = Date.now()
-    hasLogo.value = exists
+    if (typeof exists === 'boolean') hasLogo.value = exists
+    if (typeof newTitle === 'string') siteTitle.value = newTitle || 'MediaBox'
+    if (exists === undefined && newTitle === undefined) {
+      fetchBranding()
+    }
   }
 
-  return { logoUrl, hasLogo, refresh }
+  return { logoUrl, hasLogo, siteTitle, titleParts, refresh, fetchBranding }
 }

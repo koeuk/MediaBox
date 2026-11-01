@@ -13,11 +13,20 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
-from app.schemas import GuestDownloadRequest, GuestLimitsOut, PaymentSettingsOut, PlanOut
+from app.schemas import GuestDownloadRequest, GuestLimitsOut, PaymentSettingsOut, PlanOut, SiteBrandingOut
 from app.api.deps import DbSession
 from app.services import guest, payments, plans, storage
 
 router = APIRouter()
+
+
+@router.get("/branding", response_model=SiteBrandingOut)
+def site_branding():
+    """Site branding: current site title and whether a custom logo is set."""
+    return SiteBrandingOut(
+        site_title=storage.get_site_title(),
+        has_logo=storage.find_logo() is not None,
+    )
 
 
 @router.get("/logo")
@@ -28,6 +37,7 @@ def site_logo():
     if not path:
         raise HTTPException(status_code=404, detail="No logo set")
     return FileResponse(path, media_type=mimetypes.guess_type(path.name)[0] or "image/png")
+
 
 
 @router.get("/limits", response_model=GuestLimitsOut)

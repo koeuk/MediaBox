@@ -12,6 +12,7 @@ from app.models import Download, DownloadStatus, Feedback, PaymentRequest, Payme
 from app.schemas import (
     AdminAnalytics,
     AdminDownloadOut,
+    AdminDownloadPageOut,
     AdminMonthStats,
     AdminStats,
     AdminUserEdit,
@@ -24,6 +25,8 @@ from app.schemas import (
     PaymentSettingsOut,
     PlanEdit,
     PlanOut,
+    SiteBrandingOut,
+    SiteTitleEdit,
 )
 
 router = APIRouter()
@@ -142,13 +145,16 @@ def list_users(db: DbSession, _: AdminUser):
     ]
 
 
-@router.get("/downloads", response_model=list[AdminDownloadOut])
+@router.get("/downloads", response_model=list[AdminDownloadOut] | AdminDownloadPageOut)
 def recent_downloads(
     db: DbSession,
     _: AdminUser,
     limit: Annotated[int, Query(ge=1)] = 50,
+    page: Annotated[int, Query(ge=1)] = 1,
     start_date: date | None = None,
     end_date: date | None = None,
+    status: Annotated[DownloadStatus | None, Query()] = None,
+    paginate: Annotated[bool, Query()] = False,
 ):
     start, end = _date_bounds(start_date, end_date)
     query = (
@@ -159,6 +165,40 @@ def recent_downloads(
         query = query.filter(Download.created_at >= start)
     if end:
         query = query.filter(Download.created_at <= end)
+    if status:
+        query = query.filter(Download.status == status)
+
+    if paginate:
+        total = query.count()
+        safe_limit = min(limit, 200)
+        offset = max(0, (page - 1) * safe_limit)
+        rows = (
+            query.order_by(Download.created_at.desc(), Download.id.desc())
+            .offset(offset)
+            .limit(safe_limit)
+            .all()
+        )
+        total_pages = max(1, (total + safe_limit - 1) // safe_limit)
+        return AdminDownloadPageOut(
+            items=[
+                AdminDownloadOut(
+                    id=dl.id,
+                    username=username,
+                    title=dl.title,
+                    filename=dl.filename,
+                    url=dl.url,
+                    status=dl.status,
+                    total_bytes=dl.total_bytes,
+                    created_at=dl.created_at,
+                )
+                for dl, username in rows
+            ],
+            total=total,
+            page=page,
+            limit=safe_limit,
+            total_pages=total_pages,
+        )
+
     rows = query.order_by(Download.created_at.desc(), Download.id.desc()).limit(min(limit, 200)).all()
     return [
         AdminDownloadOut(
@@ -173,6 +213,7 @@ def recent_downloads(
         )
         for dl, username in rows
     ]
+
 
 
 def _user_or_404(db: DbSession, user_id: int) -> User:
@@ -400,6 +441,27 @@ def upload_logo(file: Annotated[UploadFile, File()], admin: AdminUser):
 def remove_logo(admin: AdminUser):
     """Back to the default MediaBox wordmark and icon."""
     storage.delete_logo()
+
+
+@router.put("/branding/title", response_model=SiteBrandingOut)
+def update_site_title(payload: SiteTitleEdit, admin: AdminUser):
+    """Update the site name / logo title."""
+    title = storage.save_site_title(payload.site_title)
+    return SiteBrandingOut(
+        site_title=title,
+        has_logo=storage.find_logo() is not None,
+    )
+
+
+@router.delete("/branding/title", response_model=SiteBrandingOut)
+def reset_site_title(admin: AdminUser):
+    """Reset the site name back to default (MediaBox)."""
+    storage.delete_site_title()
+    return SiteBrandingOut(
+        site_title=storage.get_site_title(),
+        has_logo=storage.find_logo() is not None,
+    )
+
 
 
 @router.get("/feedback", response_model=list[FeedbackOut])

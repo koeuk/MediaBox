@@ -157,6 +157,21 @@ class AdminAnalyticsTests(unittest.TestCase):
             headers = {"Authorization": f"Bearer {create_access_token(self.member.id)}"}
             self.assertEqual(self.client.get(f"/admin{path}", headers=headers).status_code, 403)
 
+    def test_paginated_downloads(self):
+        # 6 downloads in setUp
+        res = self.get("/downloads", paginate=True, page=1, limit=2).json()
+        self.assertEqual(res["total"], 6)
+        self.assertEqual(res["page"], 1)
+        self.assertEqual(res["limit"], 2)
+        self.assertEqual(res["total_pages"], 3)
+        self.assertEqual(len(res["items"]), 2)
+
+        # page 2
+        res2 = self.get("/downloads", paginate=True, page=2, limit=2).json()
+        self.assertEqual(len(res2["items"]), 2)
+        self.assertNotEqual(res["items"][0]["id"], res2["items"][0]["id"])
+
+
 
 if __name__ == "__main__":
     unittest.main()

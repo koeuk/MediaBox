@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models import DownloadStatus
 
@@ -68,6 +68,33 @@ class AdminDownloadOut(BaseModel):
     status: DownloadStatus
     total_bytes: int
     created_at: datetime
+
+
+class AdminDownloadPageOut(BaseModel):
+    items: list[AdminDownloadOut]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+
+
+class SiteBrandingOut(BaseModel):
+    site_title: str
+    has_logo: bool
+
+
+class SiteTitleEdit(BaseModel):
+    site_title: str = Field(min_length=1, max_length=60)
+
+    @field_validator("site_title")
+    @classmethod
+    def validate_site_title(cls, v: str) -> str:
+        clean = v.strip()
+        if not clean:
+            raise ValueError("Site title cannot be empty or only whitespace.")
+        return clean
+
+
 
 
 class PlanOut(BaseModel):
