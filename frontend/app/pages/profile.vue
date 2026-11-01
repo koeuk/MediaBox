@@ -3,8 +3,9 @@ import type { SaveMode } from '~/composables/useSavePrefs'
 
 definePageMeta({ middleware: 'auth' })
 
-const { user, fetchUser, updateProfile, uploadAvatar, removeAvatar } = useAuth()
+const { user, fetchUser, updateProfile, uploadAvatar, removeAvatar, setHiddenPassword, removeHiddenPassword } = useAuth()
 const { src: avatarSrc, initials } = useAvatar()
+const { markUnlocked, lock: lockHidden } = useHiddenLock()
 
 const photoInput = ref<HTMLInputElement>()
 const photoBusy = ref(false)
@@ -42,12 +43,12 @@ async function clearPhoto() {
 
 /** Which panel the tabs are showing. Mirrored into `?tab=` so a reload — or a
  *  link straight to one section — lands where you expect. */
-type ProfileTab = 'account' | 'password' | 'saving' | 'branding'
+type ProfileTab = 'account' | 'password' | 'hidden' | 'saving' | 'branding'
 const route = useRoute()
 const router = useRouter()
 const queryTab = route.query.tab as ProfileTab
 const tab = ref<ProfileTab>(
-  queryTab === 'password' || queryTab === 'saving' || queryTab === 'branding'
+  queryTab === 'password' || queryTab === 'hidden' || queryTab === 'saving' || queryTab === 'branding'
     ? queryTab
     : 'account'
 )
@@ -145,6 +146,67 @@ async function changePassword() {
     savingPw.value = false
   }
 }
+
+// Hidden section password state
+const hiddenCurrentPassword = ref('')
+const hiddenNewPassword = ref('')
+const hiddenConfirmPassword = ref('')
+const hiddenRemovePassword = ref('')
+const hiddenMsg = ref('')
+const hiddenErr = ref('')
+const savingHidden = ref(false)
+const removingHidden = ref(false)
+
+async function handleSetHiddenPassword() {
+  hiddenMsg.value = ''
+  hiddenErr.value = ''
+  if (!hiddenNewPassword.value) {
+    hiddenErr.value = 'Please enter a password'
+    return
+  }
+  if (hiddenNewPassword.value !== hiddenConfirmPassword.value) {
+    hiddenErr.value = 'Passwords do not match'
+    return
+  }
+  savingHidden.value = true
+  try {
+    await setHiddenPassword({
+      current_password: user.value?.has_hidden_password ? hiddenCurrentPassword.value : undefined,
+      new_password: hiddenNewPassword.value,
+    })
+    markUnlocked()
+    hiddenMsg.value = user.value?.has_hidden_password
+      ? 'Hidden password updated'
+      : 'Hidden section password set'
+    hiddenCurrentPassword.value = ''
+    hiddenNewPassword.value = ''
+    hiddenConfirmPassword.value = ''
+  } catch (e: any) {
+    hiddenErr.value = errorMessage(e, 'Could not save hidden password.')
+  } finally {
+    savingHidden.value = false
+  }
+}
+
+async function handleRemoveHiddenPassword() {
+  hiddenMsg.value = ''
+  hiddenErr.value = ''
+  if (!hiddenRemovePassword.value) {
+    hiddenErr.value = 'Please enter your password to remove protection'
+    return
+  }
+  removingHidden.value = true
+  try {
+    await removeHiddenPassword(hiddenRemovePassword.value)
+    lockHidden()
+    hiddenMsg.value = 'Hidden section password protection removed'
+    hiddenRemovePassword.value = ''
+  } catch (e: any) {
+    hiddenErr.value = errorMessage(e, 'Incorrect password. Could not remove protection.')
+  } finally {
+    removingHidden.value = false
+  }
+}
 </script>
 
 <template>
@@ -199,7 +261,7 @@ async function changePassword() {
 
       <div class="filters tabs reveal" role="tablist" aria-label="Settings sections">
         <button
-          v-for="t in (['account', 'password', 'saving', ...(user?.is_admin ? ['branding'] : [])] as ProfileTab[])"
+          v-for="t in (['account', 'password', 'hidden', 'saving', ...(user?.is_admin ? ['branding'] : [])] as ProfileTab[])"
           :key="t"
           :id="`tab-${t}`"
           class="filter-btn"
@@ -210,7 +272,7 @@ async function changePassword() {
           :aria-controls="`panel-${t}`"
           @click="tab = t"
         >
-          {{ t === 'account' ? 'Account details' : t === 'password' ? 'Change password' : t === 'saving' ? 'Save location' : 'Branding' }}
+          {{ t === 'account' ? 'Account details' : t === 'password' ? 'Change password' : t === 'hidden' ? 'Hidden lock' : t === 'saving' ? 'Save location' : 'Branding' }}
         </button>
       </div>
 
@@ -262,6 +324,96 @@ async function changePassword() {
             {{ savingPw ? 'Updating…' : 'Update password' }}
           </button>
         </form>
+
+        <div
+          v-show="tab === 'hidden'"
+          id="panel-hidden"
+          role="tabpanel"
+          aria-labelledby="tab-hidden"
+          class="panel panel-hover card reveal"
+        >
+          <div class="card-header-row">
+            <div>
+              <h2 class="card-title">Hidden section lock</h2>
+              <p class="save-hint">
+                Protect private media items in your Hidden collection with a password.
+              </p>
+            </div>
+            <span
+              class="status-badge"
+              :class="user?.has_hidden_password ? 'badge-protected' : 'badge-unprotected'"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path v-if="user?.has_hidden_password" d="M7 11V7a5 5 0 0 1 10 0v4" />
+                <path v-else d="M7 11V7a5 5 0 0 1 9.9-1" />
+              </svg>
+              {{ user?.has_hidden_password ? 'Protected' : 'Not protected' }}
+            </span>
+          </div>
+
+          <p v-if="hiddenErr" class="msg err mono">{{ hiddenErr }}</p>
+          <p v-else-if="hiddenMsg" class="msg ok mono">{{ hiddenMsg }}</p>
+
+          <form class="hidden-pw-form" @submit.prevent="handleSetHiddenPassword">
+            <h3 class="section-subtitle">
+              {{ user?.has_hidden_password ? 'Change hidden password' : 'Set a hidden password' }}
+            </h3>
+
+            <template v-if="user?.has_hidden_password">
+              <label class="label" for="hidden-current">Current password</label>
+              <PasswordInput
+                id="hidden-current"
+                v-model="hiddenCurrentPassword"
+                autocomplete="current-password"
+                placeholder="Current hidden or account password"
+              />
+            </template>
+
+            <label class="label" for="hidden-new">
+              {{ user?.has_hidden_password ? 'New password' : 'Password' }}
+            </label>
+            <PasswordInput
+              id="hidden-new"
+              v-model="hiddenNewPassword"
+              autocomplete="new-password"
+              placeholder="Enter password"
+            />
+
+            <label class="label" for="hidden-confirm">Confirm password</label>
+            <PasswordInput
+              id="hidden-confirm"
+              v-model="hiddenConfirmPassword"
+              autocomplete="new-password"
+              placeholder="Confirm password"
+            />
+
+            <button class="btn btn-accent" type="submit" :disabled="savingHidden">
+              {{ savingHidden ? 'Saving…' : user?.has_hidden_password ? 'Update hidden password' : 'Set hidden password' }}
+            </button>
+          </form>
+
+          <div v-if="user?.has_hidden_password" class="remove-protection-section">
+            <div class="divider" />
+            <h3 class="section-subtitle danger-text">Remove password protection</h3>
+            <p class="save-hint">
+              Turn off password protection to allow direct access to hidden items.
+            </p>
+
+            <form class="remove-pw-form" @submit.prevent="handleRemoveHiddenPassword">
+              <label class="label" for="hidden-remove">Enter password to remove</label>
+              <PasswordInput
+                id="hidden-remove"
+                v-model="hiddenRemovePassword"
+                autocomplete="current-password"
+                placeholder="Current hidden or account password"
+              />
+              <button class="btn btn-danger" type="submit" :disabled="removingHidden || !hiddenRemovePassword">
+                {{ removingHidden ? 'Removing…' : 'Remove password protection' }}
+              </button>
+            </form>
+          </div>
+        </div>
 
         <form
           v-show="tab === 'saving'"
@@ -532,5 +684,68 @@ async function changePassword() {
 .save-path {
   margin: -0.2rem 0 0.6rem;
   font-size: 0.85rem;
+}
+
+.card-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badge-protected {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.badge-unprotected {
+  background: var(--surface, #1e1e20);
+  color: var(--text-dim, #9a9a9a);
+  border: 1px solid var(--border, #2c2c2e);
+}
+
+.section-subtitle {
+  margin: 1.1rem 0 0.4rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.danger-text {
+  color: var(--err);
+}
+
+.divider {
+  height: 1px;
+  background: var(--border, #2c2c2e);
+  margin: 1.6rem 0 1rem;
+}
+
+.hidden-pw-form,
+.remove-pw-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.btn-danger {
+  background: var(--err);
+  border-color: var(--err);
+  color: #fff;
+}
+
+.btn-danger:hover:not(:disabled) {
+  filter: brightness(1.12);
 }
 </style>\n

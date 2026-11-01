@@ -50,6 +50,8 @@ export interface User {
   premium_until: string | null
   /** Whether a profile picture is set; fetch it from /auth/me/avatar. */
   has_avatar?: boolean
+  /** Whether the user has protected the hidden media section with a password. */
+  has_hidden_password?: boolean
   created_at: string
 }
 

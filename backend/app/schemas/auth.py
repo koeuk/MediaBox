@@ -35,6 +35,7 @@ class UserOut(BaseModel):
     premium_until: datetime | None = None
     # fetch the picture itself from /auth/me/avatar
     has_avatar: bool = False
+    has_hidden_password: bool = False
     created_at: datetime
 
 
@@ -47,3 +48,16 @@ class TokenOut(BaseModel):
 class MediaTokenOut(BaseModel):
     token: str
     expires_in: int  # seconds
+
+
+class HiddenPasswordSet(BaseModel):
+    current_password: str | None = None
+    new_password: str = Field(min_length=1, max_length=128)
+
+
+class HiddenPasswordRemove(BaseModel):
+    password: str
+
+
+class HiddenPasswordVerify(BaseModel):
+    password: str

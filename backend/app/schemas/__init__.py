@@ -22,6 +22,9 @@ from app.schemas.admin import (
     SiteTitleEdit,
 )
 from app.schemas.auth import (
+    HiddenPasswordRemove,
+    HiddenPasswordSet,
+    HiddenPasswordVerify,
     MediaTokenOut,
     ProfileUpdate,
     TokenOut,
@@ -53,6 +56,9 @@ __all__ = [
     "UserOut",
     "TokenOut",
     "MediaTokenOut",
+    "HiddenPasswordSet",
+    "HiddenPasswordRemove",
+    "HiddenPasswordVerify",
     # downloads
     "DownloadCreate",
     "BatchDownloadCreate",

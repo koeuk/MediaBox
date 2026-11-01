@@ -8,6 +8,9 @@ from app.api.deps import CurrentUser, DbSession, MediaUser
 from app.models import User
 from app.services import storage
 from app.schemas import (
+    HiddenPasswordRemove,
+    HiddenPasswordSet,
+    HiddenPasswordVerify,
     MediaTokenOut,
     ProfileUpdate,
     TokenOut,
@@ -135,3 +138,45 @@ def media_token(user: CurrentUser):
         token=create_media_token(user.id),
         expires_in=MEDIA_TOKEN_EXPIRE_MINUTES * 60,
     )
+
+
+@router.put("/me/hidden-password", response_model=UserOut)
+def set_hidden_password(payload: HiddenPasswordSet, db: DbSession, user: CurrentUser):
+    """Set or update the password required to access hidden media."""
+    if user.hidden_password_hash:
+        if not payload.current_password or (
+            not verify_password(payload.current_password, user.hidden_password_hash)
+            and not verify_password(payload.current_password, user.hashed_password)
+        ):
+            raise HTTPException(status_code=400, detail="Current hidden password is incorrect")
+    user.hidden_password_hash = hash_password(payload.new_password)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.post("/me/hidden-password/remove", response_model=UserOut)
+def remove_hidden_password(payload: HiddenPasswordRemove, db: DbSession, user: CurrentUser):
+    """Remove the password protecting the hidden media section."""
+    if not user.hidden_password_hash:
+        return user
+    if not verify_password(payload.password, user.hidden_password_hash) and not verify_password(
+        payload.password, user.hashed_password
+    ):
+        raise HTTPException(status_code=400, detail="Password is incorrect")
+    user.hidden_password_hash = None
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.post("/verify-hidden-password")
+def verify_hidden_password(payload: HiddenPasswordVerify, user: CurrentUser):
+    """Verify the hidden media password to unlock it for the current session."""
+    if not user.hidden_password_hash:
+        return {"unlocked": True}
+    if not verify_password(payload.password, user.hidden_password_hash) and not verify_password(
+        payload.password, user.hashed_password
+    ):
+        raise HTTPException(status_code=400, detail="Incorrect password")
+    return {"unlocked": True}

@@ -24,6 +24,8 @@ class User(Base):
     )
     # absolute path to the profile picture; NULL means the initials fallback
     avatar_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # optional PIN / password hash to protect the hidden media section
+    hidden_password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -40,6 +42,10 @@ class User(Base):
     @property
     def has_avatar(self) -> bool:
         return self.avatar_path is not None
+
+    @property
+    def has_hidden_password(self) -> bool:
+        return self.hidden_password_hash is not None
 
     @property
     def is_premium(self) -> bool:

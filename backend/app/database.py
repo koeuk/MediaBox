@@ -50,6 +50,7 @@ def run_migrations(conn) -> None:
             # is_premium (a plain boolean) was superseded by premium_until;
             # the old column is left in place because this helper only adds
             ("premium_until", "premium_until DATETIME NULL"),
+            ("hidden_password_hash", "hidden_password_hash VARCHAR(255) NULL"),
         ],
     }
 
