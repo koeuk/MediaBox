@@ -39,8 +39,19 @@ const ratingLabels: Record<number, string> = {
   5: 'Excellent',
 }
 
+function onKey(e: KeyboardEvent) {
+  if (showForm.value && e.key === 'Escape') {
+    showForm.value = false
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener('keydown', onKey)
   await loadFeedback()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKey)
 })
 
 async function loadFeedback() {
@@ -171,7 +182,7 @@ function formatDateDisplay(iso: string) {
         <button
           class="btn btn-accent action-btn"
           type="button"
-          @click="showForm = !showForm"
+          @click="showForm = true"
         >
           <svg
             width="15"
@@ -184,10 +195,9 @@ function formatDateDisplay(iso: string) {
             stroke-linejoin="round"
             aria-hidden="true"
           >
-            <path v-if="!showForm" d="M12 5v14M5 12h14" />
-            <path v-else d="M18 6 6 18M6 6l12 12" />
+            <path d="M12 5v14M5 12h14" />
           </svg>
-          {{ showForm ? 'Close Form' : 'Give Feedback' }}
+          Give Feedback
         </button>
       </header>
 
@@ -201,136 +211,157 @@ function formatDateDisplay(iso: string) {
         </div>
       </Transition>
 
-      <!-- Feedback submission card -->
-      <Transition name="expand">
-        <section v-if="showForm" class="form-card panel reveal">
-          <div class="form-header">
-            <div>
-              <h2 class="display form-title">Share Your Thoughts</h2>
-              <p class="sub mono">Your suggestions and reports help us build a better experience.</p>
-            </div>
-            <span v-if="user" class="user-badge mono">
-              Posting as <strong>@{{ user.username }}</strong>
-            </span>
-          </div>
-
-          <form @submit.prevent="submitFeedback">
-            <div class="form-section">
-              <label class="label">Feedback Category</label>
-              <div class="cat-picker">
+      <!-- Feedback submission popup dialog -->
+      <Teleport to="body">
+        <Transition name="dialog">
+          <div v-if="showForm" class="overlay" @click.self="showForm = false">
+            <div
+              class="feedback-modal panel"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="feedback-modal-title"
+            >
+              <div class="form-header">
+                <div class="form-title-wrap">
+                  <div class="title-badge-row">
+                    <h2 id="feedback-modal-title" class="display form-title">Share Your Thoughts</h2>
+                    <span v-if="user" class="user-badge mono">
+                      Posting as <strong>@{{ user.username }}</strong>
+                    </span>
+                  </div>
+                  <p class="sub mono">Your suggestions and reports help us build a better experience.</p>
+                </div>
                 <button
-                  v-for="cat in CATEGORIES.filter((c) => c.id !== 'all')"
-                  :key="cat.id"
                   type="button"
-                  class="cat-chip"
-                  :class="{ on: draft.category === cat.id }"
-                  @click="draft.category = cat.id"
+                  class="btn-close"
+                  aria-label="Close dialog"
+                  @click="showForm = false"
                 >
-                  <span class="chip-icon">{{ cat.icon }}</span>
-                  <span class="chip-label">{{ cat.label }}</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="form-section">
-              <div class="rating-header">
-                <label class="label">Experience Rating</label>
-                <span class="rating-hint mono">
-                  {{ ratingLabels[hoveredRating || draft.rating] }}
-                </span>
-              </div>
-              <div class="star-picker" role="radiogroup" aria-label="Rating">
-                <button
-                  v-for="star in 5"
-                  :key="star"
-                  type="button"
-                  class="star-btn"
-                  :class="{ active: star <= (hoveredRating || draft.rating) }"
-                  :aria-label="`${star} stars`"
-                  @click="draft.rating = star"
-                  @mouseenter="hoveredRating = star"
-                  @mouseleave="hoveredRating = null"
-                >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6 6 18M6 6l12 12" />
                   </svg>
                 </button>
               </div>
+
+              <form @submit.prevent="submitFeedback">
+                <div class="form-section">
+                  <label class="label">Feedback Category</label>
+                  <div class="cat-picker">
+                    <button
+                      v-for="cat in CATEGORIES.filter((c) => c.id !== 'all')"
+                      :key="cat.id"
+                      type="button"
+                      class="cat-chip"
+                      :class="{ on: draft.category === cat.id }"
+                      @click="draft.category = cat.id"
+                    >
+                      <span class="chip-icon">{{ cat.icon }}</span>
+                      <span class="chip-label">{{ cat.label }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="form-section">
+                  <div class="rating-header">
+                    <label class="label">Experience Rating</label>
+                    <span class="rating-hint mono">
+                      {{ ratingLabels[hoveredRating || draft.rating] }}
+                    </span>
+                  </div>
+                  <div class="star-picker" role="radiogroup" aria-label="Rating">
+                    <button
+                      v-for="star in 5"
+                      :key="star"
+                      type="button"
+                      class="star-btn"
+                      :class="{ active: star <= (hoveredRating || draft.rating) }"
+                      :aria-label="`${star} stars`"
+                      @click="draft.rating = star"
+                      @mouseenter="hoveredRating = star"
+                      @mouseleave="hoveredRating = null"
+                    >
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div v-if="!user" class="form-row">
+                  <label class="field">
+                    <span class="label">Your Name (optional)</span>
+                    <input
+                      v-model="draft.author_name"
+                      type="text"
+                      class="input"
+                      placeholder="Anonymous"
+                      maxlength="80"
+                    />
+                  </label>
+                  <label class="field">
+                    <span class="label">Email Address (optional)</span>
+                    <input
+                      v-model="draft.author_email"
+                      type="email"
+                      class="input"
+                      placeholder="name@example.com"
+                      maxlength="120"
+                    />
+                  </label>
+                </div>
+
+                <label class="field message-field">
+                  <div class="textarea-head">
+                    <span class="label">Message</span>
+                    <span class="char-count mono">{{ draft.body.length }} / 1000</span>
+                  </div>
+                  <textarea
+                    v-model="draft.body"
+                    class="input textarea"
+                    rows="4"
+                    maxlength="1000"
+                    placeholder="What's working well? What could we improve or add? Any bugs you encountered?"
+                    required
+                  />
+                </label>
+
+                <p v-if="submitError" class="err-text mono">{{ submitError }}</p>
+
+                <div class="form-footer">
+                  <button
+                    type="button"
+                    class="btn btn-ghost"
+                    @click="showForm = false"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    class="btn btn-accent"
+                    :disabled="submitting || !draft.body.trim()"
+                  >
+                    <svg
+                      v-if="!submitting"
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <line x1="22" y1="2" x2="11" y2="13" />
+                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                    </svg>
+                    {{ submitting ? 'Submitting...' : 'Send Feedback' }}
+                  </button>
+                </div>
+              </form>
             </div>
-
-            <div v-if="!user" class="form-row">
-              <label class="field">
-                <span class="label">Your Name (optional)</span>
-                <input
-                  v-model="draft.author_name"
-                  type="text"
-                  class="input"
-                  placeholder="Anonymous"
-                  maxlength="80"
-                />
-              </label>
-              <label class="field">
-                <span class="label">Email Address (optional)</span>
-                <input
-                  v-model="draft.author_email"
-                  type="email"
-                  class="input"
-                  placeholder="name@example.com"
-                  maxlength="120"
-                />
-              </label>
-            </div>
-
-            <label class="field message-field">
-              <div class="textarea-head">
-                <span class="label">Message</span>
-                <span class="char-count mono">{{ draft.body.length }} / 1000</span>
-              </div>
-              <textarea
-                v-model="draft.body"
-                class="input textarea"
-                rows="4"
-                maxlength="1000"
-                placeholder="What's working well? What could we improve or add? Any bugs you encountered?"
-                required
-              />
-            </label>
-
-            <p v-if="submitError" class="err-text mono">{{ submitError }}</p>
-
-            <div class="form-footer">
-              <button
-                type="button"
-                class="btn btn-ghost"
-                @click="showForm = false"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                class="btn btn-accent"
-                :disabled="submitting || !draft.body.trim()"
-              >
-                <svg
-                  v-if="!submitting"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <line x1="22" y1="2" x2="11" y2="13" />
-                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                </svg>
-                {{ submitting ? 'Submitting...' : 'Send Feedback' }}
-              </button>
-            </div>
-          </form>
-        </section>
-      </Transition>
+          </div>
+        </Transition>
+      </Teleport>
 
       <!-- Category Filter Tabs -->
       <div class="filters-row reveal">
@@ -460,11 +491,28 @@ function formatDateDisplay(iso: string) {
   border: 1px solid var(--ok);
 }
 
-.form-card {
-  padding: 1.4rem 1.6rem;
-  margin-bottom: 2rem;
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--bg) 68%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  overflow-y: auto;
+}
+
+.feedback-modal {
+  width: 100%;
+  max-width: 580px;
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+  padding: 1.5rem 1.6rem;
   border: 1px solid var(--line-strong);
-  box-shadow: var(--shadow);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  margin: auto;
 }
 
 .form-header {
@@ -477,9 +525,63 @@ function formatDateDisplay(iso: string) {
   padding-bottom: 1rem;
 }
 
+.form-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.title-badge-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-bottom: 0.3rem;
+}
+
 .form-title {
   font-size: 1.25rem;
-  margin: 0 0 0.25rem;
+  margin: 0;
+}
+
+.btn-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.btn-close:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.dialog-enter-active,
+.dialog-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.dialog-enter-active .feedback-modal,
+.dialog-leave-active .feedback-modal {
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s ease;
+}
+
+.dialog-enter-from,
+.dialog-leave-to {
+  opacity: 0;
+}
+
+.dialog-enter-from .feedback-modal,
+.dialog-leave-to .feedback-modal {
+  transform: translateY(12px) scale(0.97);
+  opacity: 0;
 }
 
 .user-badge {
