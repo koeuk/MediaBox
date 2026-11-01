@@ -36,10 +36,9 @@ async function loadActivity(range: AdminDateRange) {
 
 /** Which panel the tabs are showing. Mirrored into `?tab=` so a reload — or a
  *  link straight to one section — lands where you expect. */
-type AdminTab = 'dashboard' | 'branding' | 'feedback' | 'payments' | 'plans' | 'users' | 'downloads'
+type AdminTab = 'dashboard' | 'feedback' | 'payments' | 'plans' | 'users' | 'downloads'
 const TABS: { id: AdminTab; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
-  { id: 'branding', label: 'Branding' },
   { id: 'feedback', label: 'Feedback' },
   { id: 'payments', label: 'Payments' },
   { id: 'plans', label: 'Plans' },
@@ -196,15 +195,6 @@ onMounted(async () => {
           </div>
         </div>
       </section>
-
-      <!-- BRANDING TAB -->
-      <AdminBranding
-        v-if="stats"
-        v-show="tab === 'branding'"
-        id="panel-branding"
-        role="tabpanel"
-        aria-labelledby="tab-branding"
-      />
 
       <!-- FEEDBACK TAB -->
       <AdminFeedbackManager
