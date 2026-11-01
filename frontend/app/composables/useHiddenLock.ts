@@ -1,5 +1,5 @@
 /**
- * Tracks the unlocked state of the hidden media section for the current session.
+ * Tracks the unlocked state of the hidden media section.
  *
  * If the user has a hidden password configured (`user.has_hidden_password`),
  * the hidden section remains locked (`isLocked === true`) until verified.
@@ -8,16 +8,9 @@ export function useHiddenLock() {
   const { user } = useAuth()
   const { request } = useApi()
 
+  // State is per-session in memory; auto-locks on navigation or setting update
   const isUnlocked = useState<boolean>('hidden-is-unlocked', () => false)
   const isPromptOpen = useState<boolean>('hidden-unlock-prompt-open', () => false)
-
-  if (import.meta.client && !isUnlocked.value) {
-    try {
-      if (sessionStorage.getItem('mb_hidden_unlocked') === '1') {
-        isUnlocked.value = true
-      }
-    } catch {}
-  }
 
   const isProtected = computed(() => Boolean(user.value?.has_hidden_password))
   const isLocked = computed(() => isProtected.value && !isUnlocked.value)
@@ -28,29 +21,16 @@ export function useHiddenLock() {
       body: { password },
     })
     isUnlocked.value = true
-    if (import.meta.client) {
-      try {
-        sessionStorage.setItem('mb_hidden_unlocked', '1')
-      } catch {}
-    }
     isPromptOpen.value = false
     return true
   }
 
   function lock() {
     isUnlocked.value = false
+    isPromptOpen.value = false
     if (import.meta.client) {
       try {
         sessionStorage.removeItem('mb_hidden_unlocked')
-      } catch {}
-    }
-  }
-
-  function markUnlocked() {
-    isUnlocked.value = true
-    if (import.meta.client) {
-      try {
-        sessionStorage.setItem('mb_hidden_unlocked', '1')
       } catch {}
     }
   }
@@ -70,7 +50,6 @@ export function useHiddenLock() {
     isPromptOpen,
     unlock,
     lock,
-    markUnlocked,
     openUnlockModal,
     closeUnlockModal,
   }

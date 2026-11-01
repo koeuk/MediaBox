@@ -82,6 +82,14 @@ onMounted(async () => {
   await Promise.all([refresh(), refreshMediaToken(), fetchCategories()])
   startLive()
 })
+
+onBeforeRouteLeave(() => {
+  lock()
+})
+
+onUnmounted(() => {
+  lock()
+})
 </script>
 
 <template>

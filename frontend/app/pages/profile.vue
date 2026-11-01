@@ -5,7 +5,7 @@ definePageMeta({ middleware: 'auth' })
 
 const { user, fetchUser, updateProfile, uploadAvatar, removeAvatar, setHiddenPassword, removeHiddenPassword } = useAuth()
 const { src: avatarSrc, initials } = useAvatar()
-const { markUnlocked, lock: lockHidden } = useHiddenLock()
+const { lock: lockHidden } = useHiddenLock()
 
 const photoInput = ref<HTMLInputElement>()
 const photoBusy = ref(false)
@@ -199,10 +199,10 @@ async function handleSaveHiddenPassword() {
   savingHidden.value = true
   try {
     await setHiddenPassword(hiddenNewPassword.value)
-    markUnlocked()
+    lockHidden()
     hiddenMsg.value = isLockActive.value
-      ? 'Hidden password updated'
-      : 'Password protection enabled'
+      ? 'Hidden password updated (locked)'
+      : 'Password protection enabled (locked)'
     hiddenNewPassword.value = ''
     hiddenConfirmPassword.value = ''
     showSetForm.value = false
