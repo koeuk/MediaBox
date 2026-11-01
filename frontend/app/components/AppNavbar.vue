@@ -6,7 +6,7 @@ const { logoUrl, hasLogo } = useBranding()
 const theme = inject<Ref<string>>('theme')!
 const showLogoutConfirm = ref(false)
 const { open, anchor, menu, pos, placed, toggle, close } = usePopMenu()
-const { src: avatarSrc } = useAvatar()
+const { src: avatarSrc, initials } = useAvatar()
 
 function toggleTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
@@ -79,18 +79,19 @@ function confirmLogout() {
       <div v-if="user" class="menu-wrap">
         <button
           ref="anchor"
-          class="nav-link settings-btn"
+          class="nav-link user-btn"
           :class="{ on: open }"
-          title="Settings"
+          :title="user.username"
           :aria-expanded="open"
           aria-haspopup="menu"
           @click.stop="toggle"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+          <img v-if="avatarSrc" class="user-avatar" :src="avatarSrc" :alt="user.username" />
+          <span v-else class="user-avatar-fallback mono">{{ initials }}</span>
+          <span class="user-name">{{ user.username }}</span>
+          <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
           </svg>
-          <span class="settings-label">Settings</span>
         </button>
 
         <Teleport to="body">
@@ -104,16 +105,15 @@ function confirmLogout() {
               @click.stop
             >
               <NuxtLink to="/profile" class="pop-item" role="menuitem" @click="close">
-                <img v-if="avatarSrc" class="pop-avatar" :src="avatarSrc" :alt="user.username" />
-                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="8" r="3.5" />
-                  <path d="M5 20a7 7 0 0 1 14 0" />
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
                 </svg>
-                {{ user.username }}
+                Settings
               </NuxtLink>
 
               <NuxtLink to="/hidden" class="pop-item" role="menuitem" @click="close">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
                   <path d="M1 1l22 22" />
                 </svg>
@@ -123,7 +123,7 @@ function confirmLogout() {
               <div class="pop-sep" />
 
               <button class="pop-item danger" role="menuitem" @click="handleLogoutClick">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
                 </svg>
                 Logout
@@ -311,30 +311,69 @@ function confirmLogout() {
   display: inline-flex;
 }
 
-/* a <button> needs the font reset that NuxtLink's .nav-link gets for free */
-.settings-btn {
+/* User profile button in navbar */
+.user-btn {
   font-family: inherit;
   background: transparent;
   cursor: pointer;
+  padding: 0.35rem 0.65rem 0.35rem 0.45rem;
+  gap: 0.5rem;
+  border: 1px solid transparent;
 }
 
-.settings-btn.on {
+.user-btn.on {
   color: var(--text);
   background: var(--surface-hover);
+  border-color: var(--line);
 }
 
-.settings-btn.on svg {
+.user-avatar {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--line);
+}
+
+.user-avatar-fallback {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  border: 1px solid var(--line);
+  color: var(--accent);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.user-name {
+  font-weight: 500;
+  color: var(--text);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-btn .chevron {
+  color: var(--text-faint);
+  transition: transform 0.2s ease, color 0.15s;
+  flex: none;
+}
+
+.user-btn:hover .chevron {
   color: var(--accent);
 }
 
-/* sized to match the 14px icons it stands in for, so the rows stay aligned */
-.pop-avatar {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  margin: -2px;
-  border-radius: 50%;
-  object-fit: cover;
+.user-btn.on .chevron {
+  transform: rotate(180deg);
+  color: var(--accent);
 }
 
 
@@ -362,12 +401,13 @@ function confirmLogout() {
     display: none;
   }
 
-  .settings-label {
+  .user-name,
+  .user-btn .chevron {
     display: none;
   }
 
-  .settings-btn {
-    padding: 0.5rem;
+  .user-btn {
+    padding: 0.4rem;
   }
 
   .mobile-bottom-nav {
