@@ -89,34 +89,33 @@ class HiddenPasswordTests(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json(), {"unlocked": True})
 
-        # 6. Change hidden password with wrong current password fails
+        # 6. Change hidden password directly (no current password needed)
         res = self.client.put(
             "/auth/me/hidden-password",
-            json={"current_password": "wrong", "new_password": "brand_new_pass"},
-            headers=self.headers,
-        )
-        self.assertEqual(res.status_code, 400)
-
-        # 7. Change hidden password with correct current password succeeds
-        res = self.client.put(
-            "/auth/me/hidden-password",
-            json={"current_password": "secret_hidden_123", "new_password": "brand_new_pass"},
+            json={"new_password": "brand_new_pass"},
             headers=self.headers,
         )
         self.assertEqual(res.status_code, 200)
 
-        # 8. Remove hidden password with wrong password fails
+        # 7. Old hidden password no longer works
         res = self.client.post(
-            "/auth/me/hidden-password/remove",
-            json={"password": "wrong"},
+            "/auth/verify-hidden-password",
+            json={"password": "secret_hidden_123"},
             headers=self.headers,
         )
         self.assertEqual(res.status_code, 400)
 
-        # 9. Remove hidden password with correct password succeeds
+        # 8. New hidden password works
+        res = self.client.post(
+            "/auth/verify-hidden-password",
+            json={"password": "brand_new_pass"},
+            headers=self.headers,
+        )
+        self.assertEqual(res.status_code, 200)
+
+        # 9. Remove hidden password directly without current password
         res = self.client.post(
             "/auth/me/hidden-password/remove",
-            json={"password": "brand_new_pass"},
             headers=self.headers,
         )
         self.assertEqual(res.status_code, 200)

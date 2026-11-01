@@ -90,21 +90,20 @@ export function useAuth() {
     avatarVersion.value++
   }
 
-  async function setHiddenPassword(payload: { current_password?: string; new_password: string }) {
+  async function setHiddenPassword(new_password: string) {
     user.value = await $fetch<User>('/auth/me/hidden-password', {
       baseURL: config.public.apiBase,
       method: 'PUT',
       headers: { Authorization: `Bearer ${token.value}` },
-      body: payload,
+      body: { new_password },
     })
   }
 
-  async function removeHiddenPassword(password: string) {
+  async function removeHiddenPassword() {
     user.value = await $fetch<User>('/auth/me/hidden-password/remove', {
       baseURL: config.public.apiBase,
       method: 'POST',
       headers: { Authorization: `Bearer ${token.value}` },
-      body: { password },
     })
   }
 

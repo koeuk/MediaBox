@@ -148,16 +148,44 @@ async function changePassword() {
 }
 
 // Hidden section password state
-const hiddenCurrentPassword = ref('')
+const showSetForm = ref(false)
 const hiddenNewPassword = ref('')
 const hiddenConfirmPassword = ref('')
-const hiddenRemovePassword = ref('')
 const hiddenMsg = ref('')
 const hiddenErr = ref('')
 const savingHidden = ref(false)
-const removingHidden = ref(false)
+const toggleBusy = ref(false)
 
-async function handleSetHiddenPassword() {
+const isLockActive = computed(() => Boolean(user.value?.has_hidden_password))
+const switchChecked = computed(() => isLockActive.value || showSetForm.value)
+
+async function onToggleSwitch() {
+  hiddenMsg.value = ''
+  hiddenErr.value = ''
+  if (isLockActive.value) {
+    toggleBusy.value = true
+    try {
+      await removeHiddenPassword()
+      lockHidden()
+      showSetForm.value = false
+      hiddenMsg.value = 'Password protection turned off'
+    } catch (e: any) {
+      hiddenErr.value = errorMessage(e, 'Could not turn off password protection.')
+    } finally {
+      toggleBusy.value = false
+    }
+  } else {
+    showSetForm.value = !showSetForm.value
+    if (showSetForm.value) {
+      hiddenNewPassword.value = ''
+      hiddenConfirmPassword.value = ''
+      await nextTick()
+      document.getElementById('hidden-new')?.focus()
+    }
+  }
+}
+
+async function handleSaveHiddenPassword() {
   hiddenMsg.value = ''
   hiddenErr.value = ''
   if (!hiddenNewPassword.value) {
@@ -170,41 +198,18 @@ async function handleSetHiddenPassword() {
   }
   savingHidden.value = true
   try {
-    await setHiddenPassword({
-      current_password: user.value?.has_hidden_password ? hiddenCurrentPassword.value : undefined,
-      new_password: hiddenNewPassword.value,
-    })
+    await setHiddenPassword(hiddenNewPassword.value)
     markUnlocked()
-    hiddenMsg.value = user.value?.has_hidden_password
+    hiddenMsg.value = isLockActive.value
       ? 'Hidden password updated'
-      : 'Hidden section password set'
-    hiddenCurrentPassword.value = ''
+      : 'Password protection enabled'
     hiddenNewPassword.value = ''
     hiddenConfirmPassword.value = ''
+    showSetForm.value = false
   } catch (e: any) {
     hiddenErr.value = errorMessage(e, 'Could not save hidden password.')
   } finally {
     savingHidden.value = false
-  }
-}
-
-async function handleRemoveHiddenPassword() {
-  hiddenMsg.value = ''
-  hiddenErr.value = ''
-  if (!hiddenRemovePassword.value) {
-    hiddenErr.value = 'Please enter your password to remove protection'
-    return
-  }
-  removingHidden.value = true
-  try {
-    await removeHiddenPassword(hiddenRemovePassword.value)
-    lockHidden()
-    hiddenMsg.value = 'Hidden section password protection removed'
-    hiddenRemovePassword.value = ''
-  } catch (e: any) {
-    hiddenErr.value = errorMessage(e, 'Incorrect password. Could not remove protection.')
-  } finally {
-    removingHidden.value = false
   }
 }
 </script>
@@ -336,43 +341,47 @@ async function handleRemoveHiddenPassword() {
             <div>
               <h2 class="card-title">Hidden section lock</h2>
               <p class="save-hint">
-                Protect private media items in your Hidden collection with a password.
+                {{ isLockActive
+                  ? 'Password protection is ON. A password is required when accessing hidden items.'
+                  : 'Password protection is OFF. Anyone can access your hidden items without a prompt.' }}
               </p>
             </div>
-            <span
-              class="status-badge"
-              :class="user?.has_hidden_password ? 'badge-protected' : 'badge-unprotected'"
+
+            <!-- Switch for close password or need -->
+            <label
+              class="lock-switch-label"
+              :class="{ disabled: toggleBusy }"
+              :title="switchChecked ? 'Click to turn off password' : 'Click to require password'"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path v-if="user?.has_hidden_password" d="M7 11V7a5 5 0 0 1 10 0v4" />
-                <path v-else d="M7 11V7a5 5 0 0 1 9.9-1" />
-              </svg>
-              {{ user?.has_hidden_password ? 'Protected' : 'Not protected' }}
-            </span>
+              <span class="switch-text" :class="{ on: switchChecked }">
+                {{ switchChecked ? 'Need password' : 'Off' }}
+              </span>
+              <input
+                type="checkbox"
+                :checked="switchChecked"
+                :disabled="toggleBusy"
+                @change="onToggleSwitch"
+              />
+              <span class="switch" aria-hidden="true" />
+            </label>
           </div>
 
           <p v-if="hiddenErr" class="msg err mono">{{ hiddenErr }}</p>
           <p v-else-if="hiddenMsg" class="msg ok mono">{{ hiddenMsg }}</p>
 
-          <form class="hidden-pw-form" @submit.prevent="handleSetHiddenPassword">
-            <h3 class="section-subtitle">
-              {{ user?.has_hidden_password ? 'Change hidden password' : 'Set a hidden password' }}
-            </h3>
+          <!-- Form to Set New Password (when turned on from OFF state) -->
+          <form
+            v-if="!isLockActive && showSetForm"
+            class="hidden-pw-form reveal"
+            @submit.prevent="handleSaveHiddenPassword"
+          >
+            <div class="divider" />
+            <h3 class="section-subtitle">Set hidden password</h3>
+            <p class="save-hint">
+              Create a password to require when opening the Hidden section.
+            </p>
 
-            <template v-if="user?.has_hidden_password">
-              <label class="label" for="hidden-current">Current password</label>
-              <PasswordInput
-                id="hidden-current"
-                v-model="hiddenCurrentPassword"
-                autocomplete="current-password"
-                placeholder="Current hidden or account password"
-              />
-            </template>
-
-            <label class="label" for="hidden-new">
-              {{ user?.has_hidden_password ? 'New password' : 'Password' }}
-            </label>
+            <label class="label" for="hidden-new">Password</label>
             <PasswordInput
               id="hidden-new"
               v-model="hiddenNewPassword"
@@ -388,31 +397,53 @@ async function handleRemoveHiddenPassword() {
               placeholder="Confirm password"
             />
 
-            <button class="btn btn-accent" type="submit" :disabled="savingHidden">
-              {{ savingHidden ? 'Saving…' : user?.has_hidden_password ? 'Update hidden password' : 'Set hidden password' }}
-            </button>
+            <div class="form-btn-row">
+              <button class="btn btn-accent" type="submit" :disabled="savingHidden">
+                {{ savingHidden ? 'Saving…' : 'Save & turn on' }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-ghost"
+                :disabled="savingHidden"
+                @click="showSetForm = false"
+              >
+                Cancel
+              </button>
+            </div>
           </form>
 
-          <div v-if="user?.has_hidden_password" class="remove-protection-section">
+          <!-- Form to Change Password (when currently active) -->
+          <form
+            v-if="isLockActive"
+            class="hidden-pw-form"
+            @submit.prevent="handleSaveHiddenPassword"
+          >
             <div class="divider" />
-            <h3 class="section-subtitle danger-text">Remove password protection</h3>
+            <h3 class="section-subtitle">Change hidden password</h3>
             <p class="save-hint">
-              Turn off password protection to allow direct access to hidden items.
+              Enter a new password below to update it.
             </p>
 
-            <form class="remove-pw-form" @submit.prevent="handleRemoveHiddenPassword">
-              <label class="label" for="hidden-remove">Enter password to remove</label>
-              <PasswordInput
-                id="hidden-remove"
-                v-model="hiddenRemovePassword"
-                autocomplete="current-password"
-                placeholder="Current hidden or account password"
-              />
-              <button class="btn btn-danger" type="submit" :disabled="removingHidden || !hiddenRemovePassword">
-                {{ removingHidden ? 'Removing…' : 'Remove password protection' }}
-              </button>
-            </form>
-          </div>
+            <label class="label" for="hidden-change-new">New password</label>
+            <PasswordInput
+              id="hidden-change-new"
+              v-model="hiddenNewPassword"
+              autocomplete="new-password"
+              placeholder="Enter new password"
+            />
+
+            <label class="label" for="hidden-change-confirm">Confirm new password</label>
+            <PasswordInput
+              id="hidden-change-confirm"
+              v-model="hiddenConfirmPassword"
+              autocomplete="new-password"
+              placeholder="Confirm new password"
+            />
+
+            <button class="btn btn-accent" type="submit" :disabled="savingHidden">
+              {{ savingHidden ? 'Updating…' : 'Update password' }}
+            </button>
+          </form>
         </div>
 
         <form
@@ -690,62 +721,98 @@ async function handleRemoveHiddenPassword() {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1.2rem;
 }
 
-.status-badge {
+.lock-switch-label {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.74rem;
-  font-weight: 600;
-  padding: 0.3rem 0.65rem;
+  gap: 0.65rem;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.lock-switch-label.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.lock-switch-label input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border: 1px solid var(--line-strong, #3a3a3c);
   border-radius: 999px;
-  white-space: nowrap;
+  background: var(--bg-raised, #232326);
+  transition: background 0.18s, border-color 0.18s;
+  flex-shrink: 0;
 }
 
-.badge-protected {
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-faint, #636366);
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.18s;
+}
+
+.lock-switch-label input:checked + .switch {
+  border-color: var(--accent, #f0a832);
+  background: color-mix(in srgb, var(--accent, #f0a832) 20%, transparent);
+}
+
+.lock-switch-label input:checked + .switch::after {
+  transform: translateX(20px);
+  background: var(--accent, #f0a832);
+}
+
+.switch-text {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.switch-text.on {
   color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-}
-
-.badge-unprotected {
-  background: var(--surface, #1e1e20);
-  color: var(--text-dim, #9a9a9a);
-  border: 1px solid var(--border, #2c2c2e);
 }
 
 .section-subtitle {
-  margin: 1.1rem 0 0.4rem;
+  margin: 0.8rem 0 0.3rem;
   font-size: 0.92rem;
   font-weight: 600;
-}
-
-.danger-text {
-  color: var(--err);
 }
 
 .divider {
   height: 1px;
   background: var(--border, #2c2c2e);
-  margin: 1.6rem 0 1rem;
+  margin: 1.2rem 0 0.8rem;
 }
 
-.hidden-pw-form,
-.remove-pw-form {
+.hidden-pw-form {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
 }
 
-.btn-danger {
-  background: var(--err);
-  border-color: var(--err);
-  color: #fff;
-}
-
-.btn-danger:hover:not(:disabled) {
-  filter: brightness(1.12);
+.form-btn-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
 }
 </style>\n
