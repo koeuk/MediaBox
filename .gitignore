@@ -8,6 +8,8 @@ venv/
 # Local secrets & config
 .env
 .env.local
+youtube-cookies.txt
+cookies.txt
 
 # ── App data (not source) ─────────────────────────────────────────
 # Downloaded/processed media files
