@@ -160,14 +160,11 @@ End-to-end tested with Playwright: register → submit URL → live progress →
 
 ## Docker / Deployment
 
-- `docker-compose.yml`: `db` (postgres:16-alpine), `backend`, `frontend`, `nginx` (port 80, override with `HTTP_PORT`).
-- `docker/nginx.conf`: proxy `/api` → `backend:8000`, everything else → `frontend:3000`.
-- Named volumes: `pgdata`, `media_data` (mounted at `/app/media` in backend).
-- Set `SECRET_KEY` and `POSTGRES_PASSWORD` in a root `.env` before deploying.
-
-```bash
-docker compose up --build   # app at http://localhost
-```
+- Local HTTP stack: `docker-compose.yml` (MySQL 8, backend, frontend, nginx).
+- Production HTTPS stack: `docker-compose.production.yml` (reuses the base service builds; Caddy provides TLS).
+- Existing data uses named volumes `mysql_data` and `media_data`.
+- Production domain: `droplinks.site`. Environment template: `.env.production.example`.
+- See [production setup](PRODUCTION.md) for secrets, Gmail, DNS, and deployment commands.
 
 ## Implemented feature upgrades
 

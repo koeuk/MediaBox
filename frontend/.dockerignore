@@ -6,3 +6,8 @@ dist
 
 .env.*
 .cache
+
+.venv
+youtube-cookies.txt
+cookies.txt
+*.log

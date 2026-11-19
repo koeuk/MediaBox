@@ -50,6 +50,13 @@ The launcher uses a working `backend/.venv` when available, then falls back to
 at `backend/.cache/venv-original`. The editor and `pyrightconfig.json` use
 `backend/.venv`. Reload the editor window after changing the environment.
 
+## Production
+
+Production settings for **https://droplinks.site** are in
+`.env.production.example` and `docker-compose.production.yml`. See
+[production setup](docs/PRODUCTION.md) for Gmail credentials, HTTPS, and the
+commands for deploying while retaining existing database and media volumes.
+
 ## Taglines
 
 - Download, Organize, and Manage Your Media

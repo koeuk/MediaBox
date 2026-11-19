@@ -252,3 +252,8 @@ If SMTP is missing, the form reports that email recovery is unavailable. SMTP
 connection/authentication failures are logged on the backend without email
 addresses, passwords, or reset links. The request response stays generic so it
 does not reveal whether an email address has an account.
+
+
+For **https://droplinks.site**, use the separate [production setup](docs/PRODUCTION.md).
+Production reads Gmail settings from the root `.env.production` through Docker
+Compose, rather than the development `backend/.env`.
