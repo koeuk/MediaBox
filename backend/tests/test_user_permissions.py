@@ -134,7 +134,8 @@ class UserPermissionsTests(unittest.TestCase):
     def test_shared_defaults_apply_to_existing_and_new_members(self):
         from sqlalchemy.orm import Session
         from app.models import AppSetting
-        self.assertEqual(self.client.get('/admin/default-permissions', headers=self.admin_headers).json(), {'permissions': {}})
+        from app.permissions import STANDARD_PERMISSIONS
+        self.assertEqual(self.client.get('/admin/default-permissions', headers=self.admin_headers).json(), {'permissions': STANDARD_PERMISSIONS})
         response = self.save_defaults({'feedback.view': True})
         self.assertEqual(response.status_code, 200, response.text)
         with Session(self.engine) as other:
@@ -202,3 +203,85 @@ class UserPermissionsTests(unittest.TestCase):
             self.assertEqual(len(queries), 1)
         finally:
             event.remove(self.engine, 'before_cursor_execute', track)
+
+
+class AccountPermissionsTests(unittest.TestCase):
+    tearDown = test_access_mode.AccessModeTests.tearDown
+    permissions = UserPermissionsTests.permissions
+    save_defaults = UserPermissionsTests.save_defaults
+    def setUp(self):
+        test_access_mode.AccessModeTests.setUp(self)
+        from app.api import feedback, categories, auth
+        for router, prefix in ((feedback.router, '/feedback'), (categories.router, '/categories'), (auth.router, '/auth')):
+            self.client.app.include_router(router, prefix=prefix)
+
+    def test_member_actions_default_to_allowed_without_admin_access(self):
+        response = self.client.get('/auth/me', headers=self.member_headers)
+        self.assertEqual(response.status_code, 200)
+        defaults = response.json()['default_permissions']
+        for permission in ('media.view', 'media.create', 'media.edit', 'media.delete', 'categories.view', 'categories.create', 'categories.edit', 'categories.delete', 'public_feedback.view', 'public_feedback.create'):
+            self.assertTrue(defaults[permission], permission)
+        self.assertEqual(self.client.get('/downloads', headers=self.member_headers).status_code, 200)
+        self.assertEqual(self.client.post('/downloads', json={'url': 'https://example.com/video.mp4', 'quality': '720'}, headers=self.member_headers).status_code, 201)
+        self.assertEqual(self.client.post('/feedback', json={'body': 'Member feedback'}, headers=self.member_headers).status_code, 201)
+        self.assertEqual(self.client.get('/admin/feedback', headers=self.member_headers).status_code, 403)
+
+    def test_disabling_media_view_blocks_list_files_and_live_snapshot(self):
+        self.permissions({'media.view': False})
+        for path in ('/downloads', '/downloads/1', '/downloads/1/file', '/downloads/1/thumbnail', '/downloads/1/slide/0'):
+            self.assertEqual(self.client.get(path, headers=self.member_headers).status_code, 403, path)
+        from unittest.mock import patch
+        from sqlalchemy.orm import Session
+        from app.api.ws import _snapshot
+        with patch('app.api.ws.SessionLocal', return_value=Session(self.engine)):
+            with self.assertRaises(PermissionError):
+                _snapshot(self.member.id)
+
+    def test_disabling_media_create_keeps_view_and_blocks_all_creation_routes(self):
+        self.permissions({'media.create': False})
+        self.assertEqual(self.client.get('/downloads', headers=self.member_headers).status_code, 200)
+        for path, payload in (('/downloads', {'url': 'https://example.com/video.mp4', 'quality': '720'}), ('/downloads/batch', {'urls': ['https://example.com/video.mp4'], 'quality': '720'}), ('/downloads/1/convert', {'target': 'mp3'}), ('/downloads/1/remove-background', {'quality': 'good'}), ('/downloads/1/retry', {})):
+            self.assertEqual(self.client.post(path, json=payload, headers=self.member_headers).status_code, 403, path)
+        self.assertEqual(self.client.post('/downloads/upload', files={'file': ('image.png', b'image', 'image/png')}, headers=self.member_headers).status_code, 403)
+        self.worker.assert_not_called()
+
+    def test_media_edit_and_delete_are_independent(self):
+        from app.models import Download
+        item = Download(user_id=self.member.id, url='https://example.com/video.mp4')
+        self.db.add(item)
+        self.db.commit()
+        self.permissions({'media.edit': False, 'media.delete': False})
+        for action in ('favorite', 'hide', 'category'):
+            self.assertEqual(self.client.patch(f'/downloads/{item.id}/{action}', json={'category': None}, headers=self.member_headers).status_code, 403)
+        self.assertEqual(self.client.delete(f'/downloads/{item.id}', headers=self.member_headers).status_code, 403)
+        self.permissions({'media.edit': True, 'media.delete': False})
+        self.assertEqual(self.client.patch(f'/downloads/{item.id}/favorite', headers=self.member_headers).status_code, 200)
+        self.assertEqual(self.client.delete(f'/downloads/{item.id}', headers=self.member_headers).status_code, 403)
+
+    def test_public_feedback_create_and_view_follow_permissions(self):
+        self.permissions({'public_feedback.create': False})
+        self.assertEqual(self.client.get('/feedback', headers=self.member_headers).status_code, 200)
+        self.assertEqual(self.client.post('/feedback', json={'body': 'Blocked'}, headers=self.member_headers).status_code, 403)
+        self.permissions({'public_feedback.view': False})
+        self.assertEqual(self.client.get('/feedback', headers=self.member_headers).status_code, 403)
+        self.assertEqual(self.client.get('/feedback/me', headers=self.member_headers).status_code, 403)
+        self.assertEqual(self.client.post('/feedback', json={'body': 'Blocked'}, headers=self.member_headers).status_code, 403)
+        # Public guest feedback continues to work without an account.
+        self.assertEqual(self.client.get('/feedback').status_code, 200)
+
+    def test_categories_actions_follow_permissions(self):
+        self.permissions({'categories.create': False, 'categories.edit': False, 'categories.delete': False})
+        self.assertEqual(self.client.get('/categories', headers=self.member_headers).status_code, 200)
+        self.assertEqual(self.client.post('/categories', json={'name': 'Blocked', 'color': '#ffffff'}, headers=self.member_headers).status_code, 403)
+        self.assertEqual(self.client.patch('/categories/1', json={'name': 'Blocked'}, headers=self.member_headers).status_code, 403)
+        self.assertEqual(self.client.delete('/categories/1', headers=self.member_headers).status_code, 403)
+        self.assertEqual(self.client.put('/categories/reorder', json=[], headers=self.member_headers).status_code, 403)
+
+    def test_shared_member_defaults_can_disable_normal_actions(self):
+        self.save_defaults({'media.create': False, 'public_feedback.create': False})
+        response = self.client.get('/auth/me', headers=self.member_headers)
+        self.assertFalse(response.json()['default_permissions']['media.create'])
+        self.assertTrue(response.json()['default_permissions']['media.view'])
+        self.assertEqual(self.client.post('/feedback', json={'body': 'Blocked'}, headers=self.member_headers).status_code, 403)
+        self.permissions({'public_feedback.create': True})
+        self.assertEqual(self.client.post('/feedback', json={'body': 'Allowed'}, headers=self.member_headers).status_code, 201)

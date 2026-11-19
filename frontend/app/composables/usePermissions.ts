@@ -18,7 +18,7 @@ export const accountPermissionSections = [
 export const permissionSections = [...accountPermissionSections, ...adminPermissionSections]
 
 export function defaultPermission(permission: string, defaults: Record<string, boolean> = {}, admin = false): boolean {
-  return admin || (defaults[permission] ?? accountPermissionSections.some(s => `${s.key}.` === `${permission.split('.')[0]}.`))
+  return admin || (defaults[permission] ?? accountPermissionSections.some(s => s.key === permission.split('.')[0]))
 }
 
 export function hasPermission(user: User | AdminUser | null, permission: string): boolean {

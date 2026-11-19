@@ -5,6 +5,7 @@ definePageMeta({ middleware: 'auth' })
 
 const { fileUrl, refreshMediaToken } = useApi()
 const { user, fetchUser } = useAuth()
+const { can } = usePermissions()
 
 const {
   downloads,
@@ -103,6 +104,10 @@ const dragging = ref(false)
 
 /** Upload straight into a cutout: the original lands in the box too. */
 async function accept(files: File[]) {
+  if (!can('media.create')) {
+    error.value = 'Your account does not have permission to create media.'
+    return
+  }
   if (!files.length) return
   const images = files.filter((f) => f.type.startsWith('image/'))
   if (!images.length) {
@@ -162,6 +167,7 @@ onMounted(async () => {
         <input
           ref="fileInput"
           type="file"
+          :disabled="!can('media.create')"
           accept="image/*"
           multiple
           hidden
@@ -254,7 +260,7 @@ onMounted(async () => {
               <button
                 class="btn btn-accent run-btn"
                 type="button"
-                :disabled="!selectedId || busy || uploading"
+                :disabled="!can('media.create') || !selectedId || busy || uploading"
                 @click="run"
               >
                 {{ busy ? 'Starting…' : 'Remove background' }}

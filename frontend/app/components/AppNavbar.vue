@@ -2,7 +2,7 @@
 import type { Ref } from 'vue'
 
 const { user, logout } = useAuth()
-const { canAccessAdmin } = usePermissions()
+const { canAccessAdmin, can } = usePermissions()
 const { logoUrl, hasLogo, titleParts } = useBranding()
 const theme = inject<Ref<string>>('theme')!
 const showLogoutConfirm = ref(false)
@@ -49,7 +49,7 @@ function confirmLogout() {
 
     <div class="nav-right">
       <div class="nav-links-desktop">
-        <NuxtLink to="/remove-bg" class="nav-link">
+        <NuxtLink v-if="!user || can('media.create')" to="/remove-bg" class="nav-link">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <!-- a photo frame with the backdrop cut away, subject left standing -->
             <path d="M3 3h5M16 3h5v5M21 16v5h-5M8 21H3v-5" stroke-dasharray="0" />
@@ -58,7 +58,7 @@ function confirmLogout() {
           </svg>
           Remove BG
         </NuxtLink>
-        <NuxtLink to="/" class="nav-link">
+        <NuxtLink v-if="!user || can('media.view')" to="/" class="nav-link">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="3" width="7" height="7" rx="1" />
             <rect x="14" y="3" width="7" height="7" rx="1" />
@@ -67,13 +67,13 @@ function confirmLogout() {
           </svg>
           Media
         </NuxtLink>
-        <NuxtLink to="/feedback" class="nav-link">
+        <NuxtLink v-if="!user || can('public_feedback.view')" to="/feedback" class="nav-link">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
           </svg>
           Feedback
         </NuxtLink>
-        <NuxtLink to="/categories" class="nav-link">
+        <NuxtLink v-if="!user || can('categories.view')" to="/categories" class="nav-link">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2Z" />
             <circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" />
@@ -176,7 +176,7 @@ function confirmLogout() {
 
   <!-- Mobile Bottom Navigation Bar -->
   <nav class="mobile-bottom-nav" aria-label="Mobile Navigation">
-    <NuxtLink to="/" class="bnav-item">
+    <NuxtLink v-if="!user || can('media.view')" to="/" class="bnav-item">
       <div class="bnav-icon-wrap">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -188,7 +188,7 @@ function confirmLogout() {
       <span class="bnav-label">Media</span>
     </NuxtLink>
 
-    <NuxtLink to="/categories" class="bnav-item">
+    <NuxtLink v-if="!user || can('categories.view')" to="/categories" class="bnav-item">
       <div class="bnav-icon-wrap">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2Z" />
@@ -198,7 +198,7 @@ function confirmLogout() {
       <span class="bnav-label">Categories</span>
     </NuxtLink>
 
-    <NuxtLink to="/remove-bg" class="bnav-item">
+    <NuxtLink v-if="!user || can('media.create')" to="/remove-bg" class="bnav-item">
       <div class="bnav-icon-wrap">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M3 3h5M16 3h5v5M21 16v5h-5M8 21H3v-5" stroke-dasharray="0" />
@@ -209,7 +209,7 @@ function confirmLogout() {
       <span class="bnav-label">Remove BG</span>
     </NuxtLink>
 
-    <NuxtLink to="/feedback" class="bnav-item">
+    <NuxtLink v-if="!user || can('public_feedback.view')" to="/feedback" class="bnav-item">
       <div class="bnav-icon-wrap">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />

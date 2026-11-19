@@ -1,10 +1,10 @@
 from typing import Annotated
 
-from fastapi import Depends, APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.deps import CurrentUser, DbSession, owned_or_404, require_permission
+from app.api.deps import DbSession, owned_or_404, require_permission
 from app.models import DEFAULT_CATEGORIES, Category, Download, User
 from app.schemas import CategoryCreate, CategoryEdit, CategoryOut
 

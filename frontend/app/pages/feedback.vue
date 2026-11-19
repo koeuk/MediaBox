@@ -3,6 +3,7 @@ import type { Feedback } from '~/types'
 
 const { request } = useApi()
 const { user } = useAuth()
+const { can } = usePermissions()
 
 const feedbacks = ref<Feedback[]>([])
 const loading = ref(true)
@@ -180,6 +181,7 @@ function formatDateDisplay(iso: string) {
           </p>
         </div>
         <button
+          v-if="!user || can('public_feedback.create')"
           class="btn btn-accent action-btn"
           type="button"
           @click="showForm = true"

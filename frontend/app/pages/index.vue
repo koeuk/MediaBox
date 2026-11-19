@@ -5,6 +5,7 @@ definePageMeta({ middleware: 'auth' })
 
 const { refreshMediaToken } = useApi()
 const { user, fetchUser } = useAuth()
+const { can } = usePermissions()
 const { paidMode, fetchAccessSettings } = useAccessSettings()
 const { fetchCategories } = useCategories()
 
@@ -177,8 +178,13 @@ onMounted(async () => {
   // next sign-in and high quality would look broken.
   await Promise.all([fetchUser(), fetchAccessSettings()])
   window.addEventListener('focus', fetchAccessSettings)
+  if (!can('media.view')) {
+    error.value = 'Your account does not have permission to view media.'
+    loaded.value = true
+    return
+  }
   // the socket URL carries the media token, so mint it before connecting
-  await Promise.all([refresh(), refreshMediaToken(), fetchCategories()])
+  await Promise.all([refresh(), refreshMediaToken(), can('categories.view') ? fetchCategories() : Promise.resolve()])
   startLive()
 })
 onUnmounted(() => window.removeEventListener('focus', fetchAccessSettings))
@@ -195,6 +201,7 @@ onUnmounted(() => window.removeEventListener('focus', fetchAccessSettings))
         <h1 class="display hero-title">Add to your box</h1>
 
         <MediaSubmitBar
+          v-if="can('media.create')"
           :premium="!paidMode || user?.is_premium || user?.is_admin"
           @locked="upgradeQuality = $event; upgradeOpen = true"
           v-model:url="url"
@@ -217,7 +224,7 @@ onUnmounted(() => window.removeEventListener('focus', fetchAccessSettings))
           class="toolbar"
         />
 
-        <div v-if="loaded && (visible.length || selecting)" class="selection-bar" :aria-busy="deleting">
+        <div v-if="can('media.delete') && loaded && (visible.length || selecting)" class="selection-bar" :aria-busy="deleting">
           <button v-if="!selecting" type="button" class="btn" @click="selecting = true">
             Select downloads
           </button>

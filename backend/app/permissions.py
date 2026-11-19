@@ -1,4 +1,4 @@
-"""Permissions for delegated access to administrative sections."""
+"""Member feature permissions and delegated administrative access."""
 from typing import Literal, get_args
 
 PermissionName = Literal[
@@ -28,9 +28,9 @@ def get_defaults(db) -> dict[str, bool]:
     return {
         **STANDARD_PERMISSIONS,
         **{
-        row.key[len(prefix):]: row.value == '1'
-        for row in db.query(AppSetting).filter(AppSetting.key.startswith(prefix)).all()
-        if row.key[len(prefix):] in known
+            row.key[len(prefix):]: row.value == '1'
+            for row in db.query(AppSetting).filter(AppSetting.key.startswith(prefix)).all()
+            if row.key[len(prefix):] in known
         },
     }
 

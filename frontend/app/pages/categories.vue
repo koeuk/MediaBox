@@ -2,6 +2,7 @@
 import type { Category } from '~/types'
 
 definePageMeta({ middleware: 'auth' })
+const { can } = usePermissions()
 
 const {
   categories,
@@ -172,7 +173,7 @@ const deleteMessage = computed(() => {
       <p v-if="error" class="msg err mono">{{ error }}</p>
       <p v-else-if="notice" class="msg ok mono">{{ notice }}</p>
 
-      <form class="panel add-form reveal" style="animation-delay: 0.05s" @submit.prevent="add">
+      <form v-if="can('categories.create')" class="panel add-form reveal" style="animation-delay: 0.05s" @submit.prevent="add">
         <div class="swatches" role="group" aria-label="Category colour">
           <button
             v-for="p in PRESETS"
@@ -216,7 +217,7 @@ const deleteMessage = computed(() => {
             <button
               type="button"
               class="move"
-              :disabled="i === 0"
+              :disabled="!can('categories.edit') || i === 0"
               title="Move up"
               aria-label="Move up"
               @click="move(i, -1)"
@@ -228,7 +229,7 @@ const deleteMessage = computed(() => {
             <button
               type="button"
               class="move"
-              :disabled="i === categories.length - 1"
+              :disabled="!can('categories.edit') || i === categories.length - 1"
               title="Move down"
               aria-label="Move down"
               @click="move(i, 1)"
@@ -282,8 +283,8 @@ const deleteMessage = computed(() => {
             <span v-else class="count mono empty">unused</span>
 
             <div class="row-actions">
-              <button class="btn btn-ghost btn-sm" @click="startEdit(cat)">Edit</button>
-              <button class="btn btn-ghost btn-sm danger" @click="pendingDelete = cat">
+              <button v-if="can('categories.edit')" class="btn btn-ghost btn-sm" @click="startEdit(cat)">Edit</button>
+              <button v-if="can('categories.delete')" class="btn btn-ghost btn-sm danger" @click="pendingDelete = cat">
                 Delete
               </button>
             </div>

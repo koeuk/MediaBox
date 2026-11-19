@@ -13,6 +13,7 @@ const props = withDefaults(
 const emit = defineEmits<{ info: []; hide: []; remove: [] }>()
 
 const { fileUrl, mediaToken } = useApi()
+const { can } = usePermissions()
 const { interceptSave } = useSaveFile()
 const { open, anchor, menu, pos, placed, toggle, close } = usePopMenu()
 
@@ -82,7 +83,7 @@ function pick(fn: () => void) {
           </button>
 
           <button
-            v-if="hideable"
+            v-if="hideable && can('media.edit')"
             class="pop-item"
             role="menuitem"
             @click="pick(() => emit('hide'))"
@@ -100,7 +101,7 @@ function pick(fn: () => void) {
 
           <div class="pop-sep" />
 
-          <button class="pop-item danger" role="menuitem" @click="pick(() => emit('remove'))">
+          <button v-if="can('media.delete')" class="pop-item danger" role="menuitem" @click="pick(() => emit('remove'))">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
               <path d="M10 11v6M14 11v6" />

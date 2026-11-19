@@ -7,12 +7,18 @@ import type { Category } from '~/types'
  */
 export function useCategories() {
   const { request } = useApi()
+  const { can } = usePermissions()
 
   const categories = useState<Category[]>('categories', () => [])
   const loaded = useState<boolean>('categories-loaded', () => false)
   const pending = useState<boolean>('categories-pending', () => false)
 
   async function fetchCategories(force = false) {
+    if (!can('categories.view')) {
+      categories.value = []
+      loaded.value = false
+      return
+    }
     if (pending.value) return
     if (loaded.value && !force) return
     pending.value = true

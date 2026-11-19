@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { can } = usePermissions()
 import type { Download } from '~/types'
 
 const props = defineProps<{
@@ -193,6 +194,7 @@ const orphanTag = computed(
       </span>
 
       <button
+        v-if="can('media.edit')"
         class="fav"
         :class="{ on: download.is_favorite }"
         :title="download.is_favorite ? 'Unfavorite' : 'Favorite'"
@@ -287,14 +289,14 @@ const orphanTag = computed(
       <div class="actions">
         <!-- Save lives in the ⋮ menu — CardMenu shows it under the same condition -->
         <button
-          v-if="download.status === 'failed' && download.can_retry"
+          v-if="can('media.create') && download.status === 'failed' && download.can_retry"
           class="btn btn-accent"
           @click="emit('retry', download.id)"
         >
           Retry
         </button>
         <button
-          v-if="active"
+          v-if="active && can('media.edit')"
           class="btn"
           title="Stop — you can resume with Retry"
           @click="emit('cancel', download.id)"
@@ -302,7 +304,7 @@ const orphanTag = computed(
           Stop
         </button>
         <ConvertMenu
-          v-if="download.status === 'completed' && targets.length"
+          v-if="can('media.create') && download.status === 'completed' && targets.length"
           :targets="targets"
           @pick="(target) => emit('convert', { id: download.id, target })"
         />
@@ -310,6 +312,7 @@ const orphanTag = computed(
         <!-- Category tag pill; its dropdown is teleported to escape overflow:hidden -->
         <div class="cat-wrap">
           <button
+            :disabled="!can('media.edit') || !can('categories.view')"
             ref="catAnchor"
             class="cat-pill mono"
             :class="{ 'cat-none': !download.category, 'cat-orphan': orphanTag }"

@@ -13,6 +13,7 @@ const CUTOUT_KINDS = ['cutout', 'cutout_src']
 
 export function useDownloads(scope: 'media' | 'cutout' = 'media') {
   const { request, fileUrl, wsUrl, refreshMediaToken } = useApi()
+  const { can } = usePermissions()
   const { pickQueueTarget, armPendingSave, flushPendingSaves } = useSaveFile()
 
   /** Everything the server sent. The list endpoint and the live snapshot are
@@ -59,6 +60,12 @@ export function useDownloads(scope: 'media' | 'cutout' = 'media') {
   }
 
   async function refresh() {
+    if (!can('media.view')) {
+      all.value = []
+      loaded.value = true
+      error.value = 'Your account does not have permission to view media.'
+      return
+    }
     const params: Record<string, string> = {}
     if (search.value) params.search = search.value
     all.value = await request<Download[]>('/downloads', { params })
@@ -274,8 +281,15 @@ export function useDownloads(scope: 'media' | 'cutout' = 'media') {
         }
       } catch {}
     }
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       live.value = false
+      if (event.code === 4403) {
+        all.value = []
+        loaded.value = true
+        error.value = 'Your account does not have permission to view media.'
+        stopLive()
+        return
+      }
       if (!stopped) setTimeout(connect, 3000)
     }
   }
@@ -285,6 +299,7 @@ export function useDownloads(scope: 'media' | 'cutout' = 'media') {
    * connecting earlier just burns a failed handshake and a 3s backoff.
    */
   function startLive() {
+    if (!can('media.view')) return
     connect()
     pollTimer = setInterval(() => {
       if (!live.value && activeCount.value > 0) refresh()

@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.api.deps import CurrentUser, DbSession, MediaUser, owned_or_404, require_permission
+from app.api.deps import DbSession, MediaUser, owned_or_404, require_permission
 from app.permissions import can
 from app.models import Download, DownloadStatus, User
 from app.schemas import (
