@@ -217,3 +217,38 @@ docker compose up
 
 Be aware it stores media in a **named Docker volume**, not your
 `~/Videos/video-download` folder — so it won't see your existing downloads.
+
+
+## Password reset email (Gmail)
+
+Set these values in `backend/.env`:
+
+```dotenv
+FRONTEND_URL=http://localhost:3005
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USE_SSL=false
+SMTP_USERNAME=your-address@gmail.com
+SMTP_FROM_EMAIL=your-address@gmail.com
+SMTP_PASSWORD=your-google-app-password
+PASSWORD_RESET_EXPIRE_MINUTES=30
+```
+
+Enable [Google 2-Step Verification](https://support.google.com/accounts/answer/185839),
+then create an [App Password](https://support.google.com/accounts/answer/185833).
+Paste that App Password without spaces into `SMTP_PASSWORD`; keep it in `.env`.
+Gmail uses [SMTP with STARTTLS on port 587](https://developers.google.com/workspace/gmail/imap/imap-smtp).
+Set `FRONTEND_URL` to the actual website URL recipients can open (use the public
+HTTPS URL when deployed). Reset links use this configured URL.
+
+Restart the backend to load these settings and add the reset-token columns.
+Users can choose **Forgot password?** on the login page; administrators can use
+**Email password reset** in a user's action menu. Links expire after 30 minutes
+and work once. New requests are limited to one per account per minute. Password resets and changes
+invalidate existing sign-in/media tokens and live media connections. Changing
+your own password from Profile returns you to sign-in.
+
+If SMTP is missing, the form reports that email recovery is unavailable. SMTP
+connection/authentication failures are logged on the backend without email
+addresses, passwords, or reset links. The request response stays generic so it
+does not reveal whether an email address has an account.

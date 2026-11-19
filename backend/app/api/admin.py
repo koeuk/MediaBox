@@ -2,15 +2,16 @@ from datetime import date, datetime, time, timezone
 
 from typing import Annotated, get_args
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import AdminUser, DbSession, require_permission
 from app.permissions import PermissionName, can, get_defaults, has_admin_access, has_more_access, is_full_admin, set_defaults
+from app.schemas.auth import PasswordResetMessage
 from app.schemas.admin import AdminUserCreate, DefaultPermissions, PlanCreate
 from app.security import hash_password
-from app.services import payments, plans, storage
+from app.services import password_reset, payments, plans, storage
 from app.models import Download, DownloadStatus, Feedback, PaymentRequest, PaymentStatus, Plan, User
 from app.schemas import (
     AccessSettings,
@@ -349,10 +350,22 @@ def update_user(user_id: int, payload: AdminUserEdit, db: DbSession, admin: Anno
     for field, value in changes.items():
         setattr(user, field, value)
     if new_password is not None:
+        db.query(User).filter(User.id == user.id).update({User.session_version: User.session_version + 1}, synchronize_session=False)
         user.hashed_password = hash_password(new_password)
+        user.password_reset_hash = None
+        user.password_reset_expires_at = None
     db.commit()
     db.refresh(user)
     return _user_response(db, user)
+
+
+@router.post("/users/{user_id}/password-reset", response_model=PasswordResetMessage)
+def email_password_reset(user_id: int, db: DbSession, background: BackgroundTasks, admin: Annotated[User, Depends(require_permission("users.edit"))]):
+    user = _user_or_404(db, user_id)
+    if not is_full_admin(admin) and (user.is_admin or user.permissions or has_admin_access(user) or has_more_access(user, admin)):
+        raise HTTPException(status_code=403, detail="Only a full administrator can reset privileged accounts.")
+    password_reset.request(db, user.email, background)
+    return PasswordResetMessage(message=password_reset.REQUEST_MESSAGE)
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

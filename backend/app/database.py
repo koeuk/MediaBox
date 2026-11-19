@@ -48,6 +48,10 @@ def run_migrations(conn) -> None:
             ("is_hidden", "is_hidden BOOLEAN NOT NULL DEFAULT 0"),
         ],
         "users": [
+            ("session_version", "session_version INTEGER NOT NULL DEFAULT 0"),
+            ("password_reset_hash", "password_reset_hash VARCHAR(64) NULL"),
+            ("password_reset_expires_at", "password_reset_expires_at DATETIME NULL"),
+            ("password_reset_requested_at", "password_reset_requested_at DATETIME NULL"),
             ("permissions", "permissions JSON NULL"),
             ("avatar_path", "avatar_path TEXT"),
             # DEFAULT 0 so existing accounts stay active, not NULL

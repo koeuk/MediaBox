@@ -1,12 +1,13 @@
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.api.deps import CurrentUser, DbSession, MediaUser
 from app.models import User
-from app.services import storage
+from app.services import password_reset, storage
+from app.schemas.auth import PasswordResetConfirm, PasswordResetMessage, PasswordResetRequest
 from app.schemas import (
     HiddenPasswordRemove,
     HiddenPasswordSet,
@@ -44,7 +45,7 @@ def register(payload: UserCreate, db: DbSession):
     db.add(user)
     db.commit()
     db.refresh(user)
-    return TokenOut(access_token=create_access_token(user.id), user=UserOut.model_validate(user))
+    return TokenOut(access_token=create_access_token(user.id, version=user.session_version), user=UserOut.model_validate(user))
 
 
 @router.post("/login", response_model=TokenOut)
@@ -56,7 +57,19 @@ def login(payload: UserLogin, db: DbSession):
     # suspended should not be left retyping a password that is in fact correct
     if user.is_suspended:
         raise HTTPException(status_code=403, detail="This account has been suspended.")
-    return TokenOut(access_token=create_access_token(user.id), user=UserOut.model_validate(user))
+    return TokenOut(access_token=create_access_token(user.id, version=user.session_version), user=UserOut.model_validate(user))
+
+
+@router.post("/forgot-password", response_model=PasswordResetMessage)
+def forgot_password(payload: PasswordResetRequest, db: DbSession, background: BackgroundTasks):
+    password_reset.request(db, str(payload.email), background)
+    return PasswordResetMessage(message=password_reset.REQUEST_MESSAGE)
+
+
+@router.post("/reset-password", response_model=PasswordResetMessage)
+def reset_password(payload: PasswordResetConfirm, db: DbSession):
+    password_reset.confirm(db, payload.token, payload.new_password)
+    return PasswordResetMessage(message="Your password has been reset. Sign in with your new password.")
 
 
 @router.get("/me", response_model=UserOut)
@@ -72,7 +85,10 @@ def update_me(payload: ProfileUpdate, db: DbSession, user: CurrentUser):
             payload.current_password, user.hashed_password
         ):
             raise HTTPException(status_code=400, detail="Current password is incorrect")
+        db.query(User).filter(User.id == user.id).update({User.session_version: User.session_version + 1}, synchronize_session=False)
         user.hashed_password = hash_password(payload.new_password)
+        user.password_reset_hash = None
+        user.password_reset_expires_at = None
 
     if payload.email is not None and payload.email != user.email:
         taken = (
@@ -135,7 +151,7 @@ def get_avatar(user: MediaUser):
 def media_token(user: CurrentUser):
     """Short-lived URL-safe token for <img>/<a>/WebSocket usage."""
     return MediaTokenOut(
-        token=create_media_token(user.id),
+        token=create_media_token(user.id, version=user.session_version),
         expires_in=MEDIA_TOKEN_EXPIRE_MINUTES * 60,
     )
 

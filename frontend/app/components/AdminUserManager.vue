@@ -326,6 +326,20 @@ function startPassword(u: AdminUser) {
   pwError.value = ''
 }
 
+async function emailPasswordReset(u: AdminUser) {
+  if (busyId.value !== null) return
+  busyId.value = u.id
+  error.value = ''
+  try {
+    const result = await request<{ message: string }>(`/admin/users/${u.id}/password-reset`, { method: 'POST' })
+    flash(result.message)
+  } catch (e) {
+    error.value = errorMessage(e, 'Could not request a password reset email.')
+  } finally {
+    busyId.value = null
+  }
+}
+
 function submitPassword() {
   pwError.value = ''
   if (pwValue.value.length < 6) {
@@ -589,6 +603,10 @@ async function confirmDelete() {
             @click="pick(() => startPassword(menuFor!))"
           >
             Change password
+          </button>
+
+          <button v-if="can('users.edit')" class="pop-item" role="menuitem" @click="pick(() => emailPasswordReset(menuFor!))">
+            Email password reset
           </button>
 
           <div class="pop-sep" />

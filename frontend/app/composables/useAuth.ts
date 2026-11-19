@@ -59,6 +59,11 @@ export function useAuth() {
       headers: { Authorization: `Bearer ${token.value}` },
       body: payload,
     })
+    if (payload.new_password !== undefined) {
+      token.value = null
+      user.value = null
+      return navigateTo('/login?password_changed=1')
+    }
   }
 
   /**

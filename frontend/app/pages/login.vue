@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { login } = useAuth()
+const route = useRoute()
 
 const email = ref('')
 const password = ref('')
@@ -22,11 +23,14 @@ async function submit() {
 
 <template>
   <AuthCard tagline="Download · Organize · Manage" title="Sign in" :error="error" @submit="submit">
+    <p v-if="route.query.password_changed === '1'" class="password-changed" role="status">Password updated. Sign in again with your new password.</p>
     <label class="label" for="email">Email</label>
     <input id="email" v-model="email" class="input" type="email" required autocomplete="email" placeholder="you@example.com" />
 
     <label class="label" for="password">Password</label>
     <PasswordInput id="password" v-model="password" autocomplete="current-password" placeholder="••••••••" />
+
+    <NuxtLink to="/forgot-password" class="forgot-link">Forgot password?</NuxtLink>
 
     <button class="btn btn-accent" type="submit" :disabled="busy">
       {{ busy ? 'Signing in…' : 'Sign in' }}
@@ -42,6 +46,8 @@ async function submit() {
 </template>
 
 <style scoped>
+.password-changed { margin: 0; color: var(--text-dim); font-size: 0.82rem; line-height: 1.5; }
+.forgot-link { align-self: flex-end; font-size: 0.78rem; color: var(--accent); }
 .guest-link {
   display: flex;
   justify-content: center;

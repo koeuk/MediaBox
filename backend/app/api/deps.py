@@ -31,7 +31,7 @@ def _resolve_user(token: str | None, db: Session, allow_query_scope: bool) -> Us
     if payload.get("scope") == "media" and not allow_query_scope:
         raise _credentials_error
     user = db.get(User, user_id)
-    if user is None:
+    if user is None or payload.get("ver", 0) != user.session_version:
         raise _credentials_error
     # Checked on every request, not just at login: suspending someone has to
     # cut off the tokens they are already holding, or the account stays usable
@@ -95,7 +95,7 @@ def get_optional_user(request: Request, db: Session = Depends(get_db)) -> User |
         payload = decode_token(token)
         user_id = int(payload["sub"])
         user = db.get(User, user_id)
-        if user and not user.is_suspended:
+        if user and not user.is_suspended and payload.get("ver", 0) == user.session_version and payload.get("scope") is None:
             return user
     except Exception:
         pass

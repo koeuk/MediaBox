@@ -21,20 +21,20 @@ def verify_password(plain: str, hashed: str) -> bool:
 MEDIA_TOKEN_EXPIRE_MINUTES = 10
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user_id: int, version: int = 0) -> str:
     expires = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload = {"sub": str(user_id), "exp": expires}
+    payload = {"sub": str(user_id), "ver": version, "exp": expires}
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
 
-def create_media_token(user_id: int) -> str:
+def create_media_token(user_id: int, version: int = 0) -> str:
     """Short-lived token safe to embed in URLs (<img>, <a>, WebSocket).
 
     Scoped so it cannot be used against the regular API, and expiring fast
     enough that a leak via server logs or browser history is low-value.
     """
     expires = datetime.now(timezone.utc) + timedelta(minutes=MEDIA_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": str(user_id), "scope": "media", "exp": expires}
+    payload = {"sub": str(user_id), "scope": "media", "ver": version, "exp": expires}
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
 

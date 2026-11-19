@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import AnyHttpUrl, EmailStr, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +13,20 @@ class Settings(BaseSettings):
     app_name: str = "MediaBox"
     secret_key: str = "change-me-in-production"
     access_token_expire_minutes: int = 60 * 24 * 7
+    frontend_url: AnyHttpUrl = "http://localhost:3005"
+    smtp_host: str = ""
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_username: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_from_email: EmailStr | None = None
+    smtp_use_ssl: bool = False
+    password_reset_expire_minutes: int = Field(default=30, ge=5, le=1440)
+
+    @field_validator("smtp_from_email", mode="before")
+    @classmethod
+    def empty_sender(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
+
     database_url: str = "sqlite:///./mediabox.db"
     # where downloaded/converted files are stored. Point this at any folder on
     # your computer, e.g. MEDIA_DIR=~/Videos/MediaBox — "~" and relative paths

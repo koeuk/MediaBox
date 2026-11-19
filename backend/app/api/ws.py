@@ -14,11 +14,11 @@ router = APIRouter()
 POLL_SECONDS = 1.0
 
 
-def _snapshot(user_id: int) -> list[dict]:
+def _snapshot(user_id: int, version: int | None = None) -> list[dict]:
     db = SessionLocal()
     try:
         user = db.get(User, user_id)
-        if user is None or user.is_suspended or not can(user, "media.view"):
+        if user is None or user.is_suspended or not can(user, "media.view") or (version is not None and user.session_version != version):
             raise PermissionError("Media access denied")
         rows = (
             db.query(Download)
@@ -38,7 +38,9 @@ async def progress_ws(websocket: WebSocket, token: str | None = None):
     Auth via ?token= since browsers cannot set headers on WebSocket connects.
     """
     try:
-        user_id = int(decode_token(token or "")["sub"])
+        payload = decode_token(token or "")
+        user_id = int(payload["sub"])
+        version = payload.get("ver", 0)
     except Exception:
         await websocket.close(code=4401)
         return
@@ -47,7 +49,7 @@ async def progress_ws(websocket: WebSocket, token: str | None = None):
     last: list[dict] | None = None
     try:
         while True:
-            snap = await run_in_threadpool(_snapshot, user_id)
+            snap = await run_in_threadpool(_snapshot, user_id, version)
             if snap != last:
                 await websocket.send_json({"type": "snapshot", "items": snap})
                 last = snap
