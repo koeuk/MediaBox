@@ -19,8 +19,8 @@ WEB_PORT="${WEB_PORT:-3005}"
 die() { printf '\n\033[31merror:\033[0m %s\n\n' "$1" >&2; exit 1; }
 note() { printf '\033[2m%s\033[0m\n' "$1"; }
 
-# Accept sudo invocations while keeping downloads and build caches owned by
-# the original user and using that user's Python environment.
+# For sudo, use the original user's environment and file ownership. Direct
+# root logins on servers may also start the launcher as root.
 if [ "$(id -u)" -eq 0 ]; then
   if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
     command -v runuser >/dev/null 2>&1 || die "runuser is required to start through sudo."
@@ -28,7 +28,7 @@ if [ "$(id -u)" -eq 0 ]; then
     exec runuser -u "$SUDO_USER" -- env -u XDG_CACHE_HOME \
       API_PORT="$API_PORT" WEB_PORT="$WEB_PORT" bash "$PWD/dev.sh" "$@"
   fi
-  die "Start from your normal account with: sudo bash dev.sh"
+  note "Starting MediaBox as root"
 fi
 
 # Prefer the environment outside the project drive, where native dependencies
