@@ -26,18 +26,24 @@ if [ "$(id -u)" -eq 0 ]; then
   Run it as your normal user instead."
 fi
 
-# Keep Python and native dependencies on an executable filesystem. Existing
-# project-local environments still work on drives that allow execution.
+# Prefer the environment outside the project drive, where native dependencies
+# can load even when the project is mounted with noexec.
 if [ -z "${BACKEND_PYTHON:-}" ]; then
-  BACKEND_PYTHON="$PWD/backend/.venv/bin/python"
-  if [ ! -x "$BACKEND_PYTHON" ]; then
-    BACKEND_PYTHON="${XDG_CACHE_HOME:-$HOME/.cache}/mediabox/venv/bin/python"
-  fi
+  for candidate in \
+    "${XDG_CACHE_HOME:-$HOME/.cache}/mediabox/venv/bin/python" \
+    "$HOME/.cache/mediabox/venv/bin/python" \
+    "$PWD/backend/.venv/bin/python"; do
+    if [ -x "$candidate" ] && "$candidate" -c 'import fastapi, uvicorn, sqlalchemy' >/dev/null 2>&1; then
+      BACKEND_PYTHON="$candidate"
+      break
+    fi
+  done
 fi
-[ -x "$BACKEND_PYTHON" ] \
+[ -n "${BACKEND_PYTHON:-}" ] && [ -x "$BACKEND_PYTHON" ] \
   || die "A working backend Python environment is missing. Create it first:
   python3 -m venv \"\${XDG_CACHE_HOME:-\$HOME/.cache}/mediabox/venv\"
   \"\${XDG_CACHE_HOME:-\$HOME/.cache}/mediabox/venv/bin/python\" -m pip install -r backend/requirements.txt"
+note "Backend Python: $BACKEND_PYTHON"
 
 [ -d frontend/node_modules ] \
   || die "frontend/node_modules is missing. Install first:
