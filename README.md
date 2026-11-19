@@ -32,6 +32,11 @@ Use `bash dev.sh` on drives mounted with `noexec` (including this workspace's
 DriveBeltie mount). Such mounts block `./dev.sh` even when it has executable
 permissions.
 
+On this machine, `frontend/node_modules` links to
+`~/.cache/mediabox/frontend/node_modules` so Nuxt and native dependencies can
+execute outside the `noexec` drive. The previous dependency directory is kept
+at `frontend/.cache/node_modules-original`.
+
 The launcher uses a working `backend/.venv` when available, then falls back to
 `~/.cache/mediabox/venv` (or `$XDG_CACHE_HOME/mediabox/venv`). The editor defaults
 to the home cache environment. If an interpreter was already selected, run

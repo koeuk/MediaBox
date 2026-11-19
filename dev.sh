@@ -43,6 +43,7 @@ fi
   || die "A working backend Python environment is missing. Create it first:
   python3 -m venv \"\${XDG_CACHE_HOME:-\$HOME/.cache}/mediabox/venv\"
   \"\${XDG_CACHE_HOME:-\$HOME/.cache}/mediabox/venv/bin/python\" -m pip install -r backend/requirements.txt"
+note "backend Python: $BACKEND_PYTHON"
 note "Backend Python: $BACKEND_PYTHON"
 
 [ -d frontend/node_modules ] \
