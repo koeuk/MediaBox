@@ -38,9 +38,10 @@ execute outside the `noexec` drive. The previous dependency directory is kept
 at `frontend/.cache/node_modules-original`.
 
 The launcher uses a working `backend/.venv` when available, then falls back to
-`~/.cache/mediabox/venv` (or `$XDG_CACHE_HOME/mediabox/venv`). The editor defaults
-to the home cache environment. If an interpreter was already selected, run
-**Python: Select Interpreter** and choose `~/.cache/mediabox/venv/bin/python`.
+`~/.cache/mediabox/venv` (or `$XDG_CACHE_HOME/mediabox/venv`). On this machine,
+`backend/.venv` links to the home cache environment; the original is preserved
+at `backend/.cache/venv-original`. The editor and `pyrightconfig.json` use
+`backend/.venv`. Reload the editor window after changing the environment.
 
 ## Taglines
 

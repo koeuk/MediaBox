@@ -1,5 +1,5 @@
 {
-  "python.defaultInterpreterPath": "${userHome}/.cache/mediabox/venv/bin/python",
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
   "python.envFile": "${workspaceFolder}/backend/.env",
   "python.analysis.extraPaths": ["${workspaceFolder}/backend"]
 }
