@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException, status
+from typing import Annotated
+
+from fastapi import Depends, APIRouter, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.deps import CurrentUser, DbSession, owned_or_404
+from app.api.deps import CurrentUser, DbSession, owned_or_404, require_permission
 from app.models import DEFAULT_CATEGORIES, Category, Download, User
 from app.schemas import CategoryCreate, CategoryEdit, CategoryOut
 
@@ -72,7 +74,7 @@ def _reject_duplicate(db: Session, user: User, name: str, exclude_id: int | None
 
 
 @router.get("", response_model=list[CategoryOut])
-def list_categories(db: DbSession, user: CurrentUser):
+def list_categories(db: DbSession, user: Annotated[User, Depends(require_permission("categories.view"))]):
     cats = _ordered(db, user)
     if not cats:
         _seed_defaults(db, user)
@@ -82,7 +84,7 @@ def list_categories(db: DbSession, user: CurrentUser):
 
 
 @router.post("", response_model=CategoryOut, status_code=status.HTTP_201_CREATED)
-def create_category(payload: CategoryCreate, db: DbSession, user: CurrentUser):
+def create_category(payload: CategoryCreate, db: DbSession, user: Annotated[User, Depends(require_permission("categories.create"))]):
     name = _clean_name(payload.name)
     _reject_duplicate(db, user, name)
 
@@ -100,7 +102,7 @@ def create_category(payload: CategoryCreate, db: DbSession, user: CurrentUser):
 
 @router.patch("/{category_id}", response_model=CategoryOut)
 def update_category(
-    category_id: int, payload: CategoryEdit, db: DbSession, user: CurrentUser
+    category_id: int, payload: CategoryEdit, db: DbSession, user: Annotated[User, Depends(require_permission("categories.edit"))]
 ):
     cat = owned_or_404(db, Category, category_id, user, "Category")
 
@@ -125,7 +127,7 @@ def update_category(
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_category(category_id: int, db: DbSession, user: CurrentUser):
+def delete_category(category_id: int, db: DbSession, user: Annotated[User, Depends(require_permission("categories.delete"))]):
     cat = owned_or_404(db, Category, category_id, user, "Category")
     # untag rather than orphan — the downloads themselves are untouched
     db.query(Download).filter(
@@ -136,7 +138,7 @@ def delete_category(category_id: int, db: DbSession, user: CurrentUser):
 
 
 @router.put("/reorder", response_model=list[CategoryOut])
-def reorder_categories(ids: list[int], db: DbSession, user: CurrentUser):
+def reorder_categories(ids: list[int], db: DbSession, user: Annotated[User, Depends(require_permission("categories.edit"))]):
     owned = {c.id: c for c in _ordered(db, user)}
     unknown = [i for i in ids if i not in owned]
     if unknown:

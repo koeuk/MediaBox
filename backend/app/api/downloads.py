@@ -1,12 +1,13 @@
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.api.deps import CurrentUser, DbSession, MediaUser, owned_or_404
+from app.api.deps import CurrentUser, DbSession, MediaUser, owned_or_404, require_permission
+from app.permissions import can
 from app.models import Download, DownloadStatus, User
 from app.schemas import (
     BatchDownloadCreate,
@@ -27,23 +28,25 @@ router = APIRouter()
 
 
 def _owned(db: Session, download_id: int, user: User) -> Download:
+    if not can(user, "media.view"):
+        raise HTTPException(status_code=403, detail="Permission required: media.view")
     return owned_or_404(db, Download, download_id, user, "Download")
 
 
 @router.post("", response_model=DownloadOut, status_code=status.HTTP_201_CREATED)
-def create_download(payload: DownloadCreate, db: DbSession, user: CurrentUser):
+def create_download(payload: DownloadCreate, db: DbSession, user: Annotated[User, Depends(require_permission("media.create"))]):
     return library.queue_download(db, user, str(payload.url), payload.title, payload.quality)
 
 
 @router.post("/batch", response_model=list[DownloadOut], status_code=status.HTTP_201_CREATED)
-def create_batch(payload: BatchDownloadCreate, db: DbSession, user: CurrentUser):
+def create_batch(payload: BatchDownloadCreate, db: DbSession, user: Annotated[User, Depends(require_permission("media.create"))]):
     return library.queue_batch(db, user, [str(u) for u in payload.urls], payload.quality)
 
 
 @router.post("/upload", response_model=DownloadOut, status_code=status.HTTP_201_CREATED)
 def upload_media(
     db: DbSession,
-    user: CurrentUser,
+    user: Annotated[User, Depends(require_permission("media.create"))],
     file: Annotated[UploadFile, File()],
     scope: str | None = None,
 ):
@@ -54,7 +57,7 @@ def upload_media(
 @router.get("", response_model=list[DownloadOut])
 def list_downloads(
     db: DbSession,
-    user: CurrentUser,
+    user: Annotated[User, Depends(require_permission("media.view"))],
     search: str | None = None,
     favorites: bool = False,
     category: str | None = None,
@@ -73,12 +76,12 @@ def list_downloads(
 
 
 @router.get("/{download_id}", response_model=DownloadOut)
-def get_download(download_id: int, db: DbSession, user: CurrentUser):
+def get_download(download_id: int, db: DbSession, user: Annotated[User, Depends(require_permission("media.view"))]):
     return _owned(db, download_id, user)
 
 
 @router.patch("/{download_id}/favorite", response_model=DownloadOut)
-def toggle_favorite(download_id: int, db: DbSession, user: CurrentUser):
+def toggle_favorite(download_id: int, db: DbSession, user: Annotated[User, Depends(require_permission("media.edit"))]):
     dl = _owned(db, download_id, user)
     dl.is_favorite = not dl.is_favorite
     db.commit()
@@ -87,7 +90,7 @@ def toggle_favorite(download_id: int, db: DbSession, user: CurrentUser):
 
 
 @router.patch("/{download_id}/hide", response_model=DownloadOut)
-def toggle_hidden(download_id: int, db: DbSession, user: CurrentUser):
+def toggle_hidden(download_id: int, db: DbSession, user: Annotated[User, Depends(require_permission("media.edit"))]):
     """Keep a download out of the default views without deleting its files."""
     dl = _owned(db, download_id, user)
     dl.is_hidden = not dl.is_hidden
@@ -98,7 +101,7 @@ def toggle_hidden(download_id: int, db: DbSession, user: CurrentUser):
 
 @router.patch("/{download_id}/category", response_model=DownloadOut)
 def update_category(
-    download_id: int, payload: DownloadCategoryUpdate, db: DbSession, user: CurrentUser
+    download_id: int, payload: DownloadCategoryUpdate, db: DbSession, user: Annotated[User, Depends(require_permission("media.edit"))]
 ):
     dl = _owned(db, download_id, user)
     dl.category = payload.category
@@ -108,12 +111,12 @@ def update_category(
 
 
 @router.post("/{download_id}/retry", response_model=DownloadOut)
-def retry_download(download_id: int, db: DbSession, user: CurrentUser):
+def retry_download(download_id: int, db: DbSession, user: Annotated[User, Depends(require_permission("media.create"))]):
     return library.requeue(db, _owned(db, download_id, user))
 
 
 @router.post("/{download_id}/cancel", response_model=DownloadOut)
-def cancel_download(download_id: int, db: DbSession, user: CurrentUser):
+def cancel_download(download_id: int, db: DbSession, user: Annotated[User, Depends(require_permission("media.edit"))]):
     """Stop an active download/conversion at its next checkpoint.
 
     The record turns failed with a "Paused" note; direct downloads keep their
@@ -129,7 +132,7 @@ def cancel_download(download_id: int, db: DbSession, user: CurrentUser):
     "/{download_id}/convert", response_model=DownloadOut, status_code=status.HTTP_201_CREATED
 )
 def convert_download(
-    download_id: int, payload: ConvertRequest, db: DbSession, user: CurrentUser
+    download_id: int, payload: ConvertRequest, db: DbSession, user: Annotated[User, Depends(require_permission("media.create"))]
 ):
     source = _owned(db, download_id, user)
     return library.queue_conversion(db, user, source, payload.target)
@@ -141,7 +144,7 @@ def convert_download(
     status_code=status.HTTP_201_CREATED,
 )
 def remove_background(
-    download_id: int, payload: RemoveBackgroundRequest, db: DbSession, user: CurrentUser
+    download_id: int, payload: RemoveBackgroundRequest, db: DbSession, user: Annotated[User, Depends(require_permission("media.create"))]
 ):
     """Queue a transparent-PNG cutout of an image already in the box."""
     source = _owned(db, download_id, user)
@@ -149,7 +152,7 @@ def remove_background(
 
 
 @router.delete("/{download_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_download(download_id: int, db: DbSession, user: CurrentUser):
+def delete_download(download_id: int, db: DbSession, user: Annotated[User, Depends(require_permission("media.delete"))]):
     dl = _owned(db, download_id, user)
     # slide 1 is also file_path; delete_files tolerates the repeat
     storage.delete_files(dl.file_path, dl.thumbnail_path, *dl.slide_paths)
@@ -158,7 +161,7 @@ def delete_download(download_id: int, db: DbSession, user: CurrentUser):
 
 
 @router.post("/{download_id}/export")
-def export_download(download_id: int, payload: DownloadExportRequest, db: DbSession, user: CurrentUser):
+def export_download(download_id: int, payload: DownloadExportRequest, db: DbSession, user: Annotated[User, Depends(require_permission("media.view"))]):
     """Copy a finished file into a folder the user configured (backend and
     browser run on the same machine, so this is their local disk)."""
     import shutil

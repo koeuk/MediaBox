@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import CurrentUser, DbSession, OptionalUser
 from app.models import Feedback
+from app.permissions import can
 from app.schemas import FeedbackCreate, FeedbackOut
 
 router = APIRouter()
@@ -10,8 +11,11 @@ router = APIRouter()
 @router.get("", response_model=list[FeedbackOut])
 def list_feedback(
     db: DbSession,
+    user: OptionalUser,
     category: str | None = Query(default=None),
 ):
+    if user and not can(user, "public_feedback.view"):
+        raise HTTPException(status_code=403, detail="Permission required: public_feedback.view")
     query = db.query(Feedback).filter(Feedback.is_published.is_(True))
     if category and category.lower() != "all":
         query = query.filter(Feedback.category == category.lower())
@@ -24,6 +28,8 @@ def submit_feedback(
     db: DbSession,
     user: OptionalUser,
 ):
+    if user and not can(user, "public_feedback.create"):
+        raise HTTPException(status_code=403, detail="Permission required: public_feedback.create")
     data = payload.model_dump()
     if user:
         data["user_id"] = user.id
@@ -44,6 +50,8 @@ def submit_feedback(
 
 @router.get("/me", response_model=list[FeedbackOut])
 def my_feedback(db: DbSession, user: CurrentUser):
+    if not can(user, "public_feedback.view"):
+        raise HTTPException(status_code=403, detail="Permission required: public_feedback.view")
     return (
         db.query(Feedback)
         .filter(Feedback.user_id == user.id)

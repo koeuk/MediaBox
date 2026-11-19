@@ -127,10 +127,9 @@ const permissionBusy = computed(() => savingDefaults.value || (permissionTarget.
 const permissionSelf = computed(() => !!permissionTarget.value && isSelf(permissionTarget.value))
 const permissionDraft = reactive<Record<string, boolean>>({})
 const permissionActions = ['view', 'create', 'edit', 'delete']
-
 function roleDefaults() {
   for (const section of permissionSections) {
-    for (const action of section.actions) permissionDraft[`${section.key}.${action}`] = permissionRole.value === 'admin' || (sharedDefaults.value[`${section.key}.${action}`] ?? false)
+    for (const action of section.actions) permissionDraft[`${section.key}.${action}`] = defaultPermission(`${section.key}.${action}`, sharedDefaults.value, permissionRole.value === 'admin')
   }
 }
 
@@ -152,7 +151,7 @@ function startPermissions(u: AdminUser) {
 }
 
 async function savePermissions(u: AdminUser) {
-  if (await patch(u, { is_admin: permissionRole.value === 'admin', permissions: Object.entries(permissionDraft).every(([key, v]) => v === (permissionRole.value === 'admin' || (sharedDefaults.value[key] ?? false))) ? null : { ...permissionDraft } }, 'Permissions updated')) {
+  if (await patch(u, { is_admin: permissionRole.value === 'admin', permissions: Object.entries(permissionDraft).every(([key, v]) => v === (defaultPermission(key, sharedDefaults.value, permissionRole.value === 'admin'))) ? null : { ...permissionDraft } }, 'Permissions updated')) {
     permissionTarget.value = null
   }
 }
@@ -377,7 +376,7 @@ async function confirmDelete() {
 
             <td class="actions-col">
               <button
-                v-if="(fullAdmin || (!u.is_admin && !u.permissions && !permissionSections.some(section => hasPermission(u, `${section.key}.view`)))) && (can('users.edit') || can('users.delete'))"
+                v-if="(fullAdmin || (!u.is_admin && !u.permissions && !adminPermissionSections.some(section => hasPermission(u, `${section.key}.view`)))) && (can('users.edit') || can('users.delete'))"
                 class="btn btn-ghost btn-icon kebab"
                 :class="{ on: menuOpen && menuFor?.id === u.id }"
                 :disabled="busyId === u.id"
@@ -447,8 +446,8 @@ async function confirmDelete() {
             <h3 id="permissions-title" class="dialog-title">{{ editingDefaults ? 'Default permissions' : 'Define permissions' }}</h3>
             <p v-if="permissionTarget" class="dialog-message">{{ permissionTarget.username }} · {{ permissionTarget.email }}</p>
             <p class="permission-note">{{ editingDefaults
-              ? 'Set the permissions members inherit by default. Applies to existing and new members; individual overrides are kept.'
-              : 'Choose a role, then allow specific actions. View only means Create, Edit, and Delete are unchecked.' }}</p>
+              ? 'Set the actions members can use by default. Individual overrides are kept.'
+              : 'Checked actions are allowed. Create downloads means downloading or uploading media; create feedback means submitting feedback.' }}</p>
             <p v-if="error" class="msg err mono dialog-msg">{{ error }}</p>
             <label v-if="!editingDefaults" class="permission-option">
               <input v-model="permissionRole" type="radio" name="permission-role" value="member" @change="roleDefaults" :disabled="permissionBusy || permissionSelf" />
@@ -458,11 +457,16 @@ async function confirmDelete() {
               <input v-model="permissionRole" type="radio" name="permission-role" value="admin" @change="roleDefaults" :disabled="permissionBusy" />
               <span><strong>Administrator</strong><small>Manage users, plans, payments, and site settings.</small></span>
             </label>
+            <p v-if="permissionTarget?.is_suspended" class="permission-note suspended-note">This account is suspended. Access stays blocked until the account is restored.</p>
             <div class="table-scroll permission-matrix">
               <table>
                 <thead><tr><th>Section</th><th v-for="action in permissionActions" :key="action">{{ action }}</th></tr></thead>
                 <tbody>
-                  <tr v-for="section in permissionSections" :key="section.key">
+                  <template v-for="section in permissionSections" :key="section.key">
+                    <tr v-if="section.key === 'media' || section.key === 'dashboard'" class="permission-group">
+                      <td colspan="5">{{ section.key === 'media' ? 'Account features' : 'Administration' }}</td>
+                    </tr>
+                    <tr>
                     <td>{{ section.label }}</td>
                     <td v-for="action in permissionActions" :key="action">
                       <input v-if="(section.actions as readonly string[]).includes(action)" type="checkbox"
@@ -472,6 +476,7 @@ async function confirmDelete() {
                       <span v-else class="dim" aria-label="Not available">—</span>
                     </td>
                   </tr>
+                  </template>
                 </tbody>
               </table>
             </div>
@@ -636,6 +641,9 @@ async function confirmDelete() {
 .users-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.9rem 1.2rem 0; }
 .users-heading .table-title { padding: 0; }
 .users-heading .btn { font-size: 0.72rem; }
+
+.permission-group td { color: var(--text-dim); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; background: var(--bg-raised); }
+.suspended-note { color: var(--err); }
 
 .permission-note {
   color: var(--text-dim);

@@ -110,7 +110,7 @@ export function useAuth() {
   function logout() {
     token.value = null
     user.value = null
-    return navigateTo('/login')
+    return navigateTo('/free')
   }
 
   return {

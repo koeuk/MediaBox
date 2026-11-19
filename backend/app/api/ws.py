@@ -4,7 +4,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.concurrency import run_in_threadpool
 
 from app.database import SessionLocal
-from app.models import Download
+from app.models import Download, User
+from app.permissions import can
 from app.schemas import DownloadOut
 from app.security import decode_token
 
@@ -16,6 +17,9 @@ POLL_SECONDS = 1.0
 def _snapshot(user_id: int) -> list[dict]:
     db = SessionLocal()
     try:
+        user = db.get(User, user_id)
+        if user is None or user.is_suspended or not can(user, "media.view"):
+            raise PermissionError("Media access denied")
         rows = (
             db.query(Download)
             .filter(Download.user_id == user_id)
@@ -48,5 +52,7 @@ async def progress_ws(websocket: WebSocket, token: str | None = None):
                 await websocket.send_json({"type": "snapshot", "items": snap})
                 last = snap
             await asyncio.sleep(POLL_SECONDS)
+    except PermissionError:
+        await websocket.close(code=4403)
     except (WebSocketDisconnect, RuntimeError):
         pass
