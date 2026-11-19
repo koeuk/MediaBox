@@ -100,7 +100,7 @@ mkdir -p "$resolved_media_dir" \
 # die with a bare EACCES deep in a stack trace. Catch it here instead.
 for path in frontend/node_modules frontend/.nuxt "$resolved_media_dir" backend/mediabox.db; do
   [ -e "$path" ] || continue
-  [ -w "$path" ] && [ -z "$(find "$path" -maxdepth 2 ! -user "$(id -un)" -print -quit 2>/dev/null)" ] \
+  [ -w "$path" ] && { [ "$(id -u)" -eq 0 ] || [ -z "$(find "$path" -maxdepth 2 ! -user "$(id -un)" -print -quit 2>/dev/null)" ]; } \
     || die "$path contains files owned by another user (a previous sudo run).
   Fix it with:
   sudo chown -R $(id -un):$(id -gn) $PWD
