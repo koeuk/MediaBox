@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import settings
@@ -9,7 +10,10 @@ if settings.database_url.startswith("sqlite"):
 
 # pool_pre_ping revalidates pooled connections — avoids "MySQL server has
 # gone away" after idle periods (harmless for SQLite/Postgres)
-engine = create_engine(settings.database_url, connect_args=connect_args, pool_pre_ping=True)
+database_url = make_url(settings.database_url)
+if settings.database_password is not None:
+    database_url = database_url.set(password=settings.database_password.get_secret_value())
+engine = create_engine(database_url, connect_args=connect_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 

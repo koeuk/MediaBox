@@ -28,6 +28,8 @@ class Settings(BaseSettings):
         return None if isinstance(value, str) and not value.strip() else value
 
     database_url: str = "sqlite:///./mediabox.db"
+    # Optional separate password avoids URL-escaping credentials in containers.
+    database_password: SecretStr | None = None
     # where downloaded/converted files are stored. Point this at any folder on
     # your computer, e.g. MEDIA_DIR=~/Videos/MediaBox — "~" and relative paths
     # are expanded to an absolute path so serving works regardless of CWD.

@@ -3,7 +3,7 @@
  * Centred brand + form shell for /login and /register. The two pages differ
  * only in their fields and footer link, so everything else lives here.
  */
-defineProps<{ tagline: string; title: string; error?: string }>()
+defineProps<{ tagline: string; title: string; error?: string; flat?: boolean }>()
 const emit = defineEmits<{ submit: [] }>()
 const { logoUrl, hasLogo, siteTitle, titleParts } = useBranding()
 </script>
@@ -24,7 +24,8 @@ const { logoUrl, hasLogo, siteTitle, titleParts } = useBranding()
     </div>
 
     <form
-      class="panel panel-hover auth-card reveal"
+      class="auth-card reveal"
+      :class="flat ? 'auth-flat' : 'panel panel-hover'"
       style="animation-delay: 0.08s"
       @submit.prevent="emit('submit')"
     >
@@ -96,6 +97,11 @@ const { logoUrl, hasLogo, siteTitle, titleParts } = useBranding()
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+}
+
+.auth-flat {
+  max-width: 316px;
+  padding: 0;
 }
 
 .auth-title {

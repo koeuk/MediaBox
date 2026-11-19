@@ -1,0 +1,13 @@
+.env
+.env.*
+.venv
+.cache
+__pycache__
+**/__pycache__
+*.py[cod]
+media
+*.db
+*.db.*
+*.sqlite*
+youtube-cookies.txt
+cookies.txt

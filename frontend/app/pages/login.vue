@@ -22,7 +22,7 @@ async function submit() {
 </script>
 
 <template>
-  <AuthCard tagline="Download · Organize · Manage" title="Sign in" :error="error" @submit="submit">
+  <AuthCard flat tagline="Download · Organize · Manage" title="Sign in" :error="error" @submit="submit">
     <p v-if="route.query.password_changed === '1'" class="password-changed" role="status">Password updated. Sign in again with your new password.</p>
     <label class="label" for="email">Email</label>
     <input id="email" v-model="email" class="input" type="email" required autocomplete="email" placeholder="you@example.com" />

@@ -7,12 +7,13 @@ interface TokenOut {
 }
 
 export function useAuth() {
+  const config = useRuntimeConfig()
   const token = useCookie<string | null>('mediabox_token', {
     maxAge: 60 * 60 * 24 * 7,
     sameSite: 'lax',
+    secure: String(config.public.cookieSecure) === 'true',
   })
   const user = useState<User | null>('auth-user', () => null)
-  const config = useRuntimeConfig()
 
   async function login(email: string, password: string) {
     const res = await $fetch<TokenOut>('/auth/login', {

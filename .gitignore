@@ -8,6 +8,9 @@ venv/
 # Local secrets & config
 .env
 .env.local
+.env.*
+!.env.example
+!.env.*.example
 youtube-cookies.txt
 cookies.txt
 
