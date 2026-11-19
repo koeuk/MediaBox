@@ -8,6 +8,35 @@
 
 MediaBox is a modern media management platform built with Python (FastAPI) and Vue.js. It provides a clean interface for managing authorized media downloads, tracking progress in real time, organizing files, and processing media with FFmpeg. The project demonstrates REST API development, asynchronous background jobs, file storage, and responsive frontend design.
 
+## Local development
+
+Create the backend environment on an executable filesystem (outside this
+drive) and install dependencies:
+
+```bash
+python3 -m venv ~/.cache/mediabox/venv
+~/.cache/mediabox/venv/bin/python -m pip install -r backend/requirements.txt
+npm --prefix frontend install
+```
+
+Start both services with:
+
+```bash
+bash dev.sh
+```
+
+The API starts at port 8005 and the web UI at port 3005, using the next free
+port when needed. Press Ctrl-C to stop both.
+
+Use `bash dev.sh` on drives mounted with `noexec` (including this workspace's
+DriveBeltie mount). Such mounts block `./dev.sh` even when it has executable
+permissions.
+
+The launcher uses a working `backend/.venv` when available, then falls back to
+`~/.cache/mediabox/venv` (or `$XDG_CACHE_HOME/mediabox/venv`). The editor defaults
+to the home cache environment. If an interpreter was already selected, run
+**Python: Select Interpreter** and choose `~/.cache/mediabox/venv/bin/python`.
+
 ## Taglines
 
 - Download, Organize, and Manage Your Media

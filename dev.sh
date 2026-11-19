@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Start MediaBox for local development: API + web UI together.
 #
-#   ./dev.sh                      API on :8005, web on :3005
-#   API_PORT=9001 ./dev.sh        start looking from a different port
+#   bash dev.sh                  API on :8005, web on :3005
+#   API_PORT=9001 bash dev.sh     start looking from a different port
+# Use bash explicitly so this also works on drives mounted with noexec.
 #
 # Ports are starting points, not requirements: if one is taken the next free
 # one is used, and the frontend is pointed at whichever port the API got.
@@ -25,9 +26,18 @@ if [ "$(id -u)" -eq 0 ]; then
   Run it as your normal user instead."
 fi
 
-[ -x backend/.venv/bin/python ] \
-  || die "backend/.venv is missing. Create it first:
-  python3 -m venv backend/.venv && backend/.venv/bin/pip install -r backend/requirements.txt"
+# Keep Python and native dependencies on an executable filesystem. Existing
+# project-local environments still work on drives that allow execution.
+if [ -z "${BACKEND_PYTHON:-}" ]; then
+  BACKEND_PYTHON="$PWD/backend/.venv/bin/python"
+  if [ ! -x "$BACKEND_PYTHON" ]; then
+    BACKEND_PYTHON="${XDG_CACHE_HOME:-$HOME/.cache}/mediabox/venv/bin/python"
+  fi
+fi
+[ -x "$BACKEND_PYTHON" ] \
+  || die "A working backend Python environment is missing. Create it first:
+  python3 -m venv \"\${XDG_CACHE_HOME:-\$HOME/.cache}/mediabox/venv\"
+  \"\${XDG_CACHE_HOME:-\$HOME/.cache}/mediabox/venv/bin/python\" -m pip install -r backend/requirements.txt"
 
 [ -d frontend/node_modules ] \
   || die "frontend/node_modules is missing. Install first:
@@ -56,7 +66,7 @@ case "$resolved_media_dir" in
     media_mount="/media/$(id -un)/${media_tail%%/*}"
     [ -d "$media_mount" ] \
       || die "MEDIA_DIR drive is not mounted: $media_mount
-  Mount it in Files, then run ./dev.sh again."
+  Mount it in Files, then run bash dev.sh again."
     ;;
 esac
 
@@ -169,7 +179,7 @@ trap cleanup EXIT INT TERM
 # Run from backend/ so --reload watches only the API source — started from the
 # repo root it also walks frontend/node_modules, which is tens of thousands of
 # files and makes every restart crawl.
-bash -c 'cd backend && exec .venv/bin/python -m uvicorn app.main:app --reload --port "$1"' _ "$API_PORT" &
+bash -c 'cd backend && exec "$2" -m uvicorn app.main:app --reload --port "$1"' _ "$API_PORT" "$BACKEND_PYTHON" &
 pids+=($!)
 
 npm --prefix frontend run dev -- --port "$WEB_PORT" &
