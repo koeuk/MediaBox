@@ -50,6 +50,27 @@ fi
   \"\${XDG_CACHE_HOME:-\$HOME/.cache}/mediabox/venv/bin/python\" -m pip install -r backend/requirements.txt"
 note "Backend Python: $BACKEND_PYTHON"
 
+# Optional local development access to a remote MySQL database. Server
+# installations leave DATABASE_SSH_HOST unset and connect directly.
+database_tunnel_config=$("$BACKEND_PYTHON" - <<'PY'
+import os
+from dotenv import dotenv_values
+from sqlalchemy.engine import make_url
+
+values = dotenv_values("backend/.env")
+host = os.environ.get("DATABASE_SSH_HOST", values.get("DATABASE_SSH_HOST", ""))
+if host:
+    url = make_url(os.environ.get("DATABASE_URL", values.get("DATABASE_URL", "")))
+    if url.get_backend_name() != "mysql" or url.host != "127.0.0.1":
+        raise SystemExit("DATABASE_SSH_HOST requires a MySQL DATABASE_URL on 127.0.0.1")
+    print(host)
+    print(url.port or 3306)
+PY
+)
+if [ -n "$database_tunnel_config" ]; then
+  bash tools/db-tunnel.sh "${database_tunnel_config%%$'\n'*}" "${database_tunnel_config##*$'\n'}"
+fi
+
 [ -d frontend/node_modules ] \
   || die "frontend/node_modules is missing. Install first:
   cd frontend && npm install"

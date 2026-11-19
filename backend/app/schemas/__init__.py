@@ -5,6 +5,7 @@ working regardless of which module a model actually lives in.
 """
 
 from app.schemas.admin import (
+    AccessSettings,
     AdminAnalytics,
     AdminDownloadOut,
     AdminDownloadPageOut,
@@ -49,6 +50,7 @@ from app.schemas.download import (
 from app.schemas.feedback import FeedbackCreate, FeedbackEdit, FeedbackOut
 
 __all__ = [
+    "AccessSettings",
     # auth
     "UserCreate",
     "UserLogin",

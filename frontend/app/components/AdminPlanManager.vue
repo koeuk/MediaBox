@@ -9,6 +9,9 @@ import type { Plan } from '~/types'
  * the same numbers from the public endpoint.
  */
 const { request } = useApi()
+const { paidMode } = useAccessSettings()
+const modeLoaded = ref(false)
+const savingMode = ref(false)
 
 const plans = ref<Plan[]>([])
 const drafts = reactive<Record<string, string>>({})
@@ -25,10 +28,34 @@ function flash(msg: string) {
 
 async function load() {
   try {
-    plans.value = await request<Plan[]>('/admin/plans')
+    const [loadedPlans, settings] = await Promise.all([
+      request<Plan[]>('/admin/plans'),
+      request<{ paid_mode: boolean }>('/admin/access-settings'),
+    ])
+    plans.value = loadedPlans
+    paidMode.value = settings.paid_mode
+    modeLoaded.value = true
     for (const p of plans.value) drafts[p.code] = String(p.price)
   } catch (e) {
     error.value = errorMessage(e, 'Could not load plans.')
+  }
+}
+
+async function toggleMode() {
+  if (!modeLoaded.value || savingMode.value) return
+  error.value = ''
+  savingMode.value = true
+  try {
+    const settings = await request<{ paid_mode: boolean }>('/admin/access-settings', {
+      method: 'PATCH',
+      body: { paid_mode: !paidMode.value },
+    })
+    paidMode.value = settings.paid_mode
+    flash(settings.paid_mode ? 'Paid mode enabled' : 'Free mode enabled')
+  } catch (e) {
+    error.value = errorMessage(e, 'Could not update access mode.')
+  } finally {
+    savingMode.value = false
   }
 }
 
@@ -61,14 +88,41 @@ async function save(plan: Plan) {
 }
 
 onMounted(load)
+onUnmounted(() => clearTimeout(noticeTimer))
 </script>
 
 <template>
   <section class="panel table-panel">
+    <div class="access-mode">
+      <div>
+        <h2 class="label">Download access</h2>
+        <p class="mode-description">
+          {{ !modeLoaded ? 'Loading access mode…' : paidMode
+            ? 'Paid — members need an active subscription for Best, 1080p, and higher.'
+            : 'Free — every signed-in member can download at any quality.' }}
+        </p>
+      </div>
+      <div class="mode-control" :aria-busy="savingMode">
+        <span class="mono mode-label" :class="{ selected: modeLoaded && !paidMode }">Free</span>
+        <button
+          class="mode-switch"
+          type="button"
+          role="switch"
+          aria-label="Require paid subscriptions for premium download qualities"
+          :aria-checked="paidMode"
+          :disabled="!modeLoaded || savingMode"
+          @click="toggleMode"
+        >
+          <span class="mode-thumb" />
+        </button>
+        <span class="mono mode-label" :class="{ selected: modeLoaded && paidMode }">Paid</span>
+      </div>
+    </div>
+    <p class="mode-footnote mono">Saved plan prices and existing subscriptions are kept when switching modes.</p>
     <h2 class="label table-title">Plans &amp; pricing</h2>
 
     <p v-if="error" class="msg err mono">{{ error }}</p>
-    <p v-else-if="notice" class="msg ok mono">{{ notice }}</p>
+    <p v-else-if="notice" class="msg ok mono" role="status">{{ notice }}</p>
 
     <div class="table-scroll">
       <table>
@@ -116,6 +170,29 @@ onMounted(load)
 </template>
 
 <style scoped>
+.access-mode {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.2rem 1.2rem 0.6rem;
+}
+
+.access-mode h2 { margin: 0; }
+.mode-description { margin: 0.55rem 0 0; font-size: 0.8rem; color: var(--text-dim); }
+.mode-control { display: flex; align-items: center; gap: 0.65rem; }
+.mode-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); }
+.mode-label.selected { color: var(--accent); }
+.mode-switch { width: 46px; height: 26px; padding: 3px; border: 1px solid var(--line); border-radius: 20px; background: var(--line); cursor: pointer; }
+.mode-switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.mode-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.mode-switch:disabled { opacity: 0.5; cursor: wait; }
+.mode-thumb { display: block; width: 18px; height: 18px; background: var(--bg, #fff); border-radius: 50%; transition: transform 150ms ease; }
+.mode-switch[aria-checked="true"] .mode-thumb { transform: translateX(20px); }
+.mode-footnote { margin: 0; padding: 0 1.2rem 1.1rem; color: var(--text-faint); font-size: 0.66rem; border-bottom: 1px solid var(--line); }
+@media (prefers-reduced-motion: reduce) { .mode-thumb { transition: none; } }
+
 .table-panel {
   margin-bottom: 1.4rem;
   overflow: hidden;

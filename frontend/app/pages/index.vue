@@ -5,6 +5,7 @@ definePageMeta({ middleware: 'auth' })
 
 const { refreshMediaToken } = useApi()
 const { user, fetchUser } = useAuth()
+const { paidMode, fetchAccessSettings } = useAccessSettings()
 const { fetchCategories } = useCategories()
 
 const {
@@ -96,9 +97,10 @@ const upgradeQuality = ref<string>('')
 // The picker defaults to "Best", which is a paid rung — leaving a free account
 // there would fail on their first download with a 402 they never asked for.
 watch(
-  user,
-  (u) => {
-    if (u && !u.is_premium && !u.is_admin && isPaidQuality(quality.value)) {
+  [user, paidMode],
+  ([u, paid]) => {
+    if (!paid) upgradeOpen.value = false
+    if (paid && u && !u.is_premium && !u.is_admin && isPaidQuality(quality.value)) {
       quality.value = FREE_QUALITY
     }
   },
@@ -127,11 +129,13 @@ onMounted(async () => {
   // Always refetch, not just when it is missing: `user` is cached from login,
   // so an upgrade approved since then would otherwise stay invisible until the
   // next sign-in and high quality would look broken.
-  await fetchUser()
+  await Promise.all([fetchUser(), fetchAccessSettings()])
+  window.addEventListener('focus', fetchAccessSettings)
   // the socket URL carries the media token, so mint it before connecting
   await Promise.all([refresh(), refreshMediaToken(), fetchCategories()])
   startLive()
 })
+onUnmounted(() => window.removeEventListener('focus', fetchAccessSettings))
 </script>
 
 <template>
@@ -145,7 +149,7 @@ onMounted(async () => {
         <h1 class="display hero-title">Add to your box</h1>
 
         <MediaSubmitBar
-          :premium="user?.is_premium || user?.is_admin"
+          :premium="!paidMode || user?.is_premium || user?.is_admin"
           @locked="upgradeQuality = $event; upgradeOpen = true"
           v-model:url="url"
           v-model:quality="quality"

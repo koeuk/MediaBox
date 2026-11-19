@@ -61,6 +61,8 @@ def submit(db: Session, user: User, plan_code: str, method: str) -> PaymentReque
     The amount is read from the plan, never from the request: a client-supplied
     figure only invites claims like "I paid 100" against a plan that costs 10.
     """
+    if not plan_service.is_paid_mode(db):
+        raise PaymentError("Downloads are currently free; no subscription is required.", status=409)
     if method not in ("cash", "qr"):
         raise PaymentError(f"Unknown payment method: {method}")
     if method == "cash" and not get_flag(db, "cash_enabled"):

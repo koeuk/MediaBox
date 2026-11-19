@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
-from app.schemas import GuestDownloadRequest, GuestLimitsOut, PaymentSettingsOut, PlanOut, SiteBrandingOut
+from app.schemas import AccessSettings, GuestDownloadRequest, GuestLimitsOut, PaymentSettingsOut, PlanOut, SiteBrandingOut
 from app.api.deps import DbSession
 from app.services import guest, payments, plans, storage
 
@@ -50,6 +50,11 @@ def limits():
         rate_limit=guest.RATE_LIMIT,
         rate_window_seconds=guest.RATE_WINDOW_SECONDS,
     )
+
+
+@router.get("/access-settings", response_model=AccessSettings)
+def public_access_settings(db: DbSession):
+    return AccessSettings(paid_mode=plans.is_paid_mode(db))
 
 
 @router.get("/plans", response_model=list[PlanOut])

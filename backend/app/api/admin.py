@@ -10,6 +10,7 @@ from app.security import hash_password
 from app.services import payments, plans, storage
 from app.models import Download, DownloadStatus, Feedback, PaymentRequest, PaymentStatus, Plan, User
 from app.schemas import (
+    AccessSettings,
     AdminAnalytics,
     AdminDownloadOut,
     AdminDownloadPageOut,
@@ -400,6 +401,17 @@ def update_payment_settings(payload: PaymentSettingsEdit, db: DbSession, _: Admi
     """Whether members are offered cash at all."""
     payments.set_flag(db, "cash_enabled", payload.cash_enabled)
     return PaymentSettingsOut(cash_enabled=payload.cash_enabled)
+
+
+@router.get("/access-settings", response_model=AccessSettings)
+def access_settings(db: DbSession, _: AdminUser):
+    return AccessSettings(paid_mode=plans.is_paid_mode(db))
+
+
+@router.patch("/access-settings", response_model=AccessSettings)
+def update_access_settings(payload: AccessSettings, db: DbSession, _: AdminUser):
+    payments.set_flag(db, "paid_mode", payload.paid_mode)
+    return AccessSettings(paid_mode=plans.is_paid_mode(db))
 
 
 @router.get("/plans", response_model=list[PlanOut])

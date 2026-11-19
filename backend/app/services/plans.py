@@ -4,7 +4,13 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from app.models import DEFAULT_PLANS, Plan, User
+from app.models import DEFAULT_PLANS, AppSetting, Plan, User
+
+
+def is_paid_mode(db: Session) -> bool:
+    """Missing settings retain the existing subscription requirements."""
+    setting = db.get(AppSetting, "paid_mode")
+    return setting is None or setting.value != "0"
 
 
 def seed(db: Session) -> None:

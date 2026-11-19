@@ -13,7 +13,7 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from app.models import Download, DownloadStatus, User
-from app.services import ffmpeg, jobs, storage
+from app.services import ffmpeg, jobs, plans, storage
 from app.services.bgremove import QUALITY_MODELS, run_remove_bg
 from app.services.converter import run_convert
 from app.services.downloader import run_download
@@ -67,7 +67,7 @@ class PaymentRequired(LibraryError):
     status = 402
 
 
-def ensure_quality_allowed(user: User, quality: str | None) -> None:
+def ensure_quality_allowed(db: Session, user: User, quality: str | None) -> None:
     """Gate the paid qualities.
 
     Enforced here rather than in the router so every entry point — single,
@@ -75,7 +75,7 @@ def ensure_quality_allowed(user: User, quality: str | None) -> None:
     """
     # Admins run the place — gating them behind a payment to themselves would
     # be theatre, and they can grant themselves a plan anyway.
-    if user.is_admin or user.is_premium:
+    if user.is_admin or user.is_premium or not plans.is_paid_mode(db):
         return
     if (quality or "") in PAID_QUALITIES:
         raise PaymentRequired(
@@ -87,14 +87,14 @@ def ensure_quality_allowed(user: User, quality: str | None) -> None:
 def queue_download(
     db: Session, user: User, url: str, title: str | None = None, quality: str | None = None
 ) -> Download:
-    ensure_quality_allowed(user, quality)
+    ensure_quality_allowed(db, user, quality)
     dl = _persist(db, Download(user_id=user.id, url=url, title=title, quality=quality))
     jobs.submit(run_download, dl.id)
     return dl
 
 
 def queue_batch(db: Session, user: User, urls: list[str], quality: str | None) -> list[Download]:
-    ensure_quality_allowed(user, quality)
+    ensure_quality_allowed(db, user, quality)
     records = [Download(user_id=user.id, url=url, quality=quality) for url in urls]
     db.add_all(records)
     db.commit()
@@ -216,6 +216,12 @@ def requeue(db: Session, dl: Download) -> Download:
         raise Conflict("The source file is gone — start again from its card")
     if not dl.is_derived and dl.url.startswith("upload://"):
         raise Conflict("This item can't be re-fetched — convert again from the source card")
+
+    if not dl.is_derived:
+        user = db.get(User, dl.user_id)
+        if user is None:
+            raise LibraryError("User not found", status=404)
+        ensure_quality_allowed(db, user, dl.quality)
 
     dl.status = DownloadStatus.queued
     dl.error = None

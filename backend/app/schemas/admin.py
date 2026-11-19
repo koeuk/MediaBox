@@ -111,6 +111,10 @@ class PlanEdit(BaseModel):
     price: float = Field(ge=0)
 
 
+class AccessSettings(BaseModel):
+    paid_mode: bool
+
+
 class PaymentRequestOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

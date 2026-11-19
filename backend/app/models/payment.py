@@ -49,6 +49,7 @@ class AppSetting(Base):
 
 # key -> default, seeded on first run
 DEFAULT_SETTINGS = {
+    "paid_mode": "1",
     # whether the cash option appears in the upgrade dialog at all
     "cash_enabled": "1",
 }
