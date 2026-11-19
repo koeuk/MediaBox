@@ -1,0 +1,4 @@
+project-includes = ["backend/app/**/*.py", "backend/tests/**/*.py"]
+search-path = ["backend"]
+python-interpreter-path = "backend/.venv/bin/python"
+preset = "basic"
