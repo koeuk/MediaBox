@@ -26,6 +26,7 @@ class ProfileUpdate(BaseModel):
 
 
 class UserOut(BaseModel):
+    default_permissions: dict[PermissionName, bool] = Field(default_factory=dict)
     permissions: dict[PermissionName, bool] | None = None
     model_config = ConfigDict(from_attributes=True)
 

@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from sqlalchemy import func
 
 from app.api.deps import AdminUser, DbSession, require_permission
-from app.permissions import is_full_admin
+from app.permissions import get_defaults, has_admin_access, is_full_admin, set_defaults
+from app.schemas.admin import DefaultPermissions
 from app.security import hash_password
 from app.services import payments, plans, storage
 from app.models import Download, DownloadStatus, Feedback, PaymentRequest, PaymentStatus, Plan, User
@@ -130,11 +131,13 @@ def list_users(db: DbSession, _: Annotated[User, Depends(require_permission("use
         .order_by(User.created_at.asc())
         .all()
     )
+    defaults = get_defaults(db)
     return [
         AdminUserOut(
             id=user.id,
             email=user.email,
             username=user.username,
+            default_permissions={} if user.is_admin else defaults,
             permissions=user.permissions,
             is_admin=user.is_admin,
             is_suspended=user.is_suspended,
@@ -248,6 +251,7 @@ def _user_response(db: DbSession, user: User) -> AdminUserOut:
         id=user.id,
         email=user.email,
         username=user.username,
+        default_permissions=user.default_permissions,
         permissions=user.permissions,
         is_admin=user.is_admin,
         is_suspended=user.is_suspended,
@@ -272,7 +276,7 @@ def update_user(user_id: int, payload: AdminUserEdit, db: DbSession, admin: Anno
     if not is_full_admin(admin):
         if {"permissions", "is_admin"} & changes.keys():
             raise HTTPException(status_code=403, detail="Only a full administrator can define permissions.")
-        if user.is_admin or user.permissions:
+        if user.is_admin or user.permissions or has_admin_access(user):
             raise HTTPException(status_code=403, detail="Only a full administrator can edit privileged accounts.")
     if user.id == admin.id and "permissions" in changes and changes["permissions"] != user.permissions:
         raise HTTPException(status_code=400, detail="You cannot change your own permissions.")
@@ -336,7 +340,7 @@ def delete_user(user_id: int, db: DbSession, admin: Annotated[User, Depends(requ
     user = _user_or_404(db, user_id)
     if user.id == admin.id:
         raise HTTPException(status_code=400, detail="You cannot delete your own account.")
-    if not is_full_admin(admin) and (user.is_admin or user.permissions):
+    if not is_full_admin(admin) and (user.is_admin or user.permissions or has_admin_access(user)):
         raise HTTPException(status_code=403, detail="Only a full administrator can delete privileged accounts.")
     if is_full_admin(user) and _admin_count(db) <= 1:
         raise HTTPException(status_code=400, detail="This is the only admin — promote another first.")
@@ -414,6 +418,16 @@ def update_payment_settings(payload: PaymentSettingsEdit, db: DbSession, _: Anno
     """Whether members are offered cash at all."""
     payments.set_flag(db, "cash_enabled", payload.cash_enabled)
     return PaymentSettingsOut(cash_enabled=payload.cash_enabled)
+
+
+@router.get("/default-permissions", response_model=DefaultPermissions)
+def default_permissions(db: DbSession, _: AdminUser):
+    return DefaultPermissions(permissions=get_defaults(db))
+
+
+@router.put("/default-permissions", response_model=DefaultPermissions)
+def update_default_permissions(payload: DefaultPermissions, db: DbSession, _: AdminUser):
+    return DefaultPermissions(permissions=set_defaults(db, payload.permissions))
 
 
 @router.get("/access-settings", response_model=AccessSettings)

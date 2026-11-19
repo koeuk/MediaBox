@@ -42,6 +42,7 @@ export interface Category {
 }
 
 export interface User {
+  default_permissions?: Record<string, boolean>
   permissions?: Record<string, boolean> | null
   id: number
   email: string
@@ -104,6 +105,7 @@ export interface AdminAnalytics extends AdminDateRange {
 }
 
 export interface AdminUser {
+  default_permissions?: Record<string, boolean>
   permissions?: Record<string, boolean> | null
   id: number
   email: string

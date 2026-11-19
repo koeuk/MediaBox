@@ -37,6 +37,18 @@ function pick(fn: () => void) {
 
 // plan codes for the grant dropdown; prices are managed in AdminPlanManager
 const plans = ref<Plan[]>([])
+const sharedDefaults = ref<Record<string, boolean>>({})
+const defaultsLoaded = ref(false)
+onMounted(async () => {
+  if (!fullAdmin.value) return
+  try {
+    const result = await request<{ permissions: Record<string, boolean> }>('/admin/default-permissions')
+    sharedDefaults.value = result.permissions
+    defaultsLoaded.value = true
+  } catch (e) {
+    error.value = errorMessage(e, 'Could not load default permissions.')
+  }
+})
 onMounted(async () => {
   try {
     if (can('plans.view')) plans.value = await request<Plan[]>('/admin/plans')
@@ -109,12 +121,16 @@ const draft = reactive({ username: '', email: '' })
 
 const permissionTarget = ref<AdminUser | null>(null)
 const permissionRole = ref('member')
+const editingDefaults = ref(false)
+const savingDefaults = ref(false)
+const permissionBusy = computed(() => savingDefaults.value || (permissionTarget.value !== null && busyId.value === permissionTarget.value.id))
+const permissionSelf = computed(() => !!permissionTarget.value && isSelf(permissionTarget.value))
 const permissionDraft = reactive<Record<string, boolean>>({})
 const permissionActions = ['view', 'create', 'edit', 'delete']
 
 function roleDefaults() {
   for (const section of permissionSections) {
-    for (const action of section.actions) permissionDraft[`${section.key}.${action}`] = permissionRole.value === 'admin'
+    for (const action of section.actions) permissionDraft[`${section.key}.${action}`] = permissionRole.value === 'admin' || (sharedDefaults.value[`${section.key}.${action}`] ?? false)
   }
 }
 
@@ -128,6 +144,7 @@ function changePermission(section: string, action: string, checked: boolean) {
 
 function startPermissions(u: AdminUser) {
   error.value = ''
+  editingDefaults.value = false
   permissionTarget.value = u
   permissionRole.value = u.is_admin ? 'admin' : 'member'
   roleDefaults()
@@ -135,13 +152,45 @@ function startPermissions(u: AdminUser) {
 }
 
 async function savePermissions(u: AdminUser) {
-  if (await patch(u, { is_admin: permissionRole.value === 'admin', permissions: Object.values(permissionDraft).every(v => v === (permissionRole.value === 'admin')) ? null : { ...permissionDraft } }, 'Permissions updated')) {
+  if (await patch(u, { is_admin: permissionRole.value === 'admin', permissions: Object.entries(permissionDraft).every(([key, v]) => v === (permissionRole.value === 'admin' || (sharedDefaults.value[key] ?? false))) ? null : { ...permissionDraft } }, 'Permissions updated')) {
     permissionTarget.value = null
   }
 }
 
-function resetPermissions(u: AdminUser) {
-  return patch(u, { is_admin: false, permissions: null }, `Default permissions restored for ${u.username}`)
+function startDefaults() {
+  error.value = ''
+  permissionTarget.value = null
+  editingDefaults.value = true
+  permissionRole.value = 'member'
+  roleDefaults()
+}
+
+function closePermissions() {
+  if (permissionBusy.value) return
+  permissionTarget.value = null
+  editingDefaults.value = false
+}
+
+async function submitPermissions() {
+  if (!editingDefaults.value) {
+    if (permissionTarget.value) await savePermissions(permissionTarget.value)
+    return
+  }
+  savingDefaults.value = true
+  error.value = ''
+  try {
+    const result = await request<{ permissions: Record<string, boolean> }>('/admin/default-permissions', {
+      method: 'PUT', body: { permissions: { ...permissionDraft } },
+    })
+    sharedDefaults.value = result.permissions
+    emit('changed', rows.value.map(u => ({ ...u, default_permissions: u.is_admin ? {} : result.permissions })))
+    editingDefaults.value = false
+    flash('Default permissions saved')
+  } catch (e) {
+    error.value = errorMessage(e, 'Could not save default permissions.')
+  } finally {
+    savingDefaults.value = false
+  }
 }
 
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
@@ -281,7 +330,10 @@ async function confirmDelete() {
 
 <template>
   <section class="panel table-panel">
-    <h2 class="label table-title">Users</h2>
+    <div class="users-heading">
+      <h2 class="label table-title">Users</h2>
+      <button v-if="fullAdmin" class="btn btn-ghost" type="button" :disabled="!defaultsLoaded" @click="startDefaults">Default permissions</button>
+    </div>
 
     <p v-if="error" class="msg err mono">{{ error }}</p>
     <p v-else-if="notice" class="msg ok mono">{{ notice }}</p>
@@ -325,7 +377,7 @@ async function confirmDelete() {
 
             <td class="actions-col">
               <button
-                v-if="(fullAdmin || (!u.is_admin && !u.permissions)) && (can('users.edit') || can('users.delete'))"
+                v-if="(fullAdmin || (!u.is_admin && !u.permissions && !permissionSections.some(section => hasPermission(u, `${section.key}.view`)))) && (can('users.edit') || can('users.delete'))"
                 class="btn btn-ghost btn-icon kebab"
                 :class="{ on: menuOpen && menuFor?.id === u.id }"
                 :disabled="busyId === u.id"
@@ -390,18 +442,20 @@ async function confirmDelete() {
 
     <Teleport to="body">
       <Transition name="dialog">
-        <div v-if="permissionTarget" class="overlay" @click.self="busyId === null && (permissionTarget = null)" @keydown.esc="busyId === null && (permissionTarget = null)">
-          <form class="dialog panel permissions-dialog" role="dialog" aria-modal="true" aria-labelledby="permissions-title" @submit.prevent="savePermissions(permissionTarget)">
-            <h3 id="permissions-title" class="dialog-title">Define permissions</h3>
-            <p class="dialog-message">{{ permissionTarget.username }} · {{ permissionTarget.email }}</p>
-            <p class="permission-note">Choose a role, then allow specific actions. View only means Create, Edit, and Delete are unchecked.</p>
+        <div v-if="permissionTarget || editingDefaults" class="overlay" @click.self="closePermissions" @keydown.esc="closePermissions">
+          <form class="dialog panel permissions-dialog" role="dialog" aria-modal="true" aria-labelledby="permissions-title" @submit.prevent="submitPermissions">
+            <h3 id="permissions-title" class="dialog-title">{{ editingDefaults ? 'Default permissions' : 'Define permissions' }}</h3>
+            <p v-if="permissionTarget" class="dialog-message">{{ permissionTarget.username }} · {{ permissionTarget.email }}</p>
+            <p class="permission-note">{{ editingDefaults
+              ? 'Set the permissions members inherit by default. Applies to existing and new members; individual overrides are kept.'
+              : 'Choose a role, then allow specific actions. View only means Create, Edit, and Delete are unchecked.' }}</p>
             <p v-if="error" class="msg err mono dialog-msg">{{ error }}</p>
-            <label class="permission-option">
-              <input v-model="permissionRole" type="radio" name="permission-role" value="member" @change="roleDefaults" :disabled="busyId === permissionTarget.id || isSelf(permissionTarget)" />
+            <label v-if="!editingDefaults" class="permission-option">
+              <input v-model="permissionRole" type="radio" name="permission-role" value="member" @change="roleDefaults" :disabled="permissionBusy || permissionSelf" />
               <span><strong>Member (default)</strong><small>Use MediaBox with normal account access.</small></span>
             </label>
-            <label class="permission-option">
-              <input v-model="permissionRole" type="radio" name="permission-role" value="admin" @change="roleDefaults" :disabled="busyId === permissionTarget.id" />
+            <label v-if="!editingDefaults" class="permission-option">
+              <input v-model="permissionRole" type="radio" name="permission-role" value="admin" @change="roleDefaults" :disabled="permissionBusy" />
               <span><strong>Administrator</strong><small>Manage users, plans, payments, and site settings.</small></span>
             </label>
             <div class="table-scroll permission-matrix">
@@ -413,7 +467,7 @@ async function confirmDelete() {
                     <td v-for="action in permissionActions" :key="action">
                       <input v-if="(section.actions as readonly string[]).includes(action)" type="checkbox"
                         :aria-label="`${section.label}: ${action}`" :checked="permissionDraft[`${section.key}.${action}`]"
-                        :disabled="busyId === permissionTarget.id || isSelf(permissionTarget)"
+                        :disabled="permissionBusy || permissionSelf"
                         @change="changePermission(section.key, action, ($event.target as HTMLInputElement).checked)" />
                       <span v-else class="dim" aria-label="Not available">—</span>
                     </td>
@@ -421,10 +475,10 @@ async function confirmDelete() {
                 </tbody>
               </table>
             </div>
-            <p v-if="isSelf(permissionTarget)" class="permission-note">You cannot remove your own administrator access.</p>
+            <p v-if="permissionSelf" class="permission-note">You cannot remove your own administrator access.</p>
             <div class="dialog-actions">
-              <button type="button" class="btn btn-ghost" :disabled="busyId === permissionTarget.id" @click="permissionTarget = null">Cancel</button>
-              <button type="submit" class="btn btn-accent" :disabled="busyId === permissionTarget.id">{{ busyId === permissionTarget.id ? 'Saving…' : 'Save permissions' }}</button>
+              <button type="button" class="btn btn-ghost" :disabled="permissionBusy" @click="closePermissions">Cancel</button>
+              <button type="submit" class="btn btn-accent" :disabled="permissionBusy">{{ permissionBusy ? 'Saving…' : editingDefaults ? 'Save defaults' : 'Save permissions' }}</button>
             </div>
           </form>
         </div>
@@ -446,19 +500,9 @@ async function confirmDelete() {
             Edit account
           </button>
 
-          <button v-if="fullAdmin" class="pop-item" role="menuitem" @click="pick(() => startPermissions(menuFor!))">
+          <button v-if="fullAdmin" :disabled="!defaultsLoaded" class="pop-item" role="menuitem" @click="pick(() => startPermissions(menuFor!))">
             Define permissions
           </button>
-          <button
-            class="pop-item"
-            role="menuitem"
-            v-if="fullAdmin"
-            :disabled="(!menuFor.is_admin && !menuFor.permissions) || isSelf(menuFor)"
-            @click="pick(() => resetPermissions(menuFor!))"
-          >
-            Default permissions
-          </button>
-
           <button
             v-if="!isSelf(menuFor) && can('users.edit')"
             class="pop-item"
@@ -583,11 +627,15 @@ async function confirmDelete() {
 </template>
 
 <style scoped>
-.permissions-dialog { max-width: 660px; max-height: 90vh; overflow-y: auto; }
+.dialog.permissions-dialog { max-width: 660px; max-height: 90vh; overflow-y: auto; }
 .permission-matrix { margin-top: 1rem; }
 .permission-matrix th, .permission-matrix td { padding: 0.65rem; }
 .permission-matrix td:not(:first-child), .permission-matrix th:not(:first-child) { text-align: center; }
 .permission-matrix input { accent-color: var(--accent); }
+
+.users-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.9rem 1.2rem 0; }
+.users-heading .table-title { padding: 0; }
+.users-heading .btn { font-size: 0.72rem; }
 
 .permission-note {
   color: var(--text-dim);

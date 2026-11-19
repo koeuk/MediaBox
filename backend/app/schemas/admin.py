@@ -32,6 +32,7 @@ class AdminAnalytics(BaseModel):
 
 
 class AdminUserOut(BaseModel):
+    default_permissions: dict[PermissionName, bool] = Field(default_factory=dict)
     permissions: dict[PermissionName, bool] | None = None
     id: int
     email: EmailStr
@@ -146,3 +147,7 @@ class PaymentSettingsOut(BaseModel):
 
 class PaymentSettingsEdit(BaseModel):
     cash_enabled: bool
+
+
+class DefaultPermissions(BaseModel):
+    permissions: dict[PermissionName, StrictBool]

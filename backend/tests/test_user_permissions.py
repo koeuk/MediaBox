@@ -127,3 +127,78 @@ class UserPermissionsTests(unittest.TestCase):
         self.set_role(self.member, True)
         self.permissions({'feedback.delete': False})
         self.assertEqual(self.client.delete(f'/admin/users/{self.member.id}', headers=self.admin_headers).status_code, 204)
+
+    def save_defaults(self, values, headers=None):
+        return self.client.put('/admin/default-permissions', json={'permissions': values}, headers=headers or self.admin_headers)
+
+    def test_shared_defaults_apply_to_existing_and_new_members(self):
+        from sqlalchemy.orm import Session
+        from app.models import AppSetting
+        self.assertEqual(self.client.get('/admin/default-permissions', headers=self.admin_headers).json(), {'permissions': {}})
+        response = self.save_defaults({'feedback.view': True})
+        self.assertEqual(response.status_code, 200, response.text)
+        with Session(self.engine) as other:
+            self.assertEqual(other.get(AppSetting, 'default_perm:feedback.view').value, '1')
+        self.assertEqual(self.client.get('/admin/feedback', headers=self.member_headers).status_code, 200)
+        self.assertEqual(self.client.post('/admin/feedback', json={'body': 'No create access'}, headers=self.member_headers).status_code, 403)
+        newcomer = User(email='new@example.com', username='new', hashed_password='unused')
+        self.db.add(newcomer)
+        self.db.commit()
+        from app.permissions import can
+        self.assertTrue(can(newcomer, 'feedback.view'))
+        self.assertFalse(can(newcomer, 'feedback.edit'))
+        self.save_defaults({})
+        self.assertEqual(self.client.get('/admin/feedback', headers=self.member_headers).status_code, 403)
+        self.assertEqual(self.client.get('/admin/users', headers=self.admin_headers).status_code, 200)
+
+    def test_defaults_keep_individual_overrides(self):
+        self.permissions({'feedback.view': False, 'plans.view': True})
+        self.save_defaults({'feedback.view': True})
+        self.assertEqual(self.client.get('/admin/feedback', headers=self.member_headers).status_code, 403)
+        self.assertEqual(self.client.get('/admin/plans', headers=self.member_headers).status_code, 200)
+        self.db.refresh(self.member)
+        self.assertEqual(self.member.permissions, {'feedback.view': False, 'plans.view': True})
+
+    def test_defaults_require_full_admin_and_validate_actions(self):
+        self.assertEqual(self.save_defaults({'feedback.view': True}, self.member_headers).status_code, 403)
+        self.set_role(self.member, True)
+        self.permissions({'feedback.delete': False})
+        self.assertEqual(self.save_defaults({}, self.member_headers).status_code, 403)
+        self.assertEqual(self.client.get('/admin/default-permissions', headers=self.member_headers).status_code, 403)
+        for values in ({'unknown.view': True}, {'feedback.view': 'yes'}):
+            self.assertEqual(self.save_defaults(values).status_code, 422)
+
+    def test_auth_response_exposes_defaults_for_frontend(self):
+        from app.api import auth
+        self.client.app.include_router(auth.router, prefix='/auth')
+        self.save_defaults({'feedback.view': True})
+        response = self.client.get('/auth/me', headers=self.member_headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()['default_permissions']['feedback.view'])
+        self.assertIsNone(response.json()['permissions'])
+
+    def test_delegates_cannot_take_over_accounts_with_inherited_access(self):
+        self.save_defaults({'feedback.view': True, 'feedback.create': True})
+        self.permissions({'users.view': True, 'users.edit': True, 'users.delete': True, 'feedback.create': False})
+        victim = User(email='victim@example.com', username='victim', hashed_password='unused')
+        self.db.add(victim)
+        self.db.commit()
+        response = self.client.patch(f'/admin/users/{victim.id}', json={'new_password': 'takeover'}, headers=self.member_headers)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.client.delete(f'/admin/users/{victim.id}', headers=self.member_headers).status_code, 403)
+
+    def test_user_listing_reads_shared_defaults_once(self):
+        from sqlalchemy import event
+        self.db.add_all(User(email=f'user{i}@example.com', username=f'user{i}', hashed_password='unused') for i in range(5))
+        self.db.commit()
+        queries = []
+        def track(conn, cursor, statement, parameters, context, executemany):
+            if 'app_settings' in statement:
+                queries.append(statement)
+        event.listen(self.engine, 'before_cursor_execute', track)
+        try:
+            response = self.client.get('/admin/users', headers=self.admin_headers)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(len(queries), 1)
+        finally:
+            event.remove(self.engine, 'before_cursor_execute', track)

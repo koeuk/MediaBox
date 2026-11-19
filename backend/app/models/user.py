@@ -42,6 +42,14 @@ class User(Base):
     payments = relationship("PaymentRequest", cascade="all, delete-orphan")
 
     @property
+    def default_permissions(self) -> dict[str, bool]:
+        if self.is_admin:
+            return {}
+        from sqlalchemy.orm import object_session
+        from app.permissions import get_defaults
+        return get_defaults(object_session(self))
+
+    @property
     def has_avatar(self) -> bool:
         return self.avatar_path is not None
 

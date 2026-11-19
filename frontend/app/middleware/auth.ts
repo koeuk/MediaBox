@@ -1,6 +1,6 @@
-export default defineNuxtRouteMiddleware(() => {
+export default defineNuxtRouteMiddleware((to) => {
   const token = useCookie<string | null>('mediabox_token')
   if (!token.value) {
-    return navigateTo('/login')
+    return navigateTo(to.path === '/' ? '/free' : '/login')
   }
 })

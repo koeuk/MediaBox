@@ -40,6 +40,58 @@ const picked = ref('480')
 const touched = ref(false)
 const busy = ref(false)
 const error = ref('')
+const readyFile = shallowRef<File | null>(null)
+const sharing = ref(false)
+const shareError = ref('')
+const canShare = computed(() => {
+  if (!readyFile.value || typeof navigator === 'undefined') return false
+  try {
+    return !!navigator.share && !!navigator.canShare?.({ files: [readyFile.value] })
+  } catch {
+    return false
+  }
+})
+
+// The guest endpoint streams generic binary data. Native photo apps need the
+// actual media type, which we can recover from the server's filename.
+function mediaFile(blob: Blob, name: string) {
+  const types: Record<string, string> = {
+    mp4: 'video/mp4', mov: 'video/quicktime', m4v: 'video/mp4', webm: 'video/webm',
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+    mp3: 'audio/mpeg', m4a: 'audio/mp4',
+  }
+  const extension = name.split('.').pop()?.toLowerCase() || ''
+  return new File([blob], name, { type: types[extension] || blob.type })
+}
+
+function downloadFile() {
+  if (!readyFile.value) return
+  const objectUrl = URL.createObjectURL(readyFile.value)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = readyFile.value.name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000)
+}
+
+async function shareFile() {
+  if (!readyFile.value || !canShare.value || sharing.value) return
+  shareError.value = ''
+  sharing.value = true
+  try {
+    // Called directly from a second tap: fetching first would lose the user
+    // activation required to open the phone's native share sheet.
+    await navigator.share({ files: [readyFile.value] })
+  } catch (e: any) {
+    if (e?.name !== 'AbortError') {
+      shareError.value = 'Could not open sharing. Use Download file, then share it from your Files app.'
+    }
+  } finally {
+    sharing.value = false
+  }
+}
 
 // The members' full ladder, shown to guests as well. The ones a guest cannot
 // have stay visible but locked: hiding them would leave no hint that signing up
@@ -98,7 +150,7 @@ function filenameFrom(header: string | null): string {
 }
 
 async function submit() {
-  if (!url.value.trim() || busy.value) return
+  if (!url.value.trim() || busy.value || sharing.value) return
   error.value = ''
   busy.value = true
   try {
@@ -117,15 +169,9 @@ async function submit() {
     // there is no stored URL to link to
     const name = filenameFrom(res.headers.get('content-disposition'))
     const blob = await res.blob()
-    const objectUrl = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = objectUrl
-    a.download = name
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    // revoke late: Safari needs the URL alive past the click
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000)
+    readyFile.value = mediaFile(blob, name)
+    shareError.value = ''
+    downloadFile()
     url.value = ''
   } catch (e: any) {
     error.value = e?.message || 'Could not download that link.'
@@ -166,7 +212,7 @@ async function submit() {
             placeholder="https:// — paste a supported video link or direct media URL"
           />
           <AppSelect v-model="quality" :options="options" aria-label="Download quality" />
-          <button class="btn btn-accent submit-btn" type="submit" :disabled="busy || !url.trim()">
+          <button class="btn btn-accent submit-btn" type="submit" :disabled="busy || sharing || !url.trim()">
             {{ busy ? 'Downloading…' : 'Download' }}
           </button>
         </form>
@@ -175,6 +221,26 @@ async function submit() {
         <p v-else-if="busy" class="submit-note">
           Fetching the video — this can take a minute for longer clips. Keep this tab open.
         </p>
+
+        <div v-if="readyFile" class="download-ready">
+          <div class="ready-copy" role="status">
+            <p class="ready-title">Your file is ready</p>
+            <p class="ready-name mono">{{ readyFile.name }}</p>
+            <p v-if="canShare" class="note">
+              Tap Save / Share, then choose Save Video, Save Image, or a photo app if your phone offers it.
+            </p>
+            <p v-else class="note">
+              Open the downloaded file in Files, then use Share to save it to Photos or Gallery if available.
+            </p>
+          </div>
+          <div class="ready-actions">
+            <button v-if="canShare" type="button" class="btn btn-accent" :disabled="sharing || busy" @click="shareFile">
+              {{ sharing ? 'Sharing…' : 'Save / Share' }}
+            </button>
+            <button type="button" class="btn" @click="downloadFile">Download file</button>
+          </div>
+          <p v-if="shareError" class="submit-error" role="alert">{{ shareError }}</p>
+        </div>
 
         <div class="footer">
           <p class="note mono">
@@ -198,6 +264,25 @@ async function submit() {
 </template>
 
 <style scoped>
+.download-ready {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.2rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg-raised);
+}
+
+.ready-copy { flex: 1; min-width: 0; }
+.ready-title { margin: 0 0 0.35rem; font-weight: 600; }
+.ready-name { margin: 0 0 0.5rem; font-size: 0.75rem; color: var(--accent); overflow-wrap: anywhere; }
+.ready-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.download-ready .submit-error { flex-basis: 100%; margin: 0; }
+
 .wrap {
   position: relative;
   min-height: 100vh;

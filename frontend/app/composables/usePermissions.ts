@@ -12,8 +12,8 @@ export const permissionSections = [
 export function hasPermission(user: User | AdminUser | null, permission: string): boolean {
   if (!user) return false
   const [section, action] = permission.split('.')
-  const allowed = user.permissions?.[permission] ?? user.is_admin
-  return allowed && (action === 'view' || (user.permissions?.[`${section}.view`] ?? user.is_admin))
+  const allowed = user.permissions?.[permission] ?? user.default_permissions?.[permission] ?? user.is_admin
+  return allowed && (action === 'view' || (user.permissions?.[`${section}.view`] ?? user.default_permissions?.[`${section}.view`] ?? user.is_admin))
 }
 
 export function usePermissions() {
