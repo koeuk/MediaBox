@@ -3,6 +3,7 @@ import type { Category } from '~/types'
 
 definePageMeta({ middleware: 'auth' })
 const { can } = usePermissions()
+const { user, fetchUser } = useAuth()
 
 const {
   categories,
@@ -37,6 +38,7 @@ const saving = ref(false)
 const pendingDelete = ref<Category | null>(null)
 
 onMounted(async () => {
+  if (!user.value) await fetchUser()
   try {
     await fetchCategories(true)
   } catch (e) {

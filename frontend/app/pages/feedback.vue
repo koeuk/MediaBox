@@ -2,7 +2,7 @@
 import type { Feedback } from '~/types'
 
 const { request } = useApi()
-const { user } = useAuth()
+const { user, token, fetchUser } = useAuth()
 const { can } = usePermissions()
 
 const feedbacks = ref<Feedback[]>([])
@@ -48,6 +48,7 @@ function onKey(e: KeyboardEvent) {
 
 onMounted(async () => {
   window.addEventListener('keydown', onKey)
+  if (token.value && !user.value) await fetchUser()
   await loadFeedback()
 })
 
@@ -181,7 +182,7 @@ function formatDateDisplay(iso: string) {
           </p>
         </div>
         <button
-          v-if="!user || can('public_feedback.create')"
+          v-if="!token || (user && can('public_feedback.create'))"
           class="btn btn-accent action-btn"
           type="button"
           @click="showForm = true"

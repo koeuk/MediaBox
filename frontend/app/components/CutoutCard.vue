@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { can } = usePermissions()
 import type { Download } from '~/types'
 
 /**
@@ -85,6 +86,7 @@ const failed = computed(() => props.download.status === 'failed')
 
     <div class="controls">
       <button
+        v-if="can('media.edit')"
         class="chip"
         :class="{ on: download.is_favorite }"
         :title="download.is_favorite ? 'Remove from favorites' : 'Add to favorites'"
@@ -97,7 +99,7 @@ const failed = computed(() => props.download.status === 'failed')
       </button>
 
       <button
-        v-if="failed && download.can_retry"
+        v-if="can('media.create') && failed && download.can_retry"
         class="chip"
         title="Try again"
         aria-label="Try again"
@@ -109,7 +111,7 @@ const failed = computed(() => props.download.status === 'failed')
       </button>
 
       <button
-        v-if="active"
+        v-if="can('media.edit') && active"
         class="chip"
         title="Stop"
         aria-label="Stop"
