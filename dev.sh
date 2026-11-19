@@ -131,12 +131,12 @@ WEB_PORT=$(pick_port "$web_wanted") || die "no free port near $web_wanted"
 # The browser reads this to reach the API, so it has to follow the port we
 # actually bound. An exported value wins over frontend/.env, which dotenv
 # will not use to overwrite an existing variable.
-export NUXT_PUBLIC_API_BASE="http://localhost:$API_PORT/api"
+export NUXT_PUBLIC_API_BASE="${NUXT_PUBLIC_API_BASE:-http://localhost:$API_PORT/api}"
 
 # The API is a different origin from the page, so it must allow the port the
 # UI actually got — otherwise every request fails CORS in the browser while
 # curl still works, which is a miserable thing to debug.
-export CORS_ORIGINS="http://localhost:$WEB_PORT,http://127.0.0.1:$WEB_PORT"
+export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost:$WEB_PORT,http://127.0.0.1:$WEB_PORT}"
 
 pids=()
 

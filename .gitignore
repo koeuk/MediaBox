@@ -1,7 +1,7 @@
 # ── Python / backend ──────────────────────────────────────────────
 __pycache__/
 *.py[cod]
-.venv/
+.venv
 venv/
 *.egg-info/
 
@@ -17,7 +17,7 @@ backend/media/
 *.sqlite3
 
 # ── Node / frontend ───────────────────────────────────────────────
-node_modules/
+node_modules
 .nuxt/
 .output/
 dist/
