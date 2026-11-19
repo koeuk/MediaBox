@@ -151,3 +151,30 @@ class PaymentSettingsEdit(BaseModel):
 
 class DefaultPermissions(BaseModel):
     permissions: dict[PermissionName, StrictBool]
+
+
+class AdminUserCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    username: str = Field(min_length=2, max_length=80)
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=128)
+    is_admin: StrictBool = False
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def trim_username(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class PlanCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,15}$")
+    label: str = Field(min_length=1, max_length=40)
+    days: int = Field(ge=1, le=3650, strict=True)
+    price: float = Field(default=0, ge=0, le=99999999.99)
+    is_free: StrictBool = False
+
+    @field_validator("code", "label", mode="before")
+    @classmethod
+    def trim_text(cls, value):
+        return value.strip() if isinstance(value, str) else value

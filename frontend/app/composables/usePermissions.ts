@@ -4,8 +4,8 @@ export const adminPermissionSections = [
   { key: 'dashboard', label: 'Dashboard', actions: ['view'] },
   { key: 'downloads', label: 'All downloads (admin)', actions: ['view'] },
   { key: 'feedback', label: 'Feedback (admin)', actions: ['view', 'create', 'edit', 'delete'] },
-  { key: 'users', label: 'Users', actions: ['view', 'edit', 'delete'] },
-  { key: 'plans', label: 'Plans', actions: ['view', 'edit'] },
+  { key: 'users', label: 'Users', actions: ['view', 'create', 'edit', 'delete'] },
+  { key: 'plans', label: 'Plans', actions: ['view', 'create', 'edit', 'delete'] },
   { key: 'payments', label: 'Payments', actions: ['view', 'edit'] },
 ] as const
 

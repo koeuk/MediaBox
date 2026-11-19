@@ -7,8 +7,8 @@ PermissionName = Literal[
     'public_feedback.view', 'public_feedback.create',
     'dashboard.view', 'downloads.view',
     'feedback.view', 'feedback.create', 'feedback.edit', 'feedback.delete',
-    'users.view', 'users.edit', 'users.delete',
-    'plans.view', 'plans.edit', 'payments.view', 'payments.edit',
+    'users.view', 'users.create', 'users.edit', 'users.delete',
+    'plans.view', 'plans.create', 'plans.edit', 'plans.delete', 'payments.view', 'payments.edit',
 ]
 
 
@@ -65,3 +65,9 @@ def can(user, permission: str, defaults: dict[str, bool] | None = None) -> bool:
 def has_admin_access(user) -> bool:
     defaults = user.default_permissions
     return any(can(user, permission, defaults) for permission in ADMIN_PERMISSIONS)
+
+
+def has_more_access(user, other) -> bool:
+    defaults = user.default_permissions
+    other_defaults = other.default_permissions
+    return any(can(user, permission, defaults) and not can(other, permission, other_defaults) for permission in get_args(PermissionName))

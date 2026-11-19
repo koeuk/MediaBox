@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Integer, Numeric, String, false
+from sqlalchemy import Boolean, Integer, Numeric, String, false, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -23,6 +23,8 @@ class Plan(Base):
     # up displaying as 2.9999999
     price: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     is_free: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # Keep historical payment references when a plan is removed from sale.
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
 

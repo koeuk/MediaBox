@@ -5,6 +5,8 @@ withDefaults(
     placeholder?: string
     autocomplete?: string
     minlength?: number
+    maxlength?: number
+    disabled?: boolean
     /** Off for optional fields — an empty `required` input blocks the whole
      *  form from submitting, with no visible reason. */
     required?: boolean
@@ -24,12 +26,15 @@ const show = ref(false)
       :type="show ? 'text' : 'password'"
       :required="required"
       :minlength="minlength"
+      :maxlength="maxlength"
+      :disabled="disabled"
       :autocomplete="autocomplete"
       :placeholder="placeholder"
     />
     <button
       type="button"
       class="pw-toggle"
+      :disabled="disabled"
       :title="show ? 'Hide password' : 'Show password'"
       :aria-label="show ? 'Hide password' : 'Show password'"
       @click="show = !show"

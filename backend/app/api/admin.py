@@ -1,13 +1,14 @@
 from datetime import date, datetime, time, timezone
 
-from typing import Annotated
+from typing import Annotated, get_args
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import AdminUser, DbSession, require_permission
-from app.permissions import get_defaults, has_admin_access, is_full_admin, set_defaults
-from app.schemas.admin import DefaultPermissions
+from app.permissions import PermissionName, can, get_defaults, has_admin_access, has_more_access, is_full_admin, set_defaults
+from app.schemas.admin import AdminUserCreate, DefaultPermissions, PlanCreate
 from app.security import hash_password
 from app.services import payments, plans, storage
 from app.models import Download, DownloadStatus, Feedback, PaymentRequest, PaymentStatus, Plan, User
@@ -263,6 +264,29 @@ def _user_response(db: DbSession, user: User) -> AdminUserOut:
     )
 
 
+@router.post("/users", response_model=AdminUserOut, status_code=status.HTTP_201_CREATED)
+def create_user(payload: AdminUserCreate, db: DbSession, admin: Annotated[User, Depends(require_permission("users.create"))]):
+    if not is_full_admin(admin):
+        if payload.is_admin:
+            raise HTTPException(status_code=403, detail="Only a full administrator can create administrators.")
+        defaults = get_defaults(db)
+        inherited = User(is_admin=False)
+        for permission in get_args(PermissionName):
+            if can(inherited, permission, defaults) and not can(admin, permission):
+                raise HTTPException(status_code=403, detail="Default member permissions exceed your access. Ask a full administrator to create this account.")
+    if db.query(User).filter(User.email == payload.email).first():
+        raise HTTPException(status_code=409, detail="Email already registered")
+    user = User(username=payload.username, email=str(payload.email), hashed_password=hash_password(payload.password), is_admin=payload.is_admin)
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Email already registered")
+    db.refresh(user)
+    return _user_response(db, user)
+
+
 @router.patch("/users/{user_id}", response_model=AdminUserOut)
 def update_user(user_id: int, payload: AdminUserEdit, db: DbSession, admin: Annotated[User, Depends(require_permission("users.edit"))]):
     """Rename an account, change its address, or grant/revoke admin and access.
@@ -276,7 +300,7 @@ def update_user(user_id: int, payload: AdminUserEdit, db: DbSession, admin: Anno
     if not is_full_admin(admin):
         if {"permissions", "is_admin"} & changes.keys():
             raise HTTPException(status_code=403, detail="Only a full administrator can define permissions.")
-        if user.is_admin or user.permissions or has_admin_access(user):
+        if user.is_admin or user.permissions or has_admin_access(user) or has_more_access(user, admin):
             raise HTTPException(status_code=403, detail="Only a full administrator can edit privileged accounts.")
     if user.id == admin.id and "permissions" in changes and changes["permissions"] != user.permissions:
         raise HTTPException(status_code=400, detail="You cannot change your own permissions.")
@@ -318,7 +342,7 @@ def update_user(user_id: int, payload: AdminUserEdit, db: DbSession, admin: Anno
             plans.clear(db, user)
         else:
             plan = db.get(Plan, plan_code)
-            if plan is None:
+            if plan is None or not plan.is_active:
                 raise HTTPException(status_code=404, detail=f"No such plan: {plan_code}")
             plans.apply(db, user, plan)
 
@@ -340,7 +364,7 @@ def delete_user(user_id: int, db: DbSession, admin: Annotated[User, Depends(requ
     user = _user_or_404(db, user_id)
     if user.id == admin.id:
         raise HTTPException(status_code=400, detail="You cannot delete your own account.")
-    if not is_full_admin(admin) and (user.is_admin or user.permissions or has_admin_access(user)):
+    if not is_full_admin(admin) and (user.is_admin or user.permissions or has_admin_access(user) or has_more_access(user, admin)):
         raise HTTPException(status_code=403, detail="Only a full administrator can delete privileged accounts.")
     if is_full_admin(user) and _admin_count(db) <= 1:
         raise HTTPException(status_code=400, detail="This is the only admin — promote another first.")
@@ -446,11 +470,36 @@ def list_plans(db: DbSession, _: Annotated[User, Depends(require_permission("pla
     return plans.listing(db)
 
 
+@router.post("/plans", response_model=PlanOut, status_code=status.HTTP_201_CREATED)
+def create_plan(payload: PlanCreate, db: DbSession, _: Annotated[User, Depends(require_permission("plans.create"))]):
+    if db.get(Plan, payload.code) is not None:
+        raise HTTPException(status_code=409, detail="That plan code is already used. Choose another code.")
+    order = db.query(func.coalesce(func.max(Plan.sort_order), 0)).scalar() or 0
+    plan = Plan(**payload.model_dump(), sort_order=order + 1)
+    db.add(plan)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="That plan code is already used. Choose another code.")
+    db.refresh(plan)
+    return plan
+
+
+@router.delete("/plans/{code}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_plan(code: str, db: DbSession, _: Annotated[User, Depends(require_permission("plans.delete"))]):
+    plan = db.get(Plan, code)
+    if plan is None or not plan.is_active:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    plan.is_active = False
+    db.commit()
+
+
 @router.patch("/plans/{code}", response_model=PlanOut)
 def update_plan(code: str, payload: PlanEdit, db: DbSession, _: Annotated[User, Depends(require_permission("plans.edit"))]):
     """Set what a plan costs. Prices are data, not code, so they live here."""
     plan = db.get(Plan, code)
-    if plan is None:
+    if plan is None or not plan.is_active:
         raise HTTPException(status_code=404, detail="Plan not found")
     if payload.price is not None:
         plan.price = payload.price

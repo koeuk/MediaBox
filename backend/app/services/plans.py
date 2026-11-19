@@ -31,7 +31,7 @@ def seed(db: Session) -> None:
 
 
 def listing(db: Session) -> list[Plan]:
-    return db.query(Plan).order_by(Plan.sort_order.asc()).all()
+    return db.query(Plan).filter(Plan.is_active.is_(True)).order_by(Plan.sort_order.asc()).all()
 
 
 def apply(db: Session, user: User, plan: Plan) -> User:

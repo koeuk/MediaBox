@@ -68,7 +68,7 @@ def submit(db: Session, user: User, plan_code: str, method: str) -> PaymentReque
     if method == "cash" and not get_flag(db, "cash_enabled"):
         raise PaymentError("Cash payment is not available right now.")
     plan = db.get(Plan, plan_code)
-    if plan is None:
+    if plan is None or not plan.is_active:
         raise PaymentError("Plan not found", status=404)
     if plan.is_free and method != "free":
         raise PaymentError("This plan is free. Activate it without a payment.", status=409)

@@ -18,7 +18,7 @@ const { open: menuOpen, anchor, menu, pos, placed, toggle, close: closeMenu } = 
 /** Which row's menu is showing — usePopMenu only tracks open/closed. */
 const menuFor = ref<AdminUser | null>(null)
 
-function openMenu(event: MouseEvent, u: AdminUser) {
+async function openMenu(event: MouseEvent, u: AdminUser) {
   // Every row renders the same button, so a template `ref` here would collect
   // them into an array and positioning would read the wrong element (or none).
   // The clicked button is the anchor.
@@ -27,6 +27,9 @@ function openMenu(event: MouseEvent, u: AdminUser) {
   menuFor.value = u
   anchor.value = event.currentTarget as HTMLElement
   toggle()
+  if (menuOpen.value && can('plans.view')) {
+    try { plans.value = await request<Plan[]>('/admin/plans') } catch {}
+  }
 }
 
 /** Run an action and shut the menu, so it never lingers over the result. */
@@ -118,6 +121,42 @@ const error = ref('')
 const notice = ref('')
 
 const draft = reactive({ username: '', email: '' })
+
+const creatingUser = ref(false)
+const savingUser = ref(false)
+const createDraft = reactive({ username: '', email: '', password: '', is_admin: false })
+
+function startCreateUser() {
+  error.value = ''
+  Object.assign(createDraft, { username: '', email: '', password: '', is_admin: false })
+  creatingUser.value = true
+}
+
+function closeCreateUser() {
+  if (savingUser.value) return
+  creatingUser.value = false
+  createDraft.password = ''
+}
+
+async function createUser() {
+  if (savingUser.value) return
+  savingUser.value = true
+  error.value = ''
+  try {
+    const created = await request<AdminUser>('/admin/users', {
+      method: 'POST', body: { ...createDraft, username: createDraft.username.trim(), email: createDraft.email.trim() },
+    })
+    emit('changed', [...rows.value, created])
+    creatingUser.value = false
+    createDraft.password = ''
+    flash(`Account created for ${created.username}`)
+  } catch (e) {
+    error.value = fieldErrorMessage(e, 'Could not create that account.')
+  } finally {
+    savingUser.value = false
+  }
+}
+
 
 const permissionTarget = ref<AdminUser | null>(null)
 const permissionRole = ref('member')
@@ -331,7 +370,10 @@ async function confirmDelete() {
   <section class="panel table-panel">
     <div class="users-heading">
       <h2 class="label table-title">Users</h2>
-      <button v-if="fullAdmin" class="btn btn-ghost" type="button" :disabled="!defaultsLoaded" @click="startDefaults">Default permissions</button>
+      <div class="users-heading-actions">
+        <button v-if="fullAdmin" class="btn btn-ghost" type="button" :disabled="!defaultsLoaded" @click="startDefaults">Default permissions</button>
+        <button v-if="can('users.create')" class="btn btn-accent" type="button" @click="startCreateUser">Create user</button>
+      </div>
     </div>
 
     <p v-if="error" class="msg err mono">{{ error }}</p>
@@ -376,7 +418,7 @@ async function confirmDelete() {
 
             <td class="actions-col">
               <button
-                v-if="(fullAdmin || (!u.is_admin && !u.permissions && !adminPermissionSections.some(section => hasPermission(u, `${section.key}.view`)))) && (can('users.edit') || can('users.delete'))"
+                v-if="(fullAdmin || (!u.is_admin && !u.permissions && !adminPermissionSections.some(section => hasPermission(u, `${section.key}.view`)) && !permissionSections.some(section => section.actions.some(action => hasPermission(u, `${section.key}.${action}`) && !can(`${section.key}.${action}`))))) && (can('users.edit') || can('users.delete'))"
                 class="btn btn-ghost btn-icon kebab"
                 :class="{ on: menuOpen && menuFor?.id === u.id }"
                 :disabled="busyId === u.id"
@@ -397,6 +439,29 @@ async function confirmDelete() {
         </tbody>
       </table>
     </div>
+
+    <Teleport to="body">
+      <Transition name="dialog">
+        <div v-if="creatingUser" class="overlay" @click.self="closeCreateUser" @keydown.esc="closeCreateUser">
+          <form class="dialog panel" role="dialog" aria-modal="true" aria-labelledby="create-user-title" @submit.prevent="createUser">
+            <h3 id="create-user-title" class="dialog-title">Create user</h3>
+            <p class="dialog-message">The user can sign in with the email and password you set.</p>
+            <p v-if="error" class="msg err mono dialog-msg">{{ error }}</p>
+            <label class="label" for="create-user-name">Username</label>
+            <input id="create-user-name" v-model="createDraft.username" class="input" required minlength="2" maxlength="80" autocomplete="off" :disabled="savingUser" />
+            <label class="label" for="create-user-email">Email</label>
+            <input id="create-user-email" v-model="createDraft.email" class="input" type="email" required maxlength="255" autocomplete="off" :disabled="savingUser" />
+            <label class="label" for="create-user-password">Password</label>
+            <PasswordInput id="create-user-password" v-model="createDraft.password" required :minlength="6" :maxlength="128" autocomplete="new-password" :disabled="savingUser" />
+            <label v-if="fullAdmin" class="role-toggle edit-role"><input v-model="createDraft.is_admin" type="checkbox" :disabled="savingUser" /><span>Administrator</span></label>
+            <div class="dialog-actions">
+              <button type="button" class="btn btn-ghost" :disabled="savingUser" @click="closeCreateUser">Cancel</button>
+              <button type="submit" class="btn btn-accent" :disabled="savingUser">{{ savingUser ? 'Creating…' : 'Create user' }}</button>
+            </div>
+          </form>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- editing is a dialog rather than inline inputs: the row is too narrow
          for an email field plus a password reset, and a half-edited row that
@@ -639,6 +704,7 @@ async function confirmDelete() {
 .permission-matrix input { accent-color: var(--accent); }
 
 .users-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.9rem 1.2rem 0; }
+.users-heading-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
 .users-heading .table-title { padding: 0; }
 .users-heading .btn { font-size: 0.72rem; }
 

@@ -20,6 +20,11 @@ const freeDrafts = reactive<Record<string, boolean>>({})
 const savingCode = ref<string | null>(null)
 const error = ref('')
 const notice = ref('')
+const createOpen = ref(false)
+const creating = ref(false)
+const deletingCode = ref<string | null>(null)
+const pendingDelete = ref<Plan | null>(null)
+const newPlan = reactive({ code: '', label: '', days: 30, price: 0, is_free: false })
 
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
 function flash(msg: string) {
@@ -94,6 +99,49 @@ async function save(plan: Plan) {
   }
 }
 
+function startCreate() {
+  error.value = ''
+  Object.assign(newPlan, { code: '', label: '', days: 30, price: 0, is_free: false })
+  createOpen.value = true
+}
+
+async function createPlan() {
+  if (creating.value) return
+  creating.value = true
+  error.value = ''
+  try {
+    const plan = await request<Plan>('/admin/plans', { method: 'POST', body: { ...newPlan, code: newPlan.code.trim(), label: newPlan.label.trim() } })
+    plans.value = [...plans.value, plan]
+    drafts[plan.code] = String(plan.price)
+    freeDrafts[plan.code] = plan.is_free
+    createOpen.value = false
+    flash(`${plan.label} created`)
+  } catch (e) {
+    error.value = fieldErrorMessage(e, 'Could not create that plan.')
+  } finally {
+    creating.value = false
+  }
+}
+
+async function deletePlan() {
+  const plan = pendingDelete.value
+  if (!plan || deletingCode.value) return
+  pendingDelete.value = null
+  deletingCode.value = plan.code
+  error.value = ''
+  try {
+    await request(`/admin/plans/${plan.code}`, { method: 'DELETE' })
+    plans.value = plans.value.filter(p => p.code !== plan.code)
+    delete drafts[plan.code]
+    delete freeDrafts[plan.code]
+    flash(`${plan.label} deleted`)
+  } catch (e) {
+    error.value = errorMessage(e, 'Could not delete that plan.')
+  } finally {
+    deletingCode.value = null
+  }
+}
+
 onMounted(load)
 onUnmounted(() => clearTimeout(noticeTimer))
 </script>
@@ -126,10 +174,28 @@ onUnmounted(() => clearTimeout(noticeTimer))
       </div>
     </div>
     <p class="mode-footnote mono">Saved plan prices and existing subscriptions are kept when switching modes.</p>
-    <h2 class="label table-title">Plans &amp; pricing</h2>
+    <div class="plans-heading">
+      <h2 class="label table-title">Plans &amp; pricing</h2>
+      <button v-if="can('plans.create')" class="btn btn-accent" type="button" @click="startCreate">Create plan</button>
+    </div>
 
     <p v-if="error" class="msg err mono">{{ error }}</p>
     <p v-else-if="notice" class="msg ok mono" role="status">{{ notice }}</p>
+
+    <form v-if="createOpen" class="create-plan" @submit.prevent="createPlan">
+      <h3 class="label">Create plan</h3>
+      <fieldset class="plan-fields" :disabled="creating">
+        <label><span class="label">Code</span><input v-model="newPlan.code" class="input" required maxlength="16" pattern="[a-z0-9][a-z0-9_-]{0,15}" placeholder="e.g. quarterly" /></label>
+        <label><span class="label">Label</span><input v-model="newPlan.label" class="input" required maxlength="40" placeholder="e.g. 3 months" /></label>
+        <label><span class="label">Days</span><input v-model.number="newPlan.days" class="input" type="number" required min="1" max="3650" step="1" /></label>
+        <label><span class="label">Price</span><input v-model.number="newPlan.price" class="input" type="number" required min="0" max="99999999.99" step="0.01" :disabled="newPlan.is_free" /></label>
+        <label class="free-plan"><input v-model="newPlan.is_free" type="checkbox" /> Free plan</label>
+      </fieldset>
+      <div class="create-actions">
+        <button class="btn btn-ghost" type="button" :disabled="creating" @click="createOpen = false">Cancel</button>
+        <button class="btn btn-accent" type="submit" :disabled="creating">{{ creating ? 'Creating…' : 'Create plan' }}</button>
+      </div>
+    </form>
 
     <div class="table-scroll">
       <table>
@@ -176,12 +242,14 @@ onUnmounted(() => clearTimeout(noticeTimer))
             </td>
             <td class="actions-col">
               <button
+                v-if="can('plans.edit')"
                 class="link-btn"
                 :disabled="!can('plans.edit') || !changed(p) || savingCode !== null"
                 @click="save(p)"
               >
                 {{ savingCode === p.code ? 'Saving…' : 'Save' }}
               </button>
+              <button v-if="can('plans.delete')" type="button" class="link-btn danger delete-plan" :aria-label="`Delete ${p.label}`" :disabled="deletingCode !== null || savingCode === p.code" @click="pendingDelete = p">{{ deletingCode === p.code ? 'Deleting…' : 'Delete' }}</button>
             </td>
           </tr>
         </tbody>
@@ -193,10 +261,23 @@ onUnmounted(() => clearTimeout(noticeTimer))
       their saved prices are kept. A paid plan priced at 0 shows as “Ask admin”.
       The Download access switch above applies to all downloads.
     </p>
+    <ConfirmDialog :open="!!pendingDelete" title="Delete this plan?" :message="`Remove “${pendingDelete?.label}” from available plans? Existing subscriptions and payment history are kept.`" confirm-label="Delete plan" danger @confirm="deletePlan" @cancel="pendingDelete = null" />
   </section>
 </template>
 
 <style scoped>
+.plans-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.9rem 1.2rem 0; }
+.plans-heading .table-title { padding: 0; }
+.plans-heading .btn { font-size: 0.72rem; }
+.create-plan { margin: 1rem 1.2rem; padding: 1rem; border: 1px solid var(--line); border-radius: 6px; }
+.create-plan h3 { margin: 0 0 0.8rem; }
+.plan-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; border: 0; padding: 0; margin: 0; min-width: 0; }
+.plan-fields .label { display: block; margin-bottom: 0.3rem; }
+.free-plan { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; }
+.create-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
+.delete-plan { margin-left: 0.7rem; color: var(--err); }
+@media (max-width: 480px) { .plan-fields { grid-template-columns: 1fr; } }
+
 .access-mode {
   display: flex;
   justify-content: space-between;

@@ -34,6 +34,7 @@ def run_migrations(conn) -> None:
 
     added = {
         "plans": [
+            ("is_active", "is_active BOOLEAN NOT NULL DEFAULT TRUE"),
             ("is_free", "is_free BOOLEAN NOT NULL DEFAULT FALSE"),
         ],
         "downloads": [
