@@ -28,6 +28,13 @@ bash dev.sh
 The API starts at port 8005 and the web UI at port 3005, using the next free
 port when needed. Press Ctrl-C to stop both.
 
+Local development uses the MySQL database `mediabox` on `127.0.0.1`.
+Set its connection credentials in `backend/.env` using `backend/.env.example`
+as a template. The launcher requires local MySQL and does not open a database
+SSH tunnel. Development users, plans, and settings are separate from production,
+which uses MySQL through `docker-compose.yml`. Create a local account when
+using this database for the first time.
+
 Use `bash dev.sh` on drives mounted with `noexec` (including this workspace's
 DriveBeltie mount). Such mounts block `./dev.sh` even when it has executable
 permissions.

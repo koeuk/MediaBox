@@ -9,12 +9,14 @@ import type { Plan } from '~/types'
  * the same numbers from the public endpoint.
  */
 const { request } = useApi()
+const { can } = usePermissions()
 const { paidMode } = useAccessSettings()
 const modeLoaded = ref(false)
 const savingMode = ref(false)
 
 const plans = ref<Plan[]>([])
 const drafts = reactive<Record<string, string>>({})
+const freeDrafts = reactive<Record<string, boolean>>({})
 const savingCode = ref<string | null>(null)
 const error = ref('')
 const notice = ref('')
@@ -35,7 +37,10 @@ async function load() {
     plans.value = loadedPlans
     paidMode.value = settings.paid_mode
     modeLoaded.value = true
-    for (const p of plans.value) drafts[p.code] = String(p.price)
+    for (const p of plans.value) {
+      drafts[p.code] = String(p.price)
+      freeDrafts[p.code] = p.is_free
+    }
   } catch (e) {
     error.value = errorMessage(e, 'Could not load plans.')
   }
@@ -61,10 +66,11 @@ async function toggleMode() {
 
 /** Unsaved edits are what the Save button acts on, so compare against the row. */
 function changed(plan: Plan) {
-  return drafts[plan.code] !== String(plan.price)
+  return drafts[plan.code] !== String(plan.price) || freeDrafts[plan.code] !== plan.is_free
 }
 
 async function save(plan: Plan) {
+  if (savingCode.value) return
   const price = Number(drafts[plan.code])
   if (!Number.isFinite(price) || price < 0) {
     error.value = 'Price must be a number, and not negative.'
@@ -75,10 +81,11 @@ async function save(plan: Plan) {
   try {
     const updated = await request<Plan>(`/admin/plans/${plan.code}`, {
       method: 'PATCH',
-      body: { price },
+      body: { price, is_free: freeDrafts[plan.code] },
     })
     plans.value = plans.value.map((p) => (p.code === plan.code ? updated : p))
     drafts[plan.code] = String(updated.price)
+    freeDrafts[plan.code] = updated.is_free
     flash(`${updated.label} updated`)
   } catch (e) {
     error.value = errorMessage(e, 'Could not save that price.')
@@ -110,7 +117,7 @@ onUnmounted(() => clearTimeout(noticeTimer))
           role="switch"
           aria-label="Require paid subscriptions for premium download qualities"
           :aria-checked="paidMode"
-          :disabled="!modeLoaded || savingMode"
+          :disabled="!can('plans.edit') || !modeLoaded || savingMode"
           @click="toggleMode"
         >
           <span class="mode-thumb" />
@@ -130,6 +137,7 @@ onUnmounted(() => clearTimeout(noticeTimer))
           <tr>
             <th>Plan</th>
             <th class="num">Days</th>
+            <th>Access</th>
             <th class="num">Price</th>
             <th class="actions-col">Actions</th>
           </tr>
@@ -138,6 +146,23 @@ onUnmounted(() => clearTimeout(noticeTimer))
           <tr v-for="p in plans" :key="p.code">
             <td>{{ p.label }}</td>
             <td class="num mono dim">{{ p.days }}</td>
+            <td>
+              <div class="mode-control">
+                <span class="mono mode-label" :class="{ selected: freeDrafts[p.code] }">Free</span>
+                <button
+                  class="mode-switch"
+                  type="button"
+                  role="switch"
+                  :aria-label="`Require payment for ${p.label}`"
+                  :aria-checked="!freeDrafts[p.code]"
+                  :disabled="!can('plans.edit') || savingCode === p.code"
+                  @click="freeDrafts[p.code] = !freeDrafts[p.code]"
+                >
+                  <span class="mode-thumb" />
+                </button>
+                <span class="mono mode-label" :class="{ selected: !freeDrafts[p.code] }">Paid</span>
+              </div>
+            </td>
             <td class="num">
               <input
                 v-model="drafts[p.code]"
@@ -146,12 +171,13 @@ onUnmounted(() => clearTimeout(noticeTimer))
                 min="0"
                 step="0.01"
                 :aria-label="`Price for ${p.label}`"
+                :disabled="!can('plans.edit') || freeDrafts[p.code] || savingCode === p.code"
               />
             </td>
             <td class="actions-col">
               <button
                 class="link-btn"
-                :disabled="!changed(p) || savingCode === p.code"
+                :disabled="!can('plans.edit') || !changed(p) || savingCode !== null"
                 @click="save(p)"
               >
                 {{ savingCode === p.code ? 'Saving…' : 'Save' }}
@@ -163,8 +189,9 @@ onUnmounted(() => clearTimeout(noticeTimer))
     </div>
 
     <p class="hint mono">
-      A price of 0 shows as “Ask admin” in the upgrade dialog. Renewing extends
-      an active subscription rather than restarting it.
+      Save each row to apply its Free/Paid setting. Free plans activate without payment;
+      their saved prices are kept. A paid plan priced at 0 shows as “Ask admin”.
+      The Download access switch above applies to all downloads.
     </p>
   </section>
 </template>

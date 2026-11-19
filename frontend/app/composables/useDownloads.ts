@@ -225,6 +225,25 @@ export function useDownloads(scope: 'media' | 'cutout' = 'media') {
     }
   }
 
+  /** Keep failed items available for retry when only part of a batch succeeds. */
+  async function removeMany(ids: number[]) {
+    clearMessages()
+    const deleted: number[] = []
+    for (const id of new Set(ids)) {
+      try {
+        await request(`/downloads/${id}`, { method: 'DELETE' })
+        deleted.push(id)
+        all.value = all.value.filter((d) => d.id !== id)
+      } catch {
+        // Continue so one failure doesn't prevent the other selected deletions.
+      }
+    }
+    const failed = new Set(ids).size - deleted.length
+    if (deleted.length) note.value = `${deleted.length} download${deleted.length === 1 ? '' : 's'} deleted.`
+    if (failed) error.value = `${failed} download${failed === 1 ? '' : 's'} could not be deleted. Select Delete selected to retry.`
+    return deleted
+  }
+
   function find(id: number) {
     return all.value.find((d) => d.id === id) || null
   }
@@ -314,6 +333,7 @@ export function useDownloads(scope: 'media' | 'cutout' = 'media') {
     convert,
     removeBackground,
     remove,
+    removeMany,
     find,
     startLive,
     stopLive,

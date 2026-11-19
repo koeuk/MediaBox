@@ -63,15 +63,19 @@ def submit(db: Session, user: User, plan_code: str, method: str) -> PaymentReque
     """
     if not plan_service.is_paid_mode(db):
         raise PaymentError("Downloads are currently free; no subscription is required.", status=409)
-    if method not in ("cash", "qr"):
+    if method not in ("cash", "qr", "free"):
         raise PaymentError(f"Unknown payment method: {method}")
     if method == "cash" and not get_flag(db, "cash_enabled"):
         raise PaymentError("Cash payment is not available right now.")
     plan = db.get(Plan, plan_code)
     if plan is None:
         raise PaymentError("Plan not found", status=404)
-    amount = float(plan.price)
-    if amount <= 0:
+    if plan.is_free and method != "free":
+        raise PaymentError("This plan is free. Activate it without a payment.", status=409)
+    if not plan.is_free and method == "free":
+        raise PaymentError("This plan requires payment.", status=409)
+    amount = 0 if plan.is_free else float(plan.price)
+    if not plan.is_free and amount <= 0:
         raise PaymentError("That plan has no price set yet — ask the admin.")
 
     # A double-clicked button must not buy the plan twice. Anything identical

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -14,6 +14,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(80))
     hashed_password: Mapped[str] = mapped_column(String(255))
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    # NULL uses role defaults; explicit entries override that role.
+    permissions: Mapped[dict[str, bool] | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     # a suspended account keeps its data but cannot log in or use the API
     is_suspended: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Paid tier: when the subscription runs out, not whether it exists. An

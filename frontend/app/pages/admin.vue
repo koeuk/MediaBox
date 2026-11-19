@@ -13,6 +13,7 @@ definePageMeta({ middleware: 'auth' })
 
 const { request } = useApi()
 const { user, fetchUser } = useAuth()
+const { can, canAccessAdmin } = usePermissions()
 
 const stats = ref<AdminStats | null>(null)
 const users = ref<AdminUser[]>([])
@@ -35,13 +36,13 @@ const statusFilter = ref<DownloadStatus | ''>('')
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
 async function loadActivity(range: AdminDateRange) {
-  if (activityLoading.value) return
+  if (activityLoading.value || !can('dashboard.view')) return
   activityLoading.value = true
   activityError.value = ''
   try {
     const [activity, downloads] = await Promise.all([
       request<AdminAnalytics>('/admin/analytics', { params: range }),
-      request<AdminDownload[]>('/admin/downloads', { params: { ...range, limit: 20 } }),
+      can('downloads.view') ? request<AdminDownload[]>('/admin/downloads', { params: { ...range, limit: 20 } }) : Promise.resolve([]),
     ])
     analytics.value = activity
     recent.value = downloads
@@ -54,7 +55,7 @@ async function loadActivity(range: AdminDateRange) {
 }
 
 async function loadDownloads(page: number = downloadsPage.value) {
-  if (downloadsLoading.value) return
+  if (downloadsLoading.value || !can('downloads.view')) return
   downloadsLoading.value = true
   downloadsError.value = ''
   downloadsPage.value = page
@@ -143,6 +144,8 @@ const TABS: { id: AdminTab; label: string }[] = [
   { id: 'downloads', label: 'Downloads' },
 ]
 
+const visibleTabs = computed(() => TABS.filter(t => can(`${t.id}.view`)))
+
 const route = useRoute()
 const router = useRouter()
 const queryTab = TABS.find((t) => t.id === route.query.tab)?.id
@@ -150,6 +153,7 @@ const tab = ref<AdminTab>(queryTab || 'dashboard')
 
 /** Pull the user list again — an approved payment changes someone's expiry. */
 async function reloadUsers() {
+  if (!can('users.view')) return
   try {
     users.value = await request<AdminUser[]>('/admin/users')
   } catch {
@@ -167,27 +171,28 @@ watch(tab, (value) => {
 watch(
   () => route.query.tab,
   (newTab) => {
-    const matched = TABS.find((t) => t.id === newTab)?.id
+    const matched = visibleTabs.value.find((t) => t.id === newTab)?.id
     if (matched && matched !== tab.value) {
       tab.value = matched
       if (matched === 'downloads' && !downloadsList.value.length) {
         loadDownloads(1)
       }
-    } else if (!newTab && tab.value !== 'dashboard') {
-      tab.value = 'dashboard'
+    } else if (!matched && visibleTabs.value.length) {
+      tab.value = visibleTabs.value[0]!.id
     }
   },
 )
 
 onMounted(async () => {
   if (!user.value) await fetchUser()
-  if (!user.value?.is_admin) {
+  if (!canAccessAdmin.value) {
     denied.value = true
     return navigateTo('/')
   }
+  if (!visibleTabs.value.some(t => t.id === tab.value)) tab.value = visibleTabs.value[0]!.id
   const [s, u] = await Promise.all([
-    request<AdminStats>('/admin/stats'),
-    request<AdminUser[]>('/admin/users'),
+    can('dashboard.view') ? request<AdminStats>('/admin/stats') : Promise.resolve(null),
+    can('users.view') ? request<AdminUser[]>('/admin/users') : Promise.resolve([]),
     loadActivity(activityRange.value),
     loadDownloads(1),
   ])
@@ -205,7 +210,7 @@ onMounted(async () => {
 
       <div class="filters tabs reveal" role="tablist" aria-label="Admin sections" style="animation-delay: 0.05s">
         <button
-          v-for="t in TABS"
+          v-for="t in visibleTabs"
           :id="`tab-${t.id}`"
           :key="t.id"
           class="filter-btn"
@@ -262,7 +267,7 @@ onMounted(async () => {
           @apply="loadActivity"
         />
 
-        <div class="panel table-panel reveal" style="animation-delay: 0.2s">
+        <div v-if="can('downloads.view')" class="panel table-panel reveal" style="animation-delay: 0.2s">
           <div class="dash-table-head">
             <div>
               <h2 class="label table-title">Recent downloads</h2>
@@ -302,7 +307,7 @@ onMounted(async () => {
 
       <!-- FEEDBACK TAB -->
       <AdminFeedbackManager
-        v-if="stats"
+        v-if="can('feedback.view')"
         v-show="tab === 'feedback'"
         id="panel-feedback"
         role="tabpanel"
@@ -311,6 +316,7 @@ onMounted(async () => {
 
       <!-- PAYMENTS TAB -->
       <AdminPaymentQueue
+        v-if="can('payments.view')"
         v-show="tab === 'payments'"
         id="panel-payments"
         role="tabpanel"
@@ -320,6 +326,7 @@ onMounted(async () => {
 
       <!-- PLANS TAB -->
       <AdminPlanManager
+        v-if="can('plans.view')"
         v-show="tab === 'plans'"
         id="panel-plans"
         role="tabpanel"
@@ -328,6 +335,7 @@ onMounted(async () => {
 
       <!-- USERS TAB -->
       <AdminUserManager
+        v-if="can('users.view')"
         v-show="tab === 'users'"
         id="panel-users"
         role="tabpanel"
@@ -339,6 +347,7 @@ onMounted(async () => {
 
       <!-- DOWNLOADS TAB -->
       <section
+        v-if="can('downloads.view')"
         v-show="tab === 'downloads'"
         id="panel-downloads"
         role="tabpanel"

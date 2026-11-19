@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { fullAdmin } = usePermissions()
 import type { SaveMode } from '~/composables/useSavePrefs'
 
 definePageMeta({ middleware: 'auth' })
@@ -58,7 +59,7 @@ watch(tab, (value) => {
 })
 
 watch(user, (u) => {
-  if (tab.value === 'branding' && !u?.is_admin) {
+  if (tab.value === 'branding' && !fullAdmin.value) {
     tab.value = 'account'
   }
 })
@@ -266,7 +267,7 @@ async function handleSaveHiddenPassword() {
 
       <div class="filters tabs reveal" role="tablist" aria-label="Settings sections">
         <button
-          v-for="t in (['account', 'password', 'hidden', 'saving', ...(user?.is_admin ? ['branding'] : [])] as ProfileTab[])"
+          v-for="t in (['account', 'password', 'hidden', 'saving', ...(fullAdmin ? ['branding'] : [])] as ProfileTab[])"
           :key="t"
           :id="`tab-${t}`"
           class="filter-btn"
@@ -500,7 +501,7 @@ async function handleSaveHiddenPassword() {
         </form>
 
         <AdminBranding
-          v-if="user?.is_admin"
+          v-if="fullAdmin"
           v-show="tab === 'branding'"
           id="panel-branding"
           role="tabpanel"

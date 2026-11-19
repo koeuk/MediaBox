@@ -11,6 +11,7 @@ import type { PaymentRequest } from '~/types'
 const emit = defineEmits<{ granted: [] }>()
 
 const { request } = useApi()
+const { can } = usePermissions()
 
 const rows = ref<PaymentRequest[]>([])
 /** Only rows from before payments became automatic still need a decision. */
@@ -92,7 +93,7 @@ onMounted(load)
         <input
           type="checkbox"
           :checked="cashEnabled"
-          :disabled="savingCash"
+          :disabled="!can('payments.edit') || savingCash"
           @change="toggleCash"
         />
         <span class="mono">Offer cash</span>
@@ -131,7 +132,7 @@ onMounted(load)
             </td>
             <td class="dim">{{ formatDate(r.created_at) }}</td>
             <td class="actions-col">
-              <div v-if="r.status === 'pending'" class="actions">
+              <div v-if="r.status === 'pending' && can('payments.edit')" class="actions">
                 <button
                   class="link-btn"
                   :disabled="busyId === r.id"

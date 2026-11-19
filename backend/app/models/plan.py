@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, Numeric, String
+from sqlalchemy import Boolean, Integer, Numeric, String, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -22,6 +22,7 @@ class Plan(Base):
     # Numeric, not float: money that round-trips through binary fractions ends
     # up displaying as 2.9999999
     price: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    is_free: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
 

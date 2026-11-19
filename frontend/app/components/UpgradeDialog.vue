@@ -22,7 +22,6 @@ const chosen = ref<string>('')
 // endpoint is public — it is a price list, and the dialog must still render
 // if it fails.
 async function loadPlans() {
-  if (plans.value.length) return
   try {
     plans.value = await $fetch<Plan[]>('/public/plans', {
       baseURL: config.public.apiBase,
@@ -50,7 +49,8 @@ async function loadSettings() {
 
 /** Apply the plan. Refreshes the user so the picker unlocks without a reload. */
 async function submitPaid() {
-  if (!amount.value) {
+  if (sending.value) return
+  if (!selected.value?.is_free && !amount.value) {
     sendError.value = 'That plan has no price set yet.'
     return
   }
@@ -59,7 +59,7 @@ async function submitPaid() {
   try {
     await request('/payments', {
       method: 'POST',
-      body: { plan_code: chosen.value, method: method.value },
+      body: { plan_code: chosen.value, method: selected.value?.is_free ? 'free' : method.value },
     })
     sent.value = true
     await fetchUser()
@@ -72,6 +72,7 @@ async function submitPaid() {
 
 /** An unpriced plan is one the admin has not filled in yet. */
 function priceLabel(plan: Plan) {
+  if (plan.is_free) return 'Free'
   return plan.price > 0 ? plan.price.toFixed(2) : 'Ask admin'
 }
 
@@ -88,6 +89,7 @@ const sendError = ref('')
 const selected = computed(() => plans.value.find((p) => p.code === chosen.value) || null)
 
 const amount = computed(() => {
+  if (selected.value?.is_free) return '0.00'
   const price = selected.value?.price
   return price && price > 0 ? price.toFixed(2) : null
 })
@@ -125,8 +127,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
         <div class="panel card" role="dialog" aria-modal="true" aria-labelledby="upgrade-title">
           <h2 id="upgrade-title" class="display title">Upgrade for {{ label }}</h2>
           <p class="sub">
-            Downloads above 720p need an upgraded account. Pay with either method
-            below, then press “I paid” to unlock it.
+            Downloads above 720p need an upgraded account. Choose a plan below.
+            Free plans activate without payment.
           </p>
 
           <div v-if="plans.length" class="plans">
@@ -136,13 +138,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
               class="plan"
               :class="{ on: chosen === p.code }"
             >
-              <input v-model="chosen" type="radio" :value="p.code" name="plan" />
+              <input v-model="chosen" type="radio" :value="p.code" name="plan" :disabled="sending || sent" />
               <span class="plan-label">{{ p.label }}</span>
               <span class="plan-price mono">{{ priceLabel(p) }}</span>
             </label>
           </div>
 
-          <div class="filters methods" role="tablist" aria-label="Payment method">
+          <div v-if="!selected?.is_free" class="filters methods" role="tablist" aria-label="Payment method">
             <button
               class="filter-btn"
               :class="{ on: method === 'qr' }"
@@ -166,7 +168,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
             </button>
           </div>
 
-          <div v-if="method === 'qr'" class="body">
+          <div v-if="selected?.is_free" class="body">
+            <p class="amount mono">Free · {{ selected.days }} days</p>
+            <p class="hint mono">Activate this plan to unlock high-quality downloads.</p>
+          </div>
+
+          <div v-else-if="method === 'qr'" class="body">
             <img class="qr" :src="QR_IMAGE" alt="Payment QR code" />
             <p v-if="amount" class="amount mono">{{ amount }}</p>
           </div>
@@ -187,7 +194,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
             <div class="paid-row">
               <div class="paid-total">
                 <span class="label">Total</span>
-                <span class="paid-amount mono">{{ amount ?? '—' }}</span>
+                <span class="paid-amount mono">{{ selected?.is_free ? 'Free' : amount ?? '—' }}</span>
               </div>
               <button
                 class="btn btn-accent"
@@ -195,13 +202,15 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
                 :disabled="sending || !chosen || !amount"
                 @click="submitPaid"
               >
-                {{ sending ? 'Sending…' : 'I paid' }}
+                {{ sending ? 'Activating…' : selected?.is_free ? 'Activate free plan' : 'I paid' }}
               </button>
             </div>
 
             <p v-if="sendError" class="err-note mono">{{ sendError }}</p>
             <p v-else class="pending mono">
-              Pressing “I paid” unlocks high quality straight away.
+              {{ selected?.is_free
+                ? 'No payment is needed. Activating unlocks high quality straight away.'
+                : 'Pressing “I paid” unlocks high quality straight away.' }}
             </p>
           </template>
 

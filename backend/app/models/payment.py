@@ -25,7 +25,7 @@ class PaymentRequest(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     plan_code: Mapped[str] = mapped_column(String(16))
-    method: Mapped[str] = mapped_column(String(8))  # "cash" | "qr"
+    method: Mapped[str] = mapped_column(String(8))  # "cash" | "qr" | "free"
     amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     status: Mapped[str] = mapped_column(String(8), default=PaymentStatus.pending, index=True)
     note: Mapped[str | None] = mapped_column(String(255), nullable=True)

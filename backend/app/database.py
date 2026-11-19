@@ -33,6 +33,9 @@ def run_migrations(conn) -> None:
     from sqlalchemy import inspect, text
 
     added = {
+        "plans": [
+            ("is_free", "is_free BOOLEAN NOT NULL DEFAULT FALSE"),
+        ],
         "downloads": [
             ("quality", "quality VARCHAR(8)"),
             ("convert_source", "convert_source TEXT"),
@@ -44,6 +47,7 @@ def run_migrations(conn) -> None:
             ("is_hidden", "is_hidden BOOLEAN NOT NULL DEFAULT 0"),
         ],
         "users": [
+            ("permissions", "permissions JSON NULL"),
             ("avatar_path", "avatar_path TEXT"),
             # DEFAULT 0 so existing accounts stay active, not NULL
             ("is_suspended", "is_suspended BOOLEAN NOT NULL DEFAULT 0"),

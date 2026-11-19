@@ -5,12 +5,12 @@ from unittest.mock import patch
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.api import admin, downloads, payments, public
-from app.database import Base, get_db
+from app.database import Base, get_db, run_migrations
 from app.models import AppSetting, Download, DownloadStatus, PaymentRequest, Plan, User
 from app.security import create_access_token
 from app.services.library import LibraryError
@@ -123,6 +123,86 @@ class AccessModeTests(unittest.TestCase):
         self.assertEqual(self.db.query(PaymentRequest).count(), 0)
         self.db.refresh(self.member)
         self.assertIsNone(self.member.premium_until)
+
+    def set_plan_free(self, free=True):
+        response = self.client.patch(
+            "/admin/plans/week", json={"is_free": free}, headers=self.admin_headers,
+        )
+        self.assertEqual(response.status_code, 200)
+        return response.json()
+
+    def test_plan_mode_persists_independently_and_keeps_price(self):
+        self.db.add(Plan(code="month", label="1 month", days=30, price=15))
+        self.db.commit()
+        self.assertFalse(self.client.get("/public/plans").json()[0]["is_free"])
+        saved = self.set_plan_free()
+        self.assertTrue(saved["is_free"])
+        self.assertEqual(saved["price"], 5)
+        with Session(self.engine) as other:
+            self.assertTrue(other.get(Plan, "week").is_free)
+            self.assertFalse(other.get(Plan, "month").is_free)
+        self.assertTrue(self.client.get("/public/plans").json()[0]["is_free"])
+        self.assertEqual(self.set_plan_free(False)["price"], 5)
+
+    def test_plan_mode_requires_admin(self):
+        for headers, expected in (({}, 401), (self.member_headers, 403)):
+            response = self.client.patch("/admin/plans/week", json={"is_free": True}, headers=headers)
+            self.assertEqual(response.status_code, expected)
+        self.assertFalse(self.db.get(Plan, "week").is_free)
+
+    def test_free_plan_activation_uses_zero_amount_and_grants_duration_once(self):
+        self.set_plan_free()
+        before = datetime.now(timezone.utc)
+        payload = {"plan_code": "week", "method": "free"}
+        response = self.client.post("/payments", json=payload, headers=self.member_headers)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["amount"], 0)
+        self.assertEqual(response.json()["method"], "free")
+        self.assertEqual(response.json()["status"], "approved")
+        self.db.refresh(self.member)
+        expiry = self.member.premium_until.replace(tzinfo=timezone.utc)
+        self.assertGreaterEqual(expiry, before + timedelta(days=7))
+        self.assertLess(expiry, before + timedelta(days=7, seconds=10))
+        again = self.client.post("/payments", json=payload, headers=self.member_headers)
+        self.assertEqual(again.json()["id"], response.json()["id"])
+        self.db.refresh(self.member)
+        self.assertEqual(self.member.premium_until.replace(tzinfo=timezone.utc), expiry)
+        self.assertEqual(self.db.query(PaymentRequest).count(), 1)
+
+    def test_paid_plan_cannot_be_activated_as_free(self):
+        response = self.client.post("/payments", json={"plan_code": "week", "method": "free"}, headers=self.member_headers)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(self.db.query(PaymentRequest).count(), 0)
+        self.assertFalse(self.member.is_premium)
+
+    def test_free_plan_rejects_payment_methods(self):
+        self.set_plan_free()
+        for method in ("cash", "qr"):
+            response = self.client.post("/payments", json={"plan_code": "week", "method": method}, headers=self.member_headers)
+            self.assertEqual(response.status_code, 409)
+        self.assertEqual(self.db.query(PaymentRequest).count(), 0)
+
+    def test_paid_plan_payment_still_uses_saved_price(self):
+        response = self.client.post("/payments", json={"plan_code": "week", "method": "qr"}, headers=self.member_headers)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["amount"], 5)
+        self.assertTrue(self.member.is_premium)
+
+    def test_global_free_mode_also_skips_free_plan_activation(self):
+        self.set_plan_free()
+        self.set_mode(False)
+        response = self.client.post("/payments", json={"plan_code": "week", "method": "free"}, headers=self.member_headers)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(self.db.query(PaymentRequest).count(), 0)
+
+    def test_plan_migration_preserves_existing_price_and_is_repeatable(self):
+        with self.engine.begin() as conn:
+            conn.execute(text("ALTER TABLE plans DROP COLUMN is_free"))
+            run_migrations(conn)
+            run_migrations(conn)
+            row = conn.execute(text("SELECT price, is_free FROM plans WHERE code = 'week'")).one()
+            self.assertEqual(row.price, 5)
+            self.assertEqual(row.is_free, 0)
 
 
 if __name__ == "__main__":

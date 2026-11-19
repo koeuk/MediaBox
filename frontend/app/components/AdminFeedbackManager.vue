@@ -11,6 +11,7 @@ type FeedbackPayload = {
 }
 
 const { request } = useApi()
+const { can } = usePermissions()
 
 const feedbacks = ref<Feedback[]>([])
 const loading = ref(true)
@@ -220,7 +221,7 @@ const deleteMessage = computed(() => {
     <p v-else-if="notice" class="msg ok mono">{{ notice }}</p>
 
     <!-- Create / Edit Form -->
-    <form class="feedback-form" @submit.prevent="submit">
+    <form v-if="editingId ? can('feedback.edit') : can('feedback.create')" class="feedback-form" @submit.prevent="submit">
       <div class="form-head">
         <span class="label">{{ modeLabel }}</span>
         <button
@@ -383,6 +384,7 @@ const deleteMessage = computed(() => {
             <td class="quote">{{ item.body }}</td>
             <td>
               <button
+                v-if="can('feedback.edit')"
                 type="button"
                 class="badge-btn"
                 :title="item.is_published ? 'Click to unpublish' : 'Click to publish'"
@@ -391,15 +393,17 @@ const deleteMessage = computed(() => {
                 <span v-if="item.is_published" class="badge badge-completed">published</span>
                 <span v-else class="badge badge-queued">draft</span>
               </button>
+              <span v-else class="badge" :class="item.is_published ? 'badge-completed' : 'badge-queued'">{{ item.is_published ? 'published' : 'draft' }}</span>
             </td>
             <td>
               <div class="row-actions">
-                <button class="btn btn-ghost btn-sm" type="button" @click="startEdit(item)">
+                <button v-if="can('feedback.edit')" class="btn btn-ghost btn-sm" type="button" @click="startEdit(item)">
                   Edit
                 </button>
                 <button
                   class="btn btn-ghost btn-sm danger"
                   type="button"
+                  v-if="can('feedback.delete')"
                   @click="pendingDelete = item"
                 >
                   Delete

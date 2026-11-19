@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import type { Download } from '~/types'
 
-const props = defineProps<{ download: Download }>()
+const props = defineProps<{
+  download: Download
+  selecting?: boolean
+  selected?: boolean
+  selectionDisabled?: boolean
+}>()
 const emit = defineEmits<{
   favorite: [id: number]
   remove: [id: number]
@@ -11,6 +16,7 @@ const emit = defineEmits<{
   cancel: [id: number]
   info: [id: number]
   hide: [id: number]
+  select: [id: number]
   setCategory: [payload: { id: number; category: string | null }]
 }>()
 
@@ -38,7 +44,9 @@ const previewable = computed(
 )
 
 function onThumbClick() {
-  if (previewable.value) emit('preview', props.download.id)
+  if (props.selecting) {
+    if (!props.selectionDisabled) emit('select', props.download.id)
+  } else if (previewable.value) emit('preview', props.download.id)
 }
 
 const targets = computed(() => convertTargets(kind.value))
@@ -130,14 +138,14 @@ const orphanTag = computed(
 </script>
 
 <template>
-  <article class="card panel" :class="{ active }">
+  <article class="card panel" :class="{ active, selected: selecting && selected }">
     <div
       class="thumb"
-      :class="{ clickable: previewable, 'alpha-grid': transparent }"
-      :title="previewable ? 'Click to preview' : undefined"
+      :class="{ clickable: selecting || previewable, 'alpha-grid': transparent }"
+      :title="selecting ? 'Toggle selection' : previewable ? 'Click to preview' : undefined"
       @click="onThumbClick"
     >
-      <span v-if="previewable" class="play-hint" aria-hidden="true">
+      <span v-if="previewable && !selecting" class="play-hint" aria-hidden="true">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
           <path d="m8 5 12 7-12 7V5Z" />
         </svg>
@@ -197,6 +205,16 @@ const orphanTag = computed(
     </div>
 
     <div class="body">
+      <label v-if="selecting" class="selection mono">
+        <input
+          type="checkbox"
+          :checked="selected"
+          :disabled="selectionDisabled"
+          :aria-label="`Select ${name}`"
+          @change="emit('select', download.id)"
+        />
+        {{ selected ? 'Selected' : 'Select download' }}
+      </label>
       <h3 class="name" :title="name">{{ name }}</h3>
 
       <div v-if="active" class="progress">
@@ -345,6 +363,26 @@ const orphanTag = computed(
 
 .card.active {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+.card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.selection {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--accent);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.selection input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
 }
 
 .thumb {

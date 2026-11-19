@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from app.permissions import PermissionName
 
 
 class UserCreate(BaseModel):
@@ -25,6 +26,7 @@ class ProfileUpdate(BaseModel):
 
 
 class UserOut(BaseModel):
+    permissions: dict[PermissionName, bool] | None = None
     model_config = ConfigDict(from_attributes=True)
 
     id: int

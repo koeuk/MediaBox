@@ -12,6 +12,7 @@ const props = defineProps<{ users: AdminUser[]; currentUserId?: number }>()
 const emit = defineEmits<{ changed: [users: AdminUser[]] }>()
 
 const { request } = useApi()
+const { can, fullAdmin } = usePermissions()
 const { open: menuOpen, anchor, menu, pos, placed, toggle, close: closeMenu } = usePopMenu()
 
 /** Which row's menu is showing — usePopMenu only tracks open/closed. */
@@ -38,7 +39,7 @@ function pick(fn: () => void) {
 const plans = ref<Plan[]>([])
 onMounted(async () => {
   try {
-    plans.value = await request<Plan[]>('/admin/plans')
+    if (can('plans.view')) plans.value = await request<Plan[]>('/admin/plans')
   } catch {
     // the grant control just stays empty — not worth an error banner here
   }
@@ -104,7 +105,44 @@ const busyId = ref<number | null>(null)
 const error = ref('')
 const notice = ref('')
 
-const draft = reactive({ username: '', email: '', is_admin: false })
+const draft = reactive({ username: '', email: '' })
+
+const permissionTarget = ref<AdminUser | null>(null)
+const permissionRole = ref('member')
+const permissionDraft = reactive<Record<string, boolean>>({})
+const permissionActions = ['view', 'create', 'edit', 'delete']
+
+function roleDefaults() {
+  for (const section of permissionSections) {
+    for (const action of section.actions) permissionDraft[`${section.key}.${action}`] = permissionRole.value === 'admin'
+  }
+}
+
+function changePermission(section: string, action: string, checked: boolean) {
+  permissionDraft[`${section}.${action}`] = checked
+  if (action !== 'view' && checked) permissionDraft[`${section}.view`] = true
+  if (action === 'view' && !checked) {
+    for (const key of Object.keys(permissionDraft)) if (key.startsWith(`${section}.`)) permissionDraft[key] = false
+  }
+}
+
+function startPermissions(u: AdminUser) {
+  error.value = ''
+  permissionTarget.value = u
+  permissionRole.value = u.is_admin ? 'admin' : 'member'
+  roleDefaults()
+  for (const [key, value] of Object.entries(u.permissions || {})) permissionDraft[key] = value
+}
+
+async function savePermissions(u: AdminUser) {
+  if (await patch(u, { is_admin: permissionRole.value === 'admin', permissions: Object.values(permissionDraft).every(v => v === (permissionRole.value === 'admin')) ? null : { ...permissionDraft } }, 'Permissions updated')) {
+    permissionTarget.value = null
+  }
+}
+
+function resetPermissions(u: AdminUser) {
+  return patch(u, { is_admin: false, permissions: null }, `Default permissions restored for ${u.username}`)
+}
 
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
 function flash(msg: string) {
@@ -124,7 +162,6 @@ function startEdit(u: AdminUser) {
   editing.value = u
   draft.username = u.username
   draft.email = u.email
-  draft.is_admin = u.is_admin
   // never prefilled — the current password is not knowable, and a blank field
   // is what "leave it alone" looks like
 }
@@ -165,7 +202,6 @@ async function applyEdit(u: AdminUser) {
     {
       username: draft.username.trim(),
       email: draft.email.trim(),
-      is_admin: draft.is_admin,
     },
     'Account updated'
   )
@@ -289,6 +325,7 @@ async function confirmDelete() {
 
             <td class="actions-col">
               <button
+                v-if="(fullAdmin || (!u.is_admin && !u.permissions)) && (can('users.edit') || can('users.delete'))"
                 class="btn btn-ghost btn-icon kebab"
                 :class="{ on: menuOpen && menuFor?.id === u.id }"
                 :disabled="busyId === u.id"
@@ -340,16 +377,54 @@ async function confirmDelete() {
             <label class="label" for="edit-email">Email</label>
             <input id="edit-email" v-model="draft.email" class="input" type="email" autocomplete="off" />
 
-            <label class="role-toggle edit-role">
-              <input v-model="draft.is_admin" type="checkbox" :disabled="isSelf(editing)" />
-              <span>Administrator</span>
-            </label>
-
             <div class="dialog-actions">
               <button type="button" class="btn btn-ghost" @click="cancelEdit">Cancel</button>
               <button type="submit" class="btn btn-accent" :disabled="busyId === editing.id">
                 {{ busyId === editing.id ? 'Saving…' : 'Save changes' }}
               </button>
+            </div>
+          </form>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <Transition name="dialog">
+        <div v-if="permissionTarget" class="overlay" @click.self="busyId === null && (permissionTarget = null)" @keydown.esc="busyId === null && (permissionTarget = null)">
+          <form class="dialog panel permissions-dialog" role="dialog" aria-modal="true" aria-labelledby="permissions-title" @submit.prevent="savePermissions(permissionTarget)">
+            <h3 id="permissions-title" class="dialog-title">Define permissions</h3>
+            <p class="dialog-message">{{ permissionTarget.username }} · {{ permissionTarget.email }}</p>
+            <p class="permission-note">Choose a role, then allow specific actions. View only means Create, Edit, and Delete are unchecked.</p>
+            <p v-if="error" class="msg err mono dialog-msg">{{ error }}</p>
+            <label class="permission-option">
+              <input v-model="permissionRole" type="radio" name="permission-role" value="member" @change="roleDefaults" :disabled="busyId === permissionTarget.id || isSelf(permissionTarget)" />
+              <span><strong>Member (default)</strong><small>Use MediaBox with normal account access.</small></span>
+            </label>
+            <label class="permission-option">
+              <input v-model="permissionRole" type="radio" name="permission-role" value="admin" @change="roleDefaults" :disabled="busyId === permissionTarget.id" />
+              <span><strong>Administrator</strong><small>Manage users, plans, payments, and site settings.</small></span>
+            </label>
+            <div class="table-scroll permission-matrix">
+              <table>
+                <thead><tr><th>Section</th><th v-for="action in permissionActions" :key="action">{{ action }}</th></tr></thead>
+                <tbody>
+                  <tr v-for="section in permissionSections" :key="section.key">
+                    <td>{{ section.label }}</td>
+                    <td v-for="action in permissionActions" :key="action">
+                      <input v-if="(section.actions as readonly string[]).includes(action)" type="checkbox"
+                        :aria-label="`${section.label}: ${action}`" :checked="permissionDraft[`${section.key}.${action}`]"
+                        :disabled="busyId === permissionTarget.id || isSelf(permissionTarget)"
+                        @change="changePermission(section.key, action, ($event.target as HTMLInputElement).checked)" />
+                      <span v-else class="dim" aria-label="Not available">—</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p v-if="isSelf(permissionTarget)" class="permission-note">You cannot remove your own administrator access.</p>
+            <div class="dialog-actions">
+              <button type="button" class="btn btn-ghost" :disabled="busyId === permissionTarget.id" @click="permissionTarget = null">Cancel</button>
+              <button type="submit" class="btn btn-accent" :disabled="busyId === permissionTarget.id">{{ busyId === permissionTarget.id ? 'Saving…' : 'Save permissions' }}</button>
             </div>
           </form>
         </div>
@@ -367,12 +442,25 @@ async function confirmDelete() {
           :style="{ top: `${pos.top}px`, left: `${pos.left}px`, visibility: placed ? 'visible' : 'hidden' }"
           @click.stop
         >
-          <button class="pop-item" role="menuitem" @click="pick(() => startEdit(menuFor!))">
+          <button v-if="can('users.edit')" class="pop-item" role="menuitem" @click="pick(() => startEdit(menuFor!))">
             Edit account
           </button>
 
+          <button v-if="fullAdmin" class="pop-item" role="menuitem" @click="pick(() => startPermissions(menuFor!))">
+            Define permissions
+          </button>
           <button
-            v-if="!isSelf(menuFor)"
+            class="pop-item"
+            role="menuitem"
+            v-if="fullAdmin"
+            :disabled="(!menuFor.is_admin && !menuFor.permissions) || isSelf(menuFor)"
+            @click="pick(() => resetPermissions(menuFor!))"
+          >
+            Default permissions
+          </button>
+
+          <button
+            v-if="!isSelf(menuFor) && can('users.edit')"
             class="pop-item"
             role="menuitem"
             @click="pick(() => startPassword(menuFor!))"
@@ -382,9 +470,9 @@ async function confirmDelete() {
 
           <div class="pop-sep" />
 
-          <p class="pop-label mono">{{ menuFor.is_premium ? 'Extend plan' : 'Give plan' }}</p>
+          <p v-if="can('users.edit')" class="pop-label mono">{{ menuFor.is_premium ? 'Extend plan' : 'Give plan' }}</p>
           <button
-            v-for="p in plans"
+            v-for="p in (can('users.edit') ? plans : [])"
             :key="p.code"
             class="pop-item"
             role="menuitem"
@@ -393,7 +481,7 @@ async function confirmDelete() {
             +{{ p.label }}
           </button>
           <button
-            v-if="menuFor.premium_until"
+            v-if="menuFor.premium_until && can('users.edit')"
             class="pop-item"
             role="menuitem"
             @click="pick(() => setPlan(menuFor!, ''))"
@@ -403,10 +491,11 @@ async function confirmDelete() {
 
           <template v-if="!isSelf(menuFor)">
             <div class="pop-sep" />
-            <button class="pop-item" role="menuitem" @click="pick(() => (pendingSuspend = menuFor))">
+            <button v-if="can('users.edit')" class="pop-item" role="menuitem" @click="pick(() => (pendingSuspend = menuFor))">
               {{ menuFor.is_suspended ? 'Restore access' : 'Suspend' }}
             </button>
             <button
+              v-if="can('users.delete')"
               class="pop-item danger"
               role="menuitem"
               @click="pick(() => (pendingDelete = menuFor))"
@@ -494,6 +583,32 @@ async function confirmDelete() {
 </template>
 
 <style scoped>
+.permissions-dialog { max-width: 660px; max-height: 90vh; overflow-y: auto; }
+.permission-matrix { margin-top: 1rem; }
+.permission-matrix th, .permission-matrix td { padding: 0.65rem; }
+.permission-matrix td:not(:first-child), .permission-matrix th:not(:first-child) { text-align: center; }
+.permission-matrix input { accent-color: var(--accent); }
+
+.permission-note {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.permission-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.permission-option input { margin-top: 0.2rem; accent-color: var(--accent); }
+.permission-option strong { display: block; font-size: 0.82rem; font-weight: 500; }
+.permission-option small { display: block; margin-top: 0.2rem; color: var(--text-dim); line-height: 1.4; }
+.pop-item:disabled { opacity: 0.45; cursor: default; }
+
 /* Table shell copied from the admin page rather than shared: these are scoped
    styles there, so moving the markup into this component moved it out of their
    reach. Kept identical so the two tables on the page still line up. */

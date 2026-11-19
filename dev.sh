@@ -50,26 +50,30 @@ fi
   \"\${XDG_CACHE_HOME:-\$HOME/.cache}/mediabox/venv/bin/python\" -m pip install -r backend/requirements.txt"
 note "Backend Python: $BACKEND_PYTHON"
 
-# Optional local development access to a remote MySQL database. Server
-# installations leave DATABASE_SSH_HOST unset and connect directly.
-database_tunnel_config=$("$BACKEND_PYTHON" - <<'PY'
-import os
+# Read development credentials from the local file, not inherited server settings.
+# Production starts through Docker and uses the MySQL URL in docker-compose.yml.
+DATABASE_URL=$("$BACKEND_PYTHON" - <<'PY'
+import sys
 from dotenv import dotenv_values
 from sqlalchemy.engine import make_url
 
 values = dotenv_values("backend/.env")
-host = os.environ.get("DATABASE_SSH_HOST", values.get("DATABASE_SSH_HOST", ""))
-if host:
-    url = make_url(os.environ.get("DATABASE_URL", values.get("DATABASE_URL", "")))
-    if url.get_backend_name() != "mysql" or url.host != "127.0.0.1":
-        raise SystemExit("DATABASE_SSH_HOST requires a MySQL DATABASE_URL on 127.0.0.1")
-    print(host)
-    print(url.port or 3306)
+value = values.get("DATABASE_URL", "")
+try:
+    url = make_url(value)
+except Exception:
+    sys.exit("Set a local MySQL DATABASE_URL in backend/.env first.")
+if (url.get_backend_name() != "mysql"
+        or url.host not in ("127.0.0.1", "localhost")
+        or url.database != "mediabox"
+        or values.get("DATABASE_SSH_HOST")):
+    sys.exit("Development requires local MySQL database mediabox, with no SSH tunnel.")
+print(value)
 PY
-)
-if [ -n "$database_tunnel_config" ]; then
-  bash tools/db-tunnel.sh "${database_tunnel_config%%$'\n'*}" "${database_tunnel_config##*$'\n'}"
-fi
+) || die "Check the development database settings in backend/.env."
+export DATABASE_URL
+unset DATABASE_SSH_HOST
+note "Development database: local MySQL / mediabox"
 
 [ -d frontend/node_modules ] \
   || die "frontend/node_modules is missing. Install first:

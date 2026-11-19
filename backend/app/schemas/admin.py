@@ -1,8 +1,9 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StrictBool, field_validator
 
 from app.models import DownloadStatus
+from app.permissions import PermissionName
 
 
 class AdminStats(BaseModel):
@@ -31,6 +32,7 @@ class AdminAnalytics(BaseModel):
 
 
 class AdminUserOut(BaseModel):
+    permissions: dict[PermissionName, bool] | None = None
     id: int
     email: EmailStr
     username: str
@@ -46,6 +48,7 @@ class AdminUserOut(BaseModel):
 class AdminUserEdit(BaseModel):
     """Every field optional — the admin form sends only what it changed."""
 
+    permissions: dict[PermissionName, StrictBool] | None = None
     username: str | None = Field(default=None, min_length=2, max_length=80)
     email: EmailStr | None = None
     is_admin: bool | None = None
@@ -104,11 +107,13 @@ class PlanOut(BaseModel):
     label: str
     days: int
     price: float
+    is_free: bool
     sort_order: int
 
 
 class PlanEdit(BaseModel):
-    price: float = Field(ge=0)
+    price: float | None = Field(default=None, ge=0)
+    is_free: bool | None = None
 
 
 class AccessSettings(BaseModel):

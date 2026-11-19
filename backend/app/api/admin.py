@@ -2,10 +2,11 @@ from datetime import date, datetime, time, timezone
 
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func
 
-from app.api.deps import AdminUser, DbSession
+from app.api.deps import AdminUser, DbSession, require_permission
+from app.permissions import is_full_admin
 from app.security import hash_password
 from app.services import payments, plans, storage
 from app.models import Download, DownloadStatus, Feedback, PaymentRequest, PaymentStatus, Plan, User
@@ -48,7 +49,7 @@ def _date_bounds(
 @router.get("/analytics", response_model=AdminAnalytics)
 def analytics(
     db: DbSession,
-    _: AdminUser,
+    _: Annotated[User, Depends(require_permission("dashboard.view"))],
     start_date: date | None = None,
     end_date: date | None = None,
 ):
@@ -94,7 +95,7 @@ def analytics(
 
 
 @router.get("/stats", response_model=AdminStats)
-def stats(db: DbSession, _: AdminUser):
+def stats(db: DbSession, _: Annotated[User, Depends(require_permission("dashboard.view"))]):
     by_status = dict(
         db.query(Download.status, func.count(Download.id)).group_by(Download.status).all()
     )
@@ -117,7 +118,7 @@ def stats(db: DbSession, _: AdminUser):
 
 
 @router.get("/users", response_model=list[AdminUserOut])
-def list_users(db: DbSession, _: AdminUser):
+def list_users(db: DbSession, _: Annotated[User, Depends(require_permission("users.view"))]):
     rows = (
         db.query(
             User,
@@ -134,6 +135,7 @@ def list_users(db: DbSession, _: AdminUser):
             id=user.id,
             email=user.email,
             username=user.username,
+            permissions=user.permissions,
             is_admin=user.is_admin,
             is_suspended=user.is_suspended,
             is_premium=user.is_premium,
@@ -149,7 +151,7 @@ def list_users(db: DbSession, _: AdminUser):
 @router.get("/downloads", response_model=list[AdminDownloadOut] | AdminDownloadPageOut)
 def recent_downloads(
     db: DbSession,
-    _: AdminUser,
+    _: Annotated[User, Depends(require_permission("downloads.view"))],
     limit: Annotated[int, Query(ge=1)] = 50,
     page: Annotated[int, Query(ge=1)] = 1,
     start_date: date | None = None,
@@ -227,7 +229,7 @@ def _user_or_404(db: DbSession, user_id: int) -> User:
 def _admin_count(db: DbSession) -> int:
     return (
         db.query(func.count(User.id))
-        .filter(User.is_admin.is_(True), User.is_suspended.is_(False))
+        .filter(User.is_admin.is_(True), User.is_suspended.is_(False), User.permissions.is_(None))
         .scalar()
         or 0
     )
@@ -246,6 +248,7 @@ def _user_response(db: DbSession, user: User) -> AdminUserOut:
         id=user.id,
         email=user.email,
         username=user.username,
+        permissions=user.permissions,
         is_admin=user.is_admin,
         is_suspended=user.is_suspended,
         is_premium=user.is_premium,
@@ -257,7 +260,7 @@ def _user_response(db: DbSession, user: User) -> AdminUserOut:
 
 
 @router.patch("/users/{user_id}", response_model=AdminUserOut)
-def update_user(user_id: int, payload: AdminUserEdit, db: DbSession, admin: AdminUser):
+def update_user(user_id: int, payload: AdminUserEdit, db: DbSession, admin: Annotated[User, Depends(require_permission("users.edit"))]):
     """Rename an account, change its address, or grant/revoke admin and access.
 
     The guards here are all about not locking everyone out: an admin editing
@@ -266,6 +269,13 @@ def update_user(user_id: int, payload: AdminUserEdit, db: DbSession, admin: Admi
     """
     user = _user_or_404(db, user_id)
     changes = payload.model_dump(exclude_unset=True)
+    if not is_full_admin(admin):
+        if {"permissions", "is_admin"} & changes.keys():
+            raise HTTPException(status_code=403, detail="Only a full administrator can define permissions.")
+        if user.is_admin or user.permissions:
+            raise HTTPException(status_code=403, detail="Only a full administrator can edit privileged accounts.")
+    if user.id == admin.id and "permissions" in changes and changes["permissions"] != user.permissions:
+        raise HTTPException(status_code=400, detail="You cannot change your own permissions.")
     # not a column — hashed separately below
     new_password = changes.pop("new_password", None)
 
@@ -285,8 +295,9 @@ def update_user(user_id: int, payload: AdminUserEdit, db: DbSession, admin: Admi
 
     # Losing the last admin would leave the install unadministrable, and no
     # remaining account could undo it.
-    loses_admin = user.is_admin and (
+    loses_admin = is_full_admin(user) and (
         changes.get("is_admin") is False or changes.get("is_suspended") is True
+        or changes.get("permissions") is not None
     )
     if loses_admin and _admin_count(db) <= 1:
         raise HTTPException(status_code=400, detail="This is the only admin — promote another first.")
@@ -317,7 +328,7 @@ def update_user(user_id: int, payload: AdminUserEdit, db: DbSession, admin: Admi
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: int, db: DbSession, admin: AdminUser):
+def delete_user(user_id: int, db: DbSession, admin: Annotated[User, Depends(require_permission("users.delete"))]):
     """Remove an account, its downloads, and every file it owns.
 
     Irreversible, so the same lockout guards apply as for suspension.
@@ -325,7 +336,9 @@ def delete_user(user_id: int, db: DbSession, admin: AdminUser):
     user = _user_or_404(db, user_id)
     if user.id == admin.id:
         raise HTTPException(status_code=400, detail="You cannot delete your own account.")
-    if user.is_admin and _admin_count(db) <= 1:
+    if not is_full_admin(admin) and (user.is_admin or user.permissions):
+        raise HTTPException(status_code=403, detail="Only a full administrator can delete privileged accounts.")
+    if is_full_admin(user) and _admin_count(db) <= 1:
         raise HTTPException(status_code=400, detail="This is the only admin — promote another first.")
 
     # Rows cascade through the relationship, but the files on disk do not.
@@ -346,7 +359,7 @@ def delete_user(user_id: int, db: DbSession, admin: AdminUser):
 
 
 @router.get("/payments", response_model=list[PaymentRequestOut])
-def list_payments(db: DbSession, _: AdminUser, pending_only: bool = True):
+def list_payments(db: DbSession, _: Annotated[User, Depends(require_permission("payments.view"))], pending_only: bool = True):
     """The review queue. Pending first by default — that is the actionable set."""
     query = (
         db.query(PaymentRequest, User.username, Plan.label)
@@ -373,7 +386,7 @@ def list_payments(db: DbSession, _: AdminUser, pending_only: bool = True):
 
 
 @router.post("/payments/{request_id}/approve", response_model=AdminUserOut)
-def approve_payment(request_id: int, db: DbSession, admin: AdminUser):
+def approve_payment(request_id: int, db: DbSession, admin: Annotated[User, Depends(require_permission("payments.edit"))]):
     """Accept a claim and put the member on their plan. Returns the updated user
     so the table row refreshes without a second round trip."""
     try:
@@ -384,7 +397,7 @@ def approve_payment(request_id: int, db: DbSession, admin: AdminUser):
 
 
 @router.post("/payments/{request_id}/reject", status_code=status.HTTP_204_NO_CONTENT)
-def reject_payment(request_id: int, db: DbSession, admin: AdminUser):
+def reject_payment(request_id: int, db: DbSession, admin: Annotated[User, Depends(require_permission("payments.edit"))]):
     try:
         payments.reject(db, admin, request_id)
     except payments.PaymentError as exc:
@@ -392,40 +405,43 @@ def reject_payment(request_id: int, db: DbSession, admin: AdminUser):
 
 
 @router.get("/payment-settings", response_model=PaymentSettingsOut)
-def payment_settings(db: DbSession, _: AdminUser):
+def payment_settings(db: DbSession, _: Annotated[User, Depends(require_permission("payments.view"))]):
     return PaymentSettingsOut(cash_enabled=payments.get_flag(db, "cash_enabled"))
 
 
 @router.patch("/payment-settings", response_model=PaymentSettingsOut)
-def update_payment_settings(payload: PaymentSettingsEdit, db: DbSession, _: AdminUser):
+def update_payment_settings(payload: PaymentSettingsEdit, db: DbSession, _: Annotated[User, Depends(require_permission("payments.edit"))]):
     """Whether members are offered cash at all."""
     payments.set_flag(db, "cash_enabled", payload.cash_enabled)
     return PaymentSettingsOut(cash_enabled=payload.cash_enabled)
 
 
 @router.get("/access-settings", response_model=AccessSettings)
-def access_settings(db: DbSession, _: AdminUser):
+def access_settings(db: DbSession, _: Annotated[User, Depends(require_permission("plans.view"))]):
     return AccessSettings(paid_mode=plans.is_paid_mode(db))
 
 
 @router.patch("/access-settings", response_model=AccessSettings)
-def update_access_settings(payload: AccessSettings, db: DbSession, _: AdminUser):
+def update_access_settings(payload: AccessSettings, db: DbSession, _: Annotated[User, Depends(require_permission("plans.edit"))]):
     payments.set_flag(db, "paid_mode", payload.paid_mode)
     return AccessSettings(paid_mode=plans.is_paid_mode(db))
 
 
 @router.get("/plans", response_model=list[PlanOut])
-def list_plans(db: DbSession, _: AdminUser):
+def list_plans(db: DbSession, _: Annotated[User, Depends(require_permission("plans.view"))]):
     return plans.listing(db)
 
 
 @router.patch("/plans/{code}", response_model=PlanOut)
-def update_plan(code: str, payload: PlanEdit, db: DbSession, _: AdminUser):
+def update_plan(code: str, payload: PlanEdit, db: DbSession, _: Annotated[User, Depends(require_permission("plans.edit"))]):
     """Set what a plan costs. Prices are data, not code, so they live here."""
     plan = db.get(Plan, code)
     if plan is None:
         raise HTTPException(status_code=404, detail="Plan not found")
-    plan.price = payload.price
+    if payload.price is not None:
+        plan.price = payload.price
+    if payload.is_free is not None:
+        plan.is_free = payload.is_free
     db.commit()
     db.refresh(plan)
     return plan
@@ -477,7 +493,7 @@ def reset_site_title(admin: AdminUser):
 
 
 @router.get("/feedback", response_model=list[FeedbackOut])
-def list_feedback(db: DbSession, _: AdminUser):
+def list_feedback(db: DbSession, _: Annotated[User, Depends(require_permission("feedback.view"))]):
     return (
         db.query(Feedback)
         .order_by(Feedback.created_at.desc(), Feedback.id.desc())
@@ -486,7 +502,7 @@ def list_feedback(db: DbSession, _: AdminUser):
 
 
 @router.post("/feedback", response_model=FeedbackOut, status_code=status.HTTP_201_CREATED)
-def create_feedback(payload: FeedbackCreate, db: DbSession, _: AdminUser):
+def create_feedback(payload: FeedbackCreate, db: DbSession, _: Annotated[User, Depends(require_permission("feedback.create"))]):
     data = payload.model_dump()
     if not data.get("author_name"):
         data["author_name"] = "Admin"
@@ -498,7 +514,7 @@ def create_feedback(payload: FeedbackCreate, db: DbSession, _: AdminUser):
 
 
 @router.patch("/feedback/{feedback_id}", response_model=FeedbackOut)
-def update_feedback(feedback_id: int, payload: FeedbackEdit, db: DbSession, _: AdminUser):
+def update_feedback(feedback_id: int, payload: FeedbackEdit, db: DbSession, _: Annotated[User, Depends(require_permission("feedback.edit"))]):
     feedback = _feedback_or_404(db, feedback_id)
     changes = payload.model_dump(exclude_unset=True)
     for required in ("author_name", "body"):
@@ -513,7 +529,7 @@ def update_feedback(feedback_id: int, payload: FeedbackEdit, db: DbSession, _: A
 
 
 @router.delete("/feedback/{feedback_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_feedback(feedback_id: int, db: DbSession, _: AdminUser):
+def delete_feedback(feedback_id: int, db: DbSession, _: Annotated[User, Depends(require_permission("feedback.delete"))]):
     feedback = _feedback_or_404(db, feedback_id)
     db.delete(feedback)
     db.commit()

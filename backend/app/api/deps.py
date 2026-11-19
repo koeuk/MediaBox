@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
+from app.permissions import can, is_full_admin
 from app.security import decode_token
 
 _credentials_error = HTTPException(
@@ -72,9 +73,17 @@ def get_media_user(request: Request, db: Session = Depends(get_db)) -> User:
 
 
 def get_admin_user(user: User = Depends(get_current_user)) -> User:
-    if not user.is_admin:
+    if not is_full_admin(user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return user
+
+
+def require_permission(permission: str):
+    def check(user: User = Depends(get_current_user)) -> User:
+        if not can(user, permission):
+            raise HTTPException(status_code=403, detail=f"Permission required: {permission}")
+        return user
+    return check
 
 
 def get_optional_user(request: Request, db: Session = Depends(get_db)) -> User | None:
