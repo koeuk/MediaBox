@@ -1,4 +1,5 @@
 export default defineNuxtConfig({
+  telemetry: false,
   compatibilityDate: '2025-07-15',
   devtools: { enabled: false },
 
