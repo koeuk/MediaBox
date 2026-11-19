@@ -121,10 +121,6 @@ class AccessSettings(BaseModel):
     paid_mode: bool
 
 
-class AccessSettings(BaseModel):
-    paid_mode: bool
-
-
 class PaymentRequestOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
