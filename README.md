@@ -106,13 +106,24 @@ mediabox/
 - 🎞️ Media conversion with FFmpeg (mp4, webm, gif, mp3, m4a, wav)
 - 🛠️ Admin dashboard (first registered user is admin)
 - 📖 REST API documentation (Swagger at `/docs`)
-- 📹 TikTok / Facebook / YouTube / Pornhub video links resolved via yt-dlp (configurable allowlist; authorized content only)
+- 📹 TikTok / Facebook / YouTube / Pornhub / Instagram video links resolved via yt-dlp (configurable allowlist; authorized content only)
 
 Video-site links work in both the library and guest downloader. If you set
 `YTDLP_HOSTS` in `backend/.env`, include `pornhub.com` to enable Pornhub links;
 subdomains such as `www.pornhub.com` are included automatically. Restart the
 backend after changing this setting. Videos that require login can use a
 Netscape-format cookies file configured with `YTDLP_COOKIES_FILE`.
+
+Instagram reel and video-post links use the same downloader, including shared
+links with tracking parameters. If your server sets `YTDLP_HOSTS` explicitly,
+add `instagram.com` to that list and restart the backend. For example:
+
+```dotenv
+YTDLP_HOSTS=tiktok.com,facebook.com,fb.watch,youtube.com,youtu.be,pornhub.com,instagram.com
+```
+
+If Instagram requests login, configure `YTDLP_COOKIES_FILE` with a
+Netscape-format cookies file from an account that can access the video.
 
 ## Future Features
 

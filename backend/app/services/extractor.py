@@ -1,5 +1,5 @@
 """Fetch videos from sites that don't expose direct file URLs (TikTok,
-Facebook, YouTube) using yt-dlp.
+Facebook, YouTube, Instagram) using yt-dlp.
 """
 
 import mimetypes

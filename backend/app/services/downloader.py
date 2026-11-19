@@ -1,6 +1,6 @@
 """Stream a direct media URL to disk with resumable, progress-tracked writes.
 
-Non-direct URLs (TikTok/Facebook/YouTube) are handed off to the yt-dlp
+Non-direct URLs (TikTok/Facebook/YouTube/Instagram) are handed off to the yt-dlp
 extractor; everything else is streamed here over HTTP.
 """
 
