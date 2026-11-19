@@ -244,6 +244,15 @@ function isSelf(u: AdminUser) {
   return u.id === props.currentUserId
 }
 
+function canManageAccount(u: AdminUser) {
+  if (fullAdmin.value) return true
+  if (u.is_admin || u.permissions) return false
+  if (adminPermissionSections.some(section => hasPermission(u, `${section.key}.view`))) return false
+  return !permissionSections.some(section => section.actions.some(action =>
+    hasPermission(u, `${section.key}.${action}`) && !can(`${section.key}.${action}`)
+  ))
+}
+
 function startEdit(u: AdminUser) {
   error.value = ''
   editing.value = u
@@ -418,7 +427,7 @@ async function confirmDelete() {
 
             <td class="actions-col">
               <button
-                v-if="(fullAdmin || (!u.is_admin && !u.permissions && !adminPermissionSections.some(section => hasPermission(u, `${section.key}.view`)) && !permissionSections.some(section => section.actions.some(action => hasPermission(u, `${section.key}.${action}`) && !can(`${section.key}.${action}`))))) && (can('users.edit') || can('users.delete'))"
+                v-if="canManageAccount(u) && (can('users.edit') || can('users.delete'))"
                 class="btn btn-ghost btn-icon kebab"
                 :class="{ on: menuOpen && menuFor?.id === u.id }"
                 :disabled="busyId === u.id"
