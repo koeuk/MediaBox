@@ -1,7 +1,18 @@
+import { realpathSync } from 'node:fs'
+
 export default defineNuxtConfig({
   telemetry: false,
   compatibilityDate: '2025-07-15',
   devtools: { enabled: false },
+
+  vite: {
+    server: {
+      fs: {
+        // Dependencies may be symlinked to an external cache on noexec drives.
+        allow: [realpathSync(new URL('./node_modules', import.meta.url))],
+      },
+    },
+  },
 
   css: ['~/assets/css/main.css'],
 
