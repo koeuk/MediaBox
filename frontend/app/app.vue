@@ -46,14 +46,16 @@ const previewMedia = computed(() => (isStill(previewTarget.value) ? null : previ
   <div>
     <NuxtPage />
 
-    <MediaPreview
+    <LazyMediaPreview
+      v-if="previewMedia"
       :download="previewMedia"
       :downloads="playlist"
       @select="(d) => (previewTarget = d)"
       @close="closePreview"
     />
 
-    <ImagePreview
+    <LazyImagePreview
+      v-if="previewImage"
       :download="previewImage"
       :images="playlist"
       @select="(d) => (previewTarget = d)"

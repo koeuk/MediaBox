@@ -5,6 +5,15 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: false },
 
+  experimental: {
+    defaults: {
+      nuxtLink: {
+        // Prepare the destination on hover/focus without fetching every visible page.
+        prefetchOn: { visibility: false, interaction: true },
+      },
+    },
+  },
+
   vite: {
     server: {
       fs: {
@@ -14,7 +23,7 @@ export default defineNuxtConfig({
     },
   },
 
-  css: ['~/assets/css/main.css'],
+  css: ['~/assets/css/fonts.css', '~/assets/css/main.css'],
 
   runtimeConfig: {
     public: {
@@ -31,14 +40,6 @@ export default defineNuxtConfig({
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         { name: 'description', content: 'Download, organize, and manage your media.' },
-      ],
-      link: [
-        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
-        {
-          rel: 'stylesheet',
-          href: 'https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap',
-        },
       ],
     },
   },
