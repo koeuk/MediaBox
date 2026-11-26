@@ -20,6 +20,8 @@ export function useAuth() {
       baseURL: config.public.apiBase,
       method: 'POST',
       body: { email, password },
+      timeout: 10000,
+      retry: 0,
     })
     token.value = res.access_token
     user.value = res.user
@@ -30,6 +32,8 @@ export function useAuth() {
       baseURL: config.public.apiBase,
       method: 'POST',
       body: { email, username, password },
+      timeout: 10000,
+      retry: 0,
     })
     token.value = res.access_token
     user.value = res.user

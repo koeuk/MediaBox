@@ -215,7 +215,10 @@ trap cleanup EXIT INT TERM
 # Run from backend/ so --reload watches only the API source — started from the
 # repo root it also walks frontend/node_modules, which is tens of thousands of
 # files and makes every restart crawl.
-bash -c 'cd backend && exec "$2" -m uvicorn app.main:app --reload --port "$1"' _ "$API_PORT" "$BACKEND_PYTHON" &
+# A reload must finish even if a long request or live socket is still open.
+# Otherwise the reloader holds the port while its old worker stops accepting
+# requests, leaving the browser waiting indefinitely on sign-in.
+bash -c 'cd backend && exec "$2" -m uvicorn app.main:app --reload --timeout-graceful-shutdown 5 --port "$1"' _ "$API_PORT" "$BACKEND_PYTHON" &
 pids+=($!)
 
 npm --prefix frontend run dev -- --port "$WEB_PORT" &

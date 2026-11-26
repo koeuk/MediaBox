@@ -12,6 +12,9 @@
  * specific than `fallback` (e.g. "each URL must start with http://").
  */
 export function errorMessage(e: any, fallback: string, whenInvalid = fallback): string {
+  if (e?.cause?.name === 'TimeoutError' || e?.name === 'TimeoutError') {
+    return 'The request timed out. Please try again.'
+  }
   const detail = e?.data?.detail
   if (Array.isArray(detail)) return whenInvalid
   return detail || fallback
