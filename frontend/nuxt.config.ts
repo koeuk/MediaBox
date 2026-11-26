@@ -5,6 +5,11 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: false },
 
+  build: {
+    // Vue Router uses Vue feature flags that must also be replaced during SSR.
+    transpile: ['vue-router'],
+  },
+
   experimental: {
     defaults: {
       nuxtLink: {
