@@ -22,7 +22,7 @@ import httpx
 
 from app.config import settings
 from app.services import storage
-from app.services.extractor import _tiktok_ua, is_ytdlp_url
+from app.services.extractor import _runtime_opts, _tiktok_ua, is_ytdlp_url
 from app.services.formats import limit_video_quality
 from app.services import pinterest
 from app.services.ssrf import ensure_public_host
@@ -137,6 +137,7 @@ def _fetch_ytdlp(url: str, folder: Path, quality: str) -> Path:
     }
     if settings.ytdlp_cookies_file:
         opts["cookiefile"] = settings.ytdlp_cookies_file
+    opts.update(_runtime_opts())
 
     with yt_dlp.YoutubeDL(opts) as ydl:
         limit_video_quality(ydl, quality)

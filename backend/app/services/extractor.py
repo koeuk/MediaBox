@@ -116,6 +116,18 @@ def _downloaded_path(info: dict | None, out_dir: Path, prefix: str) -> Path | No
     return max(produced, key=lambda p: p.stat().st_mtime)
 
 
+def _runtime_opts() -> dict:
+    """YouTube challenge-solving options shared by all download entry points."""
+    opts = {}
+    runtimes = {name: {"path": None} for name in ("deno", "node", "bun") if shutil.which(name)}
+    if runtimes:
+        opts["js_runtimes"] = runtimes
+    components = [c.strip() for c in settings.ytdlp_remote_components.split(",") if c.strip()]
+    if components:
+        opts["remote_components"] = components
+    return opts
+
+
 def _build_opts(dl, out_template: str, hook, source: str, attempt: int = 1) -> dict:
     opts = {
         "outtmpl": out_template,
@@ -135,14 +147,7 @@ def _build_opts(dl, out_template: str, hook, source: str, attempt: int = 1) -> d
         opts["http_headers"] = {"User-Agent": _tiktok_ua(attempt)}
     if settings.ytdlp_cookies_file:
         opts["cookiefile"] = settings.ytdlp_cookies_file
-    # YouTube needs a JavaScript runtime for full format extraction
-    runtimes = {name: {"path": None} for name in ("deno", "node", "bun") if shutil.which(name)}
-    if runtimes:
-        opts["js_runtimes"] = runtimes
-    # solver components stop YouTube throttling downloads to a crawl
-    components = [c.strip() for c in settings.ytdlp_remote_components.split(",") if c.strip()]
-    if components:
-        opts["remote_components"] = components
+    opts.update(_runtime_opts())
     return opts
 
 
