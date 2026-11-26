@@ -135,12 +135,21 @@ def _carousel_video_url(data: dict) -> str | None:
 def _has_video(data: dict) -> bool:
     if _carousel_video_url(data):
         return True
-    for path in (("videos", "video_list"), ("story_pin_data", "pages")):
-        node = data
-        for key in path:
-            node = (node or {}).get(key) if isinstance(node, dict) else None
-        if node:
+
+    def has_formats(video):
+        if not isinstance(video, dict):
+            return False
+        formats = video.get("video_list") or {}
+        return any(isinstance(item, dict) and item.get("url") for item in formats.values())
+
+    if has_formats(data.get("videos")):
+        return True
+    for page in (data.get("story_pin_data") or {}).get("pages") or []:
+        if has_formats(page.get("video")):
             return True
+        for block in page.get("blocks") or []:
+            if has_formats(block.get("video")):
+                return True
     return bool((data.get("embed") or {}).get("src"))
 
 

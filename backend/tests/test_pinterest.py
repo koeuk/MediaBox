@@ -22,6 +22,36 @@ def carousel_pin():
 
 
 class PinterestCarouselTests(unittest.TestCase):
+    def test_image_story_is_not_mistaken_for_video(self):
+        data = {
+            "story_pin_data": {"pages": [{
+                "video": None,
+                "blocks": [{"type": "story_pin_image_block", "image": {}}],
+            }]},
+        }
+        self.assertFalse(pinterest._has_video(data))
+
+    def test_video_story_is_detected_in_blocks_and_pages(self):
+        video = {"video_list": {"V_720P": {"url": "https://v1.pinimg.com/clip.mp4"}}}
+        for page in ({"video": video}, {"blocks": [{"video": video}]}):
+            with self.subTest(page=page):
+                self.assertTrue(pinterest._has_video({"story_pin_data": {"pages": [page]}}))
+
+    def test_guest_image_story_downloads_original_image(self):
+        data = {
+            "story_pin_data": {"pages": [{"video": None, "blocks": [{"image": {}}]}]},
+            "images": {"orig": {"url": "https://i.pinimg.com/originals/photo.jpg"}},
+        }
+        with tempfile.TemporaryDirectory() as parent:
+            folder = Path(parent)
+            with patch.object(pinterest, "_fetch_pin", return_value=data), \
+                    patch.object(guest, "_fetch_ytdlp") as video, \
+                    patch.object(pinterest, "_download_image") as image:
+                path = guest._fetch_pinterest("https://www.pinterest.com/pin/1132233162601206298/", folder, "480")
+            self.assertEqual(path.suffix, ".jpg")
+            image.assert_called_once_with("https://i.pinimg.com/originals/photo.jpg", path, guest.storage.max_bytes())
+            video.assert_not_called()
+
     def test_nested_video_is_detected_despite_top_level_flags(self):
         data = carousel_pin()
         self.assertTrue(pinterest._has_video(data))
