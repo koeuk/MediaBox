@@ -95,6 +95,24 @@ docker compose --env-file .env.production -f docker-compose.production.yml ps
 curl --fail https://droplinks.site/api/health
 ```
 
+From a checkout with Node.js installed, verify the public deployment:
+
+```bash
+npm --prefix frontend run check:production -- https://droplinks.site
+```
+
+This checks the login page for Nuxt development assets, checks for an accidental
+localhost API URL, and verifies `/api/health`. An unreachable host fails the
+check rather than reporting a successful deployment.
+
+If DevTools shows `/@vite/client`, `/_nuxt/@fs/`, `virtual:nuxt`, or hundreds of
+individual source modules, check the frontend process and reverse-proxy target.
+The Docker image already builds the app and runs its production server. Outside
+Docker, run `npm ci` and `npm run build` in `frontend/`, then configure the process
+manager to run `npm start` with `NODE_ENV=production`, `NUXT_PUBLIC_API_BASE=/api`,
+and `NUXT_PUBLIC_COOKIE_SECURE=true`. Point the reverse proxy at that server's
+port. `npm run dev` and `bash dev.sh` are for local development.
+
 Check backend and HTTPS logs when troubleshooting:
 
 ```bash

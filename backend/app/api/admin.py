@@ -99,24 +99,29 @@ def analytics(
 
 @router.get("/stats", response_model=AdminStats)
 def stats(db: DbSession, _: Annotated[User, Depends(require_permission("dashboard.view"))]):
-    by_status = dict(
-        db.query(Download.status, func.count(Download.id)).group_by(Download.status).all()
+    from sqlalchemy import case
+
+    rows = (
+        db.query(
+            Download.status,
+            func.count(Download.id),
+            func.coalesce(func.sum(Download.downloaded_bytes), 0),
+            func.sum(case((Download.is_favorite.is_(True), 1), else_=0)),
+        ).group_by(Download.status).all()
     )
+    by_status = {status: count for status, count, _, _ in rows}
     feedback_count = db.query(func.count(Feedback.id)).scalar() or 0
     return AdminStats(
         users=db.query(func.count(User.id)).scalar() or 0,
-        downloads=db.query(func.count(Download.id)).scalar() or 0,
+        downloads=sum(by_status.values()),
         feedback=feedback_count,
         reviews=feedback_count,
         queued=by_status.get(DownloadStatus.queued, 0),
         downloading=by_status.get(DownloadStatus.downloading, 0),
         completed=by_status.get(DownloadStatus.completed, 0),
         failed=by_status.get(DownloadStatus.failed, 0),
-        favorites=db.query(func.count(Download.id)).filter(Download.is_favorite.is_(True)).scalar() or 0,
-        bytes_stored=db.query(func.coalesce(func.sum(Download.downloaded_bytes), 0))
-        .filter(Download.status == DownloadStatus.completed)
-        .scalar()
-        or 0,
+        favorites=sum(int(favorites or 0) for _, _, _, favorites in rows),
+        bytes_stored=sum(int(size) for status, _, size, _ in rows if status == DownloadStatus.completed),
     )
 
 

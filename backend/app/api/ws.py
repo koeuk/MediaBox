@@ -4,7 +4,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.concurrency import run_in_threadpool
 
 from app.database import SessionLocal
-from app.models import Download, User
+from app.models import Download, DownloadStatus, User
 from app.permissions import can
 from app.schemas import DownloadOut
 from app.security import decode_token
@@ -12,6 +12,7 @@ from app.security import decode_token
 router = APIRouter()
 
 POLL_SECONDS = 1.0
+IDLE_POLL_SECONDS = 5.0
 
 
 def _snapshot(user_id: int, version: int | None = None) -> list[dict]:
@@ -33,7 +34,7 @@ def _snapshot(user_id: int, version: int | None = None) -> list[dict]:
 
 @router.websocket("/api/ws/progress")
 async def progress_ws(websocket: WebSocket, token: str | None = None):
-    """Push the user's download list whenever it changes (~1s resolution).
+    """Push changes every second during active jobs, every five seconds idle.
 
     Auth via ?token= since browsers cannot set headers on WebSocket connects.
     """
@@ -46,15 +47,33 @@ async def progress_ws(websocket: WebSocket, token: str | None = None):
         return
 
     await websocket.accept()
+
+    async def wait_for_disconnect():
+        # A send-only socket otherwise keeps querying forever after an idle
+        # client disconnects, because unchanged snapshots never trigger a send.
+        while True:
+            message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                return
+
+    disconnected = asyncio.create_task(wait_for_disconnect())
     last: list[dict] | None = None
     try:
-        while True:
+        while not disconnected.done():
             snap = await run_in_threadpool(_snapshot, user_id, version)
             if snap != last:
                 await websocket.send_json({"type": "snapshot", "items": snap})
                 last = snap
-            await asyncio.sleep(POLL_SECONDS)
+            active = any(item["status"] in (DownloadStatus.queued, DownloadStatus.downloading) for item in snap)
+            interval = POLL_SECONDS if active else IDLE_POLL_SECONDS
+            try:
+                await asyncio.wait_for(asyncio.shield(disconnected), timeout=interval)
+            except asyncio.TimeoutError:
+                pass
     except PermissionError:
         await websocket.close(code=4403)
-    except (WebSocketDisconnect, RuntimeError):
+    except (WebSocketDisconnect, RuntimeError, OSError):
         pass
+    finally:
+        disconnected.cancel()
+        await asyncio.gather(disconnected, return_exceptions=True)

@@ -22,10 +22,16 @@ ADMIN_PERMISSIONS = tuple(name for name in get_args(PermissionName) if name not 
 def get_defaults(db) -> dict[str, bool]:
     if db is None:
         return dict(STANDARD_PERMISSIONS)
+    # Reuse defaults within this transaction, never across commits/requests.
+    # Return a copy so a caller cannot change subsequent permission checks.
+    cached = db.info.get("permission_defaults")
+    transaction = db.get_transaction()
+    if cached is not None and transaction is not None and cached[0] is transaction:
+        return dict(cached[1])
     from app.models import AppSetting
     prefix = 'default_perm:'
     known = set(get_args(PermissionName))
-    return {
+    defaults = {
         **STANDARD_PERMISSIONS,
         **{
             row.key[len(prefix):]: row.value == '1'
@@ -33,6 +39,8 @@ def get_defaults(db) -> dict[str, bool]:
             if row.key[len(prefix):] in known
         },
     }
+    db.info["permission_defaults"] = (db.get_transaction(), defaults)
+    return dict(defaults)
 
 
 def set_defaults(db, permissions: dict[str, bool]) -> dict[str, bool]:

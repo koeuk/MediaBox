@@ -41,14 +41,14 @@ def _resolve_user(token: str | None, db: Session, allow_query_scope: bool) -> Us
     return user
 
 
-def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+def get_current_user(request: Request, db: Session = Depends(get_db, scope="function")) -> User:
     """Resolve the user from a Bearer access token (media tokens rejected)."""
     auth = request.headers.get("authorization", "")
     token = auth.split(" ", 1)[1] if auth.lower().startswith("bearer ") else None
     return _resolve_user(token, db, allow_query_scope=False)
 
 
-def get_media_user(request: Request, db: Session = Depends(get_db)) -> User:
+def get_media_user(request: Request, db: Session = Depends(get_db, scope="function")) -> User:
     """Auth for file/thumbnail endpoints.
 
     Accepts the normal Bearer header, or a short-lived media-scoped token via
@@ -86,7 +86,7 @@ def require_permission(permission: str):
     return check
 
 
-def get_optional_user(request: Request, db: Session = Depends(get_db)) -> User | None:
+def get_optional_user(request: Request, db: Session = Depends(get_db, scope="function")) -> User | None:
     auth = request.headers.get("authorization", "")
     if not auth.lower().startswith("bearer "):
         return None
@@ -106,7 +106,9 @@ def get_optional_user(request: Request, db: Session = Depends(get_db)) -> User |
 # `user: User = Depends(get_current_user)` on every handler. They also free
 # route signatures from the "defaults last" ordering rule, which is why query
 # parameters can now sit wherever they read best.
-DbSession = Annotated[Session, Depends(get_db)]
+# FileResponse streams without the database. Release its connection before
+# sending the body so slow downloads cannot exhaust the API's connection pool.
+DbSession = Annotated[Session, Depends(get_db, scope="function")]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 MediaUser = Annotated[User, Depends(get_media_user)]
