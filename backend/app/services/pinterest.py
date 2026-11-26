@@ -114,7 +114,27 @@ def _best_image(data: dict) -> str | None:
     return None
 
 
+def _carousel_video_url(data: dict) -> str | None:
+    """First carousel clip; prefer HLS so the downloader can select quality."""
+    carousel = data.get("carousel_data") or {}
+    for slot in carousel.get("carousel_slots") or []:
+        formats = (slot.get("videos") or {}).get("video_list") or {}
+        candidates = [
+            item for item in formats.values()
+            if isinstance(item, dict) and item.get("url")
+        ]
+        if candidates:
+            candidates.sort(key=lambda item: (
+                urlparse(item["url"]).path.endswith(".m3u8"),
+                (item.get("width") or 0) * (item.get("height") or 0),
+            ), reverse=True)
+            return candidates[0]["url"]
+    return None
+
+
 def _has_video(data: dict) -> bool:
+    if _carousel_video_url(data):
+        return True
     for path in (("videos", "video_list"), ("story_pin_data", "pages")):
         node = data
         for key in path:
@@ -171,7 +191,7 @@ def run_pinterest(dl, db) -> None:
 
     # video pins are yt-dlp's job — it handles the HLS renditions properly
     if _has_video(data):
-        run_ytdlp(dl, db, url=canonical)
+        run_ytdlp(dl, db, url=_carousel_video_url(data) or canonical)
         return
 
     image_url = _best_image(data)

@@ -157,7 +157,8 @@ def _fetch_pinterest(url: str, folder: Path, quality: str) -> Path:
 
     data = pinterest._fetch_pin(ident)
     if pinterest._has_video(data):
-        return _fetch_ytdlp(f"https://www.pinterest.com/pin/{ident}/", folder, quality)
+        source = pinterest._carousel_video_url(data) or f"https://www.pinterest.com/pin/{ident}/"
+        return _fetch_ytdlp(source, folder, quality)
 
     image_url = pinterest._best_image(data)
     if not image_url:
