@@ -23,6 +23,7 @@ import httpx
 from app.config import settings
 from app.services import storage
 from app.services.extractor import _tiktok_ua, is_ytdlp_url
+from app.services.formats import limit_video_quality
 from app.services import pinterest
 from app.services.ssrf import ensure_public_host
 
@@ -118,12 +119,10 @@ def _fetch_direct(url: str, folder: Path) -> Path:
 def _fetch_ytdlp(url: str, folder: Path, quality: str) -> Path:
     import yt_dlp
 
-    # Capped by height, and never "best" — the ladder members get does not
-    # apply here. The `/b[...]` fallback covers sites offering only muxed files.
-    fmt = f"bv*[height<={quality}]+ba/b[height<={quality}]/wv*+ba/w"
+    # The shared selector caps the shorter side for landscape and portrait.
     opts = {
         "outtmpl": str(folder / "%(title).80s.%(ext)s"),
-        "format": fmt,
+        "format": "bv*+ba/b",
         "merge_output_format": "mp4",
         "noplaylist": True,
         "max_filesize": storage.max_bytes(),
@@ -140,6 +139,7 @@ def _fetch_ytdlp(url: str, folder: Path, quality: str) -> Path:
         opts["cookiefile"] = settings.ytdlp_cookies_file
 
     with yt_dlp.YoutubeDL(opts) as ydl:
+        limit_video_quality(ydl, quality)
         ydl.extract_info(url, download=True)
 
     produced = _largest_file(folder)

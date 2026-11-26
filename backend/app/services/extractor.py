@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 from app.config import settings
 from app.models import DownloadStatus
 from app.services import ffmpeg, storage
+from app.services.formats import limit_video_quality
 from app.services.tasks import Cancelled, take_cancel
 from app.services.tiktok_photos import photo_post_id
 
@@ -116,14 +117,9 @@ def _downloaded_path(info: dict | None, out_dir: Path, prefix: str) -> Path | No
 
 
 def _build_opts(dl, out_template: str, hook, source: str, attempt: int = 1) -> dict:
-    fmt = (
-        f"bv*[height<={dl.quality}]+ba/b[height<={dl.quality}]"
-        if dl.quality
-        else "bv*+ba/b"
-    )
     opts = {
         "outtmpl": out_template,
-        "format": fmt,
+        "format": "bv*+ba/b",
         "merge_output_format": "mp4",
         "noplaylist": True,
         "max_filesize": storage.max_bytes(),
@@ -192,6 +188,7 @@ def run_ytdlp(dl, db, url: str | None = None) -> None:
     for attempt in range(1, attempts + 1):
         try:
             with yt_dlp.YoutubeDL(_build_opts(dl, out_template, hook, source, attempt)) as ydl:
+                limit_video_quality(ydl, dl.quality)
                 info = ydl.extract_info(source, download=True)
             break
         except Cancelled:

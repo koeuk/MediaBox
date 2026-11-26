@@ -31,7 +31,7 @@ class Download(Base):
     total_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
     downloaded_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
     content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    # max video height for yt-dlp downloads ("720", "1080", …); None = best
+    # Max short-side video resolution ("720", "1080", …); None = best.
     quality: Mapped[str | None] = mapped_column(String(8), nullable=True)
     category: Mapped[str | None] = mapped_column(String(50), nullable=True, default=None, index=True)
     # set on records derived from another file (convert, cutout) so retry
