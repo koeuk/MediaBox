@@ -16,12 +16,14 @@ import tempfile
 import threading
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 
 from app.config import settings
 from app.services import storage
 from app.services.extractor import _tiktok_ua, is_ytdlp_url
+from app.services import pinterest
 from app.services.ssrf import ensure_public_host
 
 # Guests pick from these only. Members keep the full ladder (1080p, Best);
@@ -146,6 +148,28 @@ def _fetch_ytdlp(url: str, folder: Path, quality: str) -> Path:
     return produced
 
 
+def _fetch_pinterest(url: str, folder: Path, quality: str) -> Path:
+    if pinterest._is_short_link(url):
+        url = pinterest.resolve_share_link(url)
+    ident = pinterest.pin_id(url)
+    if not ident:
+        raise GuestError("Only single Pinterest pins can be downloaded.")
+
+    data = pinterest._fetch_pin(ident)
+    if pinterest._has_video(data):
+        return _fetch_ytdlp(f"https://www.pinterest.com/pin/{ident}/", folder, quality)
+
+    image_url = pinterest._best_image(data)
+    if not image_url:
+        raise GuestError("This pin has no downloadable image or video.")
+    suffix = Path(urlparse(image_url).path).suffix.lower()
+    if suffix not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+        suffix = ".jpg"
+    dest = folder / f"pinterest-{ident}{suffix}"
+    pinterest._download_image(image_url, dest, storage.max_bytes())
+    return dest
+
+
 def fetch(url: str, quality: str | None) -> tuple[Path, Path]:
     """Download `url` into a fresh temp folder.
 
@@ -155,7 +179,9 @@ def fetch(url: str, quality: str | None) -> tuple[Path, Path]:
     quality = normalise_quality(quality)
     folder = Path(tempfile.mkdtemp(prefix="mediabox-guest-"))
     try:
-        if is_ytdlp_url(url):
+        if pinterest.is_pinterest_url(url):
+            path = _fetch_pinterest(url, folder, quality)
+        elif is_ytdlp_url(url):
             path = _fetch_ytdlp(url, folder, quality)
         else:
             path = _fetch_direct(url, folder)
