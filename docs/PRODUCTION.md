@@ -1,6 +1,48 @@
 # Production: droplinks.site
 
-The production stack serves **https://droplinks.site**, proxies `/api` and
+## Existing systemd deployment
+
+The current server runs MediaBox from `/srv/MediaBox` as user `mediabox`.
+Nginx manages HTTPS and proxies the API to `127.0.0.1:8005` and the built
+frontend to `[::1]:3005`. Service definitions are in `deploy/systemd/`:
+
+- `mediabox.service`: production Uvicorn API, with one download worker.
+- `mediabox-web.service`: the compiled Nuxt server, with a 128 MB JavaScript heap limit.
+
+The API reads `backend/.env`; public URLs, CORS, worker limits, and private-URL
+policy are set by its service. The frontend service sets `/api` and secure
+cookies. The root `.env.production` file belongs to the Docker option below
+and is not loaded by these systemd services.
+
+Build frontend artifacts on a larger machine using the checked-in lockfile:
+
+```bash
+npm --prefix frontend ci --legacy-peer-deps --no-audit --no-fund
+npm --prefix frontend run build
+```
+
+Use Linux and Node.js 22 for the build. Upload `frontend/.output` to the same
+path on the server, keeping a copy of the previous build for rollback. The
+production build pins Nuxt 4.5.0 and Vite 8.1.5 to avoid an SSR dependency
+bundling failure in newer versions. Do not build on the current 458 MB host.
+
+When changing the service definitions, back up the installed units, install
+the reviewed files from `deploy/systemd/`, and run `systemctl daemon-reload`.
+Restart and verify both services after an update:
+
+```bash
+sudo systemctl restart mediabox.service mediabox-web.service
+sudo systemctl is-active mediabox.service mediabox-web.service
+npm --prefix frontend run check:production -- https://droplinks.site
+```
+
+Inspect failures with `journalctl -u mediabox.service -u mediabox-web.service`.
+The development-service configuration from the production switch is backed up
+under `/root/mediabox-service-backups/20261126T130942Z/`.
+
+## Docker deployment option
+
+The Docker stack serves **https://droplinks.site**, proxies `/api` and
 WebSockets to FastAPI, and sends password reset links to this public URL.
 Caddy manages HTTPS and certificate renewal. MySQL, FastAPI, and Nuxt are only
 reachable on the Compose network; Caddy publishes ports 80 and 443.

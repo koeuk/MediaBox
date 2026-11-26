@@ -1,0 +1,23 @@
+[Unit]
+Description=MediaBox production frontend
+After=network.target
+
+[Service]
+Type=simple
+User=mediabox
+Group=mediabox
+WorkingDirectory=/srv/MediaBox/frontend
+Environment=NODE_ENV=production
+Environment=HOST=::1
+Environment=PORT=3005
+Environment=NUXT_PUBLIC_API_BASE=/api
+Environment=NUXT_PUBLIC_COOKIE_SECURE=true
+Environment=NODE_OPTIONS=--max-old-space-size=128
+ExecStart=/usr/local/bin/node /srv/MediaBox/frontend/.output/server/index.mjs
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
