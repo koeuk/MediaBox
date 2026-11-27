@@ -8,12 +8,15 @@ from fastapi.testclient import TestClient
 
 from app.api import public
 from app.services import guest
+from app.services import guest_policy
+from app.schemas.public import GuestQualitySettings
 
 
 class GuestDownloadTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
         app.include_router(public.router, prefix="/public")
+        app.dependency_overrides[guest_policy.current] = lambda: GuestQualitySettings()
         self.client = TestClient(app)
 
     def tearDown(self):
@@ -33,7 +36,7 @@ class GuestDownloadTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.content, b"test-video")
             self.assertIn("clip.mp4", response.headers["content-disposition"])
-            fetch.assert_called_once_with("https://example.com/clip.mp4", "720")
+            fetch.assert_called_once_with("https://example.com/clip.mp4", "720", policy=GuestQualitySettings())
             self.assertFalse(folder.exists())
 
     def test_premium_quality_is_rejected_before_fetch_or_rate_limit(self):

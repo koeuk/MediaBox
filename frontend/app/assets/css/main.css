@@ -195,6 +195,18 @@ a {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* iOS zooms into small text fields on focus. Cover every editable control,
+   including component-specific forms and dialogs, without disabling pinch zoom.
+   Important keeps scoped component font shorthands from lowering this minimum. */
+@media (max-width: 768px), (hover: none) and (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='hidden'], [type='button'], [type='submit'], [type='reset'], [type='image']),
+  textarea,
+  select,
+  [contenteditable]:not([contenteditable='false']) {
+    font-size: max(16px, 1rem) !important;
+  }
+}
+
 /* ── Segmented filter control ───────────────────────────────────────── */
 /* Shared by the view tabs and the category carousel, which live in separate
    components — scoped styles could not reach both. */

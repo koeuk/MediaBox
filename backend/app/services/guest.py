@@ -21,17 +21,12 @@ from urllib.parse import urlparse
 import httpx
 
 from app.config import settings
+from app.schemas.public import GuestQualitySettings
 from app.services import storage
 from app.services.extractor import _runtime_opts, _tiktok_ua, is_ytdlp_url
 from app.services.formats import limit_video_quality
 from app.services import pinterest
 from app.services.ssrf import ensure_public_host
-
-# Guests pick from these only. Members keep the full ladder (1080p, Best);
-# holding anonymous traffic to low quality keeps an open endpoint from being
-# a cheap way to pull large files through someone else's server.
-GUEST_QUALITIES = ("720", "480")
-DEFAULT_QUALITY = "480"
 
 # A guest download costs real bandwidth and disk, so cap how often one caller
 # may start another.
@@ -72,13 +67,13 @@ def check_rate_limit(client_ip: str) -> None:
                 _hits.pop(ip, None)
 
 
-def normalise_quality(quality: str | None) -> str:
+def normalise_quality(quality: str | None, policy: GuestQualitySettings | None = None) -> str:
+    policy = policy if policy is not None else GuestQualitySettings()
     if quality is None:
-        return DEFAULT_QUALITY
-    if quality not in GUEST_QUALITIES:
+        return policy.default_quality
+    if quality not in policy.qualities:
         raise GuestError(
-            f"Guests can download at {' or '.join(GUEST_QUALITIES)}p. "
-            "Sign in for higher quality."
+            "This quality is not available for guests. Choose an allowed quality or sign in."
         )
     return quality
 
@@ -172,13 +167,13 @@ def _fetch_pinterest(url: str, folder: Path, quality: str) -> Path:
     return dest
 
 
-def fetch(url: str, quality: str | None) -> tuple[Path, Path]:
+def fetch(url: str, quality: str | None, *, policy: GuestQualitySettings | None = None) -> tuple[Path, Path]:
     """Download `url` into a fresh temp folder.
 
     Returns `(file, folder)` — the caller streams the file and must delete the
     folder afterwards.
     """
-    quality = normalise_quality(quality)
+    quality = normalise_quality(quality, policy)
     folder = Path(tempfile.mkdtemp(prefix="mediabox-guest-"))
     try:
         if pinterest.is_pinterest_url(url):

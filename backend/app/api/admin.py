@@ -33,6 +33,8 @@ from app.schemas import (
     SiteBrandingOut,
     SiteTitleEdit,
 )
+from app.schemas.public import GuestQualitySettings
+from app.services import guest_policy
 
 router = APIRouter()
 
@@ -475,6 +477,16 @@ def update_default_permissions(payload: DefaultPermissions, db: DbSession, _: Ad
 @router.get("/access-settings", response_model=AccessSettings)
 def access_settings(db: DbSession, _: Annotated[User, Depends(require_permission("plans.view"))]):
     return AccessSettings(paid_mode=plans.is_paid_mode(db))
+
+
+@router.get("/guest-settings", response_model=GuestQualitySettings)
+def guest_settings(db: DbSession, _: AdminUser):
+    return guest_policy.load(db)
+
+
+@router.put("/guest-settings", response_model=GuestQualitySettings)
+def update_guest_settings(payload: GuestQualitySettings, db: DbSession, _: AdminUser):
+    return guest_policy.save(db, payload)
 
 
 @router.patch("/access-settings", response_model=AccessSettings)

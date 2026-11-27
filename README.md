@@ -160,6 +160,16 @@ YTDLP_HOSTS=tiktok.com,facebook.com,fb.watch,youtube.com,youtu.be,pornhub.com,in
 If Instagram requests login, configure `YTDLP_COOKIES_FILE` with a
 Netscape-format cookies file from an account that can access the video.
 
+## Guest download settings
+
+Full administrators can configure anonymous download quality at
+**Settings → Guest downloads** (`/profile?tab=guest`). Choose any of Best, 4K,
+1440p, 1080p, 720p, and 480p, then select a default from the enabled qualities.
+The public page and download API follow the saved policy without a restart.
+At least one quality must remain enabled. Existing defaults are 720p and 480p,
+with 480p selected. Settings are stored in the existing database; no migration
+is required. Deploy the updated backend and rebuild the frontend for this UI.
+
 ## Future Features
 
 - Background download queue (Redis + Celery)

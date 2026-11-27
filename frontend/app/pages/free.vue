@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { GUEST_QUALITY_OPTIONS, guestQualityLabel } from '~/utils/guestQualities'
 /**
  * Downloading without an account.
  *
@@ -96,20 +97,11 @@ async function shareFile() {
 // The members' full ladder, shown to guests as well. The ones a guest cannot
 // have stay visible but locked: hiding them would leave no hint that signing up
 // buys anything, which is the point of showing them.
-const QUALITY_LADDER = [
-  { value: '', label: 'Best', hint: 'auto' },
-  { value: '2160', label: '4K', hint: '2160p' },
-  { value: '1440', label: '1440p' },
-  { value: '1080', label: '1080p' },
-  { value: '720', label: '720p' },
-  { value: '480', label: '480p' },
-]
-
 /** What the server says a guest may have — everything else is locked. */
 const allowed = computed(() => limits.value?.qualities || ['720', '480'])
 
 const options = computed(() =>
-  QUALITY_LADDER.map((q) => {
+  GUEST_QUALITY_OPTIONS.map((q) => {
     const open = allowed.value.includes(q.value)
     return {
       value: q.value,
@@ -122,8 +114,14 @@ const options = computed(() =>
 // limits arrive after the first render (client-only fetch), so adopt the
 // server's default once it does — unless the visitor already chose something
 watch(limits, (value) => {
-  if (value?.default_quality && !touched.value) picked.value = value.default_quality
-})
+  if (value && (!touched.value || !value.qualities.includes(picked.value))) {
+    picked.value = value.default_quality
+  }
+}, { immediate: true })
+
+const qualitySummary = computed(() => allowed.value.includes('')
+  ? 'Guests can download at the best available quality'
+  : `Guests download at up to ${guestQualityLabel(allowed.value[0] || '720')}`)
 
 /**
  * Picking a locked quality is a signup prompt, not a selection: send them to
@@ -244,11 +242,10 @@ async function submit() {
 
         <div class="footer">
           <p class="note mono">
-            Guests download at up to {{ (limits?.qualities || ['720'])[0] }}p, and
+            {{ qualitySummary }}, and
             {{ limits?.rate_limit ?? 5 }} videos per
             {{ Math.round((limits?.rate_window_seconds ?? 600) / 60) }} minutes.
-            Nothing is saved on the server. An account adds your own library,
-            higher quality and conversions.
+            Nothing is saved on the server. An account adds your own library and conversions.
           </p>
 
           <!-- buttons rather than inline links: these are the two ways off this

@@ -44,12 +44,12 @@ async function clearPhoto() {
 
 /** Which panel the tabs are showing. Mirrored into `?tab=` so a reload — or a
  *  link straight to one section — lands where you expect. */
-type ProfileTab = 'account' | 'password' | 'hidden' | 'saving' | 'branding'
+type ProfileTab = 'account' | 'password' | 'hidden' | 'saving' | 'branding' | 'guest'
 const route = useRoute()
 const router = useRouter()
 const queryTab = route.query.tab as ProfileTab
 const tab = ref<ProfileTab>(
-  queryTab === 'password' || queryTab === 'hidden' || queryTab === 'saving' || queryTab === 'branding'
+  queryTab === 'password' || queryTab === 'hidden' || queryTab === 'saving' || queryTab === 'branding' || queryTab === 'guest'
     ? queryTab
     : 'account'
 )
@@ -59,7 +59,7 @@ watch(tab, (value) => {
 })
 
 watch(user, (u) => {
-  if (tab.value === 'branding' && !fullAdmin.value) {
+  if ((tab.value === 'branding' || tab.value === 'guest') && !fullAdmin.value) {
     tab.value = 'account'
   }
 })
@@ -267,7 +267,7 @@ async function handleSaveHiddenPassword() {
 
       <div class="filters tabs reveal" role="tablist" aria-label="Settings sections">
         <button
-          v-for="t in (['account', 'password', 'hidden', 'saving', ...(fullAdmin ? ['branding'] : [])] as ProfileTab[])"
+          v-for="t in (['account', 'password', 'hidden', 'saving', ...(fullAdmin ? ['branding', 'guest'] : [])] as ProfileTab[])"
           :key="t"
           :id="`tab-${t}`"
           class="filter-btn"
@@ -278,7 +278,7 @@ async function handleSaveHiddenPassword() {
           :aria-controls="`panel-${t}`"
           @click="tab = t"
         >
-          {{ t === 'account' ? 'Account details' : t === 'password' ? 'Change password' : t === 'hidden' ? 'Hidden lock' : t === 'saving' ? 'Save location' : 'Branding' }}
+          {{ t === 'account' ? 'Account details' : t === 'password' ? 'Change password' : t === 'hidden' ? 'Hidden lock' : t === 'saving' ? 'Save location' : t === 'guest' ? 'Guest downloads' : 'Branding' }}
         </button>
       </div>
 
@@ -500,6 +500,13 @@ async function handleSaveHiddenPassword() {
           <button class="btn btn-accent" type="submit">Save preference</button>
         </form>
 
+        <AdminGuestSettings
+          v-if="fullAdmin && tab === 'guest'"
+          id="panel-guest"
+          role="tabpanel"
+          aria-labelledby="tab-guest"
+        />
+
         <AdminBranding
           v-if="fullAdmin"
           v-show="tab === 'branding'"
@@ -632,6 +639,8 @@ async function handleSaveHiddenPassword() {
 .tabs {
   display: inline-flex;
   margin-bottom: 1.1rem;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 /* One panel shows at a time, so the old two-column grid is gone. Capped rather

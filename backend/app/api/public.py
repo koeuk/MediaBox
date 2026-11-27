@@ -1,21 +1,25 @@
 """Endpoints that work without an account.
 
 Everything here is reachable by anyone who can hit the server, so each route
-is rate limited and hands back only what a visitor is allowed: low-quality
-video, streamed once and not kept.
+hands back only what the guest policy allows: media streamed once and not kept.
 """
 
 import mimetypes
 import shutil
+from typing import Annotated
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
 from app.schemas import AccessSettings, GuestDownloadRequest, GuestLimitsOut, PaymentSettingsOut, PlanOut, SiteBrandingOut
 from app.api.deps import DbSession
 from app.services import guest, payments, plans, storage
+from app.services import guest_policy
+from app.schemas.public import GuestQualitySettings
+
+GuestPolicy = Annotated[GuestQualitySettings, Depends(guest_policy.current)]
 
 router = APIRouter()
 
@@ -41,11 +45,11 @@ def site_logo():
 
 
 @router.get("/limits", response_model=GuestLimitsOut)
-def limits():
+def limits(policy: GuestPolicy):
     """What the guest form is allowed to offer, so the UI need not hardcode it."""
     return GuestLimitsOut(
-        qualities=list(guest.GUEST_QUALITIES),
-        default_quality=guest.DEFAULT_QUALITY,
+        qualities=policy.qualities,
+        default_quality=policy.default_quality,
         max_size_mb=guest.settings.max_download_size_mb,
         rate_limit=guest.RATE_LIMIT,
         rate_window_seconds=guest.RATE_WINDOW_SECONDS,
@@ -70,7 +74,7 @@ def public_payment_settings(db: DbSession):
 
 
 @router.post("/download")
-def guest_download(payload: GuestDownloadRequest, request: Request):
+def guest_download(payload: GuestDownloadRequest, request: Request, policy: GuestPolicy):
     """Fetch a video and stream it straight back, keeping nothing.
 
     The response *is* the file, so there is no job to poll and no library row.
@@ -82,9 +86,9 @@ def guest_download(payload: GuestDownloadRequest, request: Request):
         # Quality is checked before the limiter so a rejected form field costs
         # nothing — otherwise picking an unavailable quality would spend the
         # visitor's quota on a request that never downloaded anything.
-        quality = guest.normalise_quality(payload.quality)
+        quality = guest.normalise_quality(payload.quality, policy)
         guest.check_rate_limit(client_ip)
-        path, folder = guest.fetch(str(payload.url), quality)
+        path, folder = guest.fetch(str(payload.url), quality, policy=policy)
     except guest.GuestError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc))
 
