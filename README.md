@@ -50,6 +50,38 @@ The launcher uses a working `backend/.venv` when available, then falls back to
 at `backend/.cache/venv-original`. The editor and `pyrightconfig.json` use
 `backend/.venv`. Reload the editor window after changing the environment.
 
+## DigitalOcean Spaces uploads
+
+Install the updated `backend/requirements.txt`, then set `DO_SPACES_KEY` and
+`DO_SPACES_SECRET` in `backend/.env`. The default region is `sgp1`, bucket is
+`droplinks-uploads`, and endpoint is `https://sgp1.digitaloceanspaces.com`;
+adjust these to match your existing Space. Keep the bucket private.
+
+Run the existing application from `backend`:
+
+```bash
+.venv/bin/python -m uvicorn app.main:app --reload --port 8005
+```
+
+With an account's access token, upload a file and request a one-hour link:
+
+```bash
+curl -X POST http://localhost:8005/upload \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -F "file=@/path/to/file.png"
+# Returns {"key":"uploads/USER_ID/UNIQUE_ID-file.png"}
+
+curl http://localhost:8005/url/uploads/USER_ID/UNIQUE_ID-file.png \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+# Returns {"url":"https://..."}
+```
+
+Uploads require `media.create`; links require `media.view` and are limited to
+the current user's files. Upload size follows `MAX_DOWNLOAD_SIZE_MB`. These
+endpoints store files directly in Spaces; existing library uploads and media
+processing continue to use local storage. Missing Spaces credentials return
+HTTP 503 without preventing the rest of the app from starting.
+
 ## Production
 
 Production settings for **https://droplinks.site** are in

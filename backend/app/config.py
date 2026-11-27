@@ -41,6 +41,11 @@ class Settings(BaseSettings):
         return value.expanduser().resolve()
     cors_origins: str = "http://localhost:3000"
     max_download_size_mb: int = 2048
+    do_spaces_key: SecretStr = SecretStr("")
+    do_spaces_secret: SecretStr = SecretStr("")
+    do_spaces_region: str = "sgp1"
+    do_spaces_bucket: str = "droplinks-uploads"
+    do_spaces_endpoint: AnyHttpUrl = "https://sgp1.digitaloceanspaces.com"
     max_concurrent_downloads: int = 3
     # hosts routed through yt-dlp instead of a direct stream (comma-separated,
     # subdomains included automatically); empty string disables extraction

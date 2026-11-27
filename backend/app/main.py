@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 import app.models  # noqa: F401  (register models with the metadata)
-from app.api import admin, auth, categories, downloads, feedback, payments, public, ws
+from app.api import admin, auth, categories, downloads, feedback, payments, public, spaces, ws
 from app.config import settings
 from app.database import Base, SessionLocal, engine, run_migrations
 from app.services import jobs, payments as payment_service, plans
@@ -50,6 +50,7 @@ app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(public.router, prefix="/api/public", tags=["public"])
 app.include_router(payments.router, prefix="/api/payments", tags=["payments"])
 app.include_router(ws.router, tags=["ws"])
+app.include_router(spaces.router, tags=["spaces"])
 
 
 @app.get("/api/health")
