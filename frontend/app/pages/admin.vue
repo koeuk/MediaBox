@@ -34,6 +34,53 @@ const downloadsError = ref('')
 const downloadsTotalPages = ref(1)
 const statusFilter = ref<DownloadStatus | ''>('')
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
+const selectedDownloads = ref<number[]>([])
+const pendingDelete = ref<number[]>([])
+const downloadsDeleting = ref(false)
+const deleteMessage = ref('')
+const allDownloadsSelected = computed(() => downloadsList.value.length > 0 && downloadsList.value.every(d => selectedDownloads.value.includes(d.id)))
+const someDownloadsSelected = computed(() => selectedDownloads.value.length > 0 && !allDownloadsSelected.value)
+
+function toggleAllDownloads() {
+  selectedDownloads.value = allDownloadsSelected.value ? [] : downloadsList.value.map(d => d.id)
+}
+
+function confirmDeleteDownloads(ids: number[]) {
+  pendingDelete.value = [...ids]
+}
+
+async function deleteDownloads() {
+  if (downloadsDeleting.value || !pendingDelete.value.length) return
+  const ids = [...pendingDelete.value]
+  pendingDelete.value = []
+  downloadsDeleting.value = true
+  deleteMessage.value = ''
+  downloadsError.value = ''
+  try {
+    const result = await request<{ deleted_ids: number[]; failed: { id: number; detail: string }[] }>('/admin/downloads/delete', {
+      method: 'POST', body: { ids },
+    })
+    const lastPage = Math.max(1, Math.ceil((downloadsTotal.value - result.deleted_ids.length) / downloadsLimit.value))
+    await Promise.all([
+      loadDownloads(Math.min(downloadsPage.value, lastPage)),
+      loadActivity(activityRange.value),
+      reloadUsers(),
+      can('dashboard.view') ? request<AdminStats>('/admin/stats').then(value => { stats.value = value }).catch(() => {}) : Promise.resolve(),
+    ])
+    if (result.deleted_ids.length) {
+      deleteMessage.value = `${result.deleted_ids.length} download${result.deleted_ids.length === 1 ? '' : 's'} permanently deleted.`
+    }
+    if (result.failed.length) {
+      const failedIds = new Set(result.failed.map(item => item.id))
+      selectedDownloads.value = downloadsList.value.filter(d => failedIds.has(d.id)).map(d => d.id)
+      downloadsError.value = `${result.failed.length} download${result.failed.length === 1 ? '' : 's'} could not be deleted. ${result.failed[0]!.detail}`
+    }
+  } catch (e) {
+    downloadsError.value = errorMessage(e, 'Could not delete downloads. Refresh the list and try again.')
+  } finally {
+    downloadsDeleting.value = false
+  }
+}
 
 async function loadActivity(range: AdminDateRange) {
   if (activityLoading.value || !can('dashboard.view')) return
@@ -58,6 +105,7 @@ async function loadDownloads(page: number = downloadsPage.value) {
   if (downloadsLoading.value || !can('downloads.view')) return
   downloadsLoading.value = true
   downloadsError.value = ''
+  selectedDownloads.value = []
   downloadsPage.value = page
   try {
     const res = await request<AdminDownloadPage>('/admin/downloads', {
@@ -79,6 +127,7 @@ async function loadDownloads(page: number = downloadsPage.value) {
 }
 
 function changeLimit(newLimit: number) {
+  if (downloadsDeleting.value || downloadsLoading.value) return
   if (downloadsLimit.value === newLimit) return
   downloadsLimit.value = newLimit
   downloadsPage.value = 1
@@ -86,11 +135,13 @@ function changeLimit(newLimit: number) {
 }
 
 function goToPage(page: number) {
+  if (downloadsDeleting.value || downloadsLoading.value) return
   if (page < 1 || page > downloadsTotalPages.value || page === downloadsPage.value) return
   loadDownloads(page)
 }
 
 function setStatusFilter(s: DownloadStatus | '') {
+  if (downloadsDeleting.value || downloadsLoading.value) return
   statusFilter.value = statusFilter.value === s ? '' : s
   downloadsPage.value = 1
   loadDownloads(1)
@@ -358,6 +409,7 @@ onMounted(async () => {
             type="button"
             class="status-filter-btn mono"
             :class="{ active: statusFilter === '' }"
+            :disabled="downloadsLoading || downloadsDeleting"
             @click="setStatusFilter('')"
           >
             All ({{ stats.downloads }})
@@ -366,6 +418,7 @@ onMounted(async () => {
             type="button"
             class="badge badge-queued status-badge-btn"
             :class="{ active: statusFilter === 'queued' }"
+            :disabled="downloadsLoading || downloadsDeleting"
             @click="setStatusFilter('queued')"
           >
             <span class="dot" /> queued {{ stats.queued }}
@@ -374,6 +427,7 @@ onMounted(async () => {
             type="button"
             class="badge badge-downloading status-badge-btn"
             :class="{ active: statusFilter === 'downloading' }"
+            :disabled="downloadsLoading || downloadsDeleting"
             @click="setStatusFilter('downloading')"
           >
             <span class="dot" /> downloading {{ stats.downloading }}
@@ -382,6 +436,7 @@ onMounted(async () => {
             type="button"
             class="badge badge-completed status-badge-btn"
             :class="{ active: statusFilter === 'completed' }"
+            :disabled="downloadsLoading || downloadsDeleting"
             @click="setStatusFilter('completed')"
           >
             ✓ completed {{ stats.completed }}
@@ -390,6 +445,7 @@ onMounted(async () => {
             type="button"
             class="badge badge-failed status-badge-btn"
             :class="{ active: statusFilter === 'failed' }"
+            :disabled="downloadsLoading || downloadsDeleting"
             @click="setStatusFilter('failed')"
           >
             ✕ failed {{ stats.failed }}
@@ -404,40 +460,84 @@ onMounted(async () => {
                 {{ downloadsLoading ? 'Loading downloads…' : (downloadsTotal === 0 ? '0 downloads' : `Showing ${paginationStart}–${paginationEnd} of ${downloadsTotal} downloads`) }}
               </p>
             </div>
-            <button
-              class="btn btn-ghost refresh-btn mono"
-              type="button"
-              :disabled="downloadsLoading"
-              title="Refresh downloads"
-              @click="loadDownloads()"
-            >
-              ↻ Refresh
-            </button>
+            <div class="download-actions">
+              <span v-if="selectedDownloads.length" class="selection-count mono">{{ selectedDownloads.length }} selected</span>
+              <button
+                v-if="can('downloads.delete')"
+                class="btn delete-btn"
+                type="button"
+                :disabled="!selectedDownloads.length || downloadsLoading || downloadsDeleting"
+                @click="confirmDeleteDownloads(selectedDownloads)"
+              >
+                {{ downloadsDeleting ? 'Deleting…' : 'Delete selected' }}
+              </button>
+              <button
+                class="btn btn-ghost refresh-btn mono"
+                type="button"
+                :disabled="downloadsLoading || downloadsDeleting"
+                title="Refresh downloads"
+                @click="loadDownloads()"
+              >
+                ↻ Refresh
+              </button>
+            </div>
           </div>
+
+          <p v-if="downloadsError" class="download-error table-message" role="alert">{{ downloadsError }}</p>
+          <p v-if="deleteMessage" class="download-success table-message" role="status">{{ deleteMessage }}</p>
 
           <div class="table-scroll">
             <table :class="{ loading: downloadsLoading }">
               <thead>
                 <tr>
+                  <th v-if="can('downloads.delete')" class="select-cell">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all downloads on this page"
+                      :checked="allDownloadsSelected"
+                      :indeterminate="someDownloadsSelected"
+                      :disabled="!downloadsList.length || downloadsLoading || downloadsDeleting"
+                      @change="toggleAllDownloads"
+                    />
+                  </th>
                   <th>Title</th>
                   <th>User</th>
                   <th>Status</th>
                   <th class="num">Size</th>
                   <th>Date</th>
+                  <th v-if="can('downloads.delete')" class="num">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!downloadsList.length && !downloadsLoading">
-                  <td colspan="5" class="empty-row dim">
-                    {{ downloadsError || (statusFilter ? `No ${statusFilter} downloads found.` : 'No downloads recorded yet.') }}
+                  <td :colspan="can('downloads.delete') ? 7 : 5" class="empty-row dim">
+                    {{ downloadsError ? 'Downloads could not be loaded. Refresh to try again.' : (statusFilter ? `No ${statusFilter} downloads found.` : 'No downloads recorded yet.') }}
                   </td>
                 </tr>
                 <tr v-for="d in downloadsList" :key="d.id">
+                  <td v-if="can('downloads.delete')" class="select-cell">
+                    <input
+                      v-model="selectedDownloads"
+                      type="checkbox"
+                      :value="d.id"
+                      :aria-label="`Select ${d.title || d.filename || d.url}`"
+                      :disabled="downloadsLoading || downloadsDeleting"
+                    />
+                  </td>
                   <td class="clip" :title="d.title || d.filename || d.url">{{ d.title || d.filename || d.url }}</td>
                   <td class="dim">{{ d.username }}</td>
                   <td><span class="badge" :class="`badge-${d.status}`">{{ d.status }}</span></td>
                   <td class="num mono">{{ formatBytes(d.total_bytes) }}</td>
                   <td class="dim">{{ adminActivityDate(d.created_at) }}</td>
+                  <td v-if="can('downloads.delete')" class="num">
+                    <button
+                      type="button"
+                      class="btn btn-ghost row-delete-btn"
+                      :aria-label="`Delete ${d.title || d.filename || d.url}`"
+                      :disabled="downloadsLoading || downloadsDeleting"
+                      @click="confirmDeleteDownloads([d.id])"
+                    >Delete</button>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -454,7 +554,7 @@ onMounted(async () => {
                   type="button"
                   class="filter-btn mono"
                   :class="{ on: downloadsLimit === size }"
-                  :disabled="downloadsLoading"
+                  :disabled="downloadsLoading || downloadsDeleting"
                   @click="changeLimit(size)"
                 >
                   {{ size }}
@@ -470,7 +570,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="filter-btn nav-btn mono"
-                :disabled="downloadsPage <= 1 || downloadsLoading"
+                :disabled="downloadsPage <= 1 || downloadsLoading || downloadsDeleting"
                 title="First page"
                 aria-label="First page"
                 @click="goToPage(1)"
@@ -480,7 +580,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="filter-btn nav-btn mono"
-                :disabled="downloadsPage <= 1 || downloadsLoading"
+                :disabled="downloadsPage <= 1 || downloadsLoading || downloadsDeleting"
                 title="Previous page"
                 aria-label="Previous page"
                 @click="goToPage(downloadsPage - 1)"
@@ -496,7 +596,7 @@ onMounted(async () => {
                     type="button"
                     class="filter-btn page-btn mono"
                     :class="{ on: downloadsPage === p }"
-                    :disabled="downloadsLoading"
+                    :disabled="downloadsLoading || downloadsDeleting"
                     :aria-current="downloadsPage === p ? 'page' : undefined"
                     @click="goToPage(p as number)"
                   >
@@ -508,7 +608,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="filter-btn nav-btn mono"
-                :disabled="downloadsPage >= downloadsTotalPages || downloadsLoading"
+                :disabled="downloadsPage >= downloadsTotalPages || downloadsLoading || downloadsDeleting"
                 title="Next page"
                 aria-label="Next page"
                 @click="goToPage(downloadsPage + 1)"
@@ -518,7 +618,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="filter-btn nav-btn mono"
-                :disabled="downloadsPage >= downloadsTotalPages || downloadsLoading"
+                :disabled="downloadsPage >= downloadsTotalPages || downloadsLoading || downloadsDeleting"
                 title="Last page"
                 aria-label="Last page"
                 @click="goToPage(downloadsTotalPages)"
@@ -530,6 +630,15 @@ onMounted(async () => {
         </div>
       </section>
     </main>
+    <ConfirmDialog
+      :open="pendingDelete.length > 0"
+      title="Delete downloads permanently?"
+      :message="`Permanently delete ${pendingDelete.length} download${pendingDelete.length === 1 ? '' : 's'} and their files, thumbnails, and slides? Active jobs will be stopped first. This cannot be undone.`"
+      confirm-label="Delete permanently"
+      danger
+      @confirm="deleteDownloads"
+      @cancel="pendingDelete = []"
+    />
   </div>
 </template>
 
@@ -630,7 +739,20 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.9rem 1.2rem 0;
+  flex-wrap: wrap;
 }
+
+.download-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; }
+.selection-count { color: var(--text-dim); font-size: 0.7rem; }
+.delete-btn { color: var(--err); border-color: var(--err); font-size: 0.72rem; padding: 0.35rem 0.65rem; }
+.delete-btn:hover:not(:disabled) { background: var(--err-soft); }
+.row-delete-btn { color: var(--err); font-size: 0.65rem; padding: 0.3rem 0.5rem; }
+.select-cell { width: 44px; padding-right: 0; }
+.select-cell input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; vertical-align: middle; }
+.select-cell input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.table-message { margin: 0.8rem 1.2rem 0; font-size: 0.8rem; }
+.download-error { color: var(--err); }
+.download-success { color: var(--ok); }
 
 .dash-table-head .table-title {
   padding: 0;

@@ -2,6 +2,7 @@ import enum
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 from sqlalchemy import BigInteger, Boolean, DateTime, Enum, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -20,6 +21,8 @@ class Download(Base):
     __tablename__ = "downloads"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # A queue invocation must match this generation even if SQLite reuses an ID.
+    job_token: Mapped[str | None] = mapped_column(String(32), nullable=True, default=lambda: uuid4().hex)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     url: Mapped[str] = mapped_column(Text)
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)

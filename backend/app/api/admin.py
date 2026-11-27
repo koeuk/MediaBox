@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from app.api.deps import AdminUser, DbSession, require_permission
 from app.permissions import PermissionName, can, get_defaults, has_admin_access, has_more_access, is_full_admin, set_defaults
 from app.schemas.auth import PasswordResetMessage
-from app.schemas.admin import AdminUserCreate, DefaultPermissions, PlanCreate
+from app.schemas.admin import AdminDownloadsDelete, AdminDownloadsDeleteResult, AdminUserCreate, DefaultPermissions, PlanCreate
 from app.security import hash_password
 from app.services import password_reset, payments, plans, storage
 from app.models import Download, DownloadStatus, Feedback, PaymentRequest, PaymentStatus, Plan, User
@@ -35,6 +35,7 @@ from app.schemas import (
 )
 from app.schemas.public import GuestQualitySettings
 from app.services import guest_policy
+from app.services import admin_downloads
 
 router = APIRouter()
 
@@ -228,6 +229,15 @@ def recent_downloads(
         )
         for dl, username in rows
     ]
+
+
+@router.post("/downloads/delete", response_model=AdminDownloadsDeleteResult)
+def delete_downloads(
+    payload: AdminDownloadsDelete,
+    db: DbSession,
+    _: Annotated[User, Depends(require_permission("downloads.delete"))],
+):
+    return admin_downloads.delete(db, payload.ids)
 
 
 

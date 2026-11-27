@@ -8,6 +8,7 @@ a single answer.
 
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
@@ -47,9 +48,12 @@ class TooLarge(LibraryError):
 
 
 def _persist(db: Session, dl: Download) -> Download:
+    generation = dl.job_token = uuid4().hex
     db.add(dl)
     db.commit()
     db.refresh(dl)
+    if dl.job_token != generation:
+        raise Conflict("Download changed before it could be queued")
     return dl
 
 
@@ -89,18 +93,23 @@ def queue_download(
 ) -> Download:
     ensure_quality_allowed(db, user, quality)
     dl = _persist(db, Download(user_id=user.id, url=url, title=title, quality=quality))
-    jobs.submit(run_download, dl.id)
+    jobs.submit(run_download, dl.id, generation=dl.job_token)
     return dl
 
 
 def queue_batch(db: Session, user: User, urls: list[str], quality: str | None) -> list[Download]:
     ensure_quality_allowed(db, user, quality)
     records = [Download(user_id=user.id, url=url, quality=quality) for url in urls]
+    generations = [uuid4().hex for _ in records]
+    for dl, generation in zip(records, generations):
+        dl.job_token = generation
     db.add_all(records)
     db.commit()
-    for dl in records:
+    for dl, generation in zip(records, generations):
         db.refresh(dl)
-        jobs.submit(run_download, dl.id)
+        if dl.job_token != generation:
+            raise Conflict("Download changed before it could be queued")
+        jobs.submit(run_download, dl.id, generation=generation)
     return records
 
 
@@ -169,17 +178,18 @@ def queue_conversion(db: Session, user: User, source: Download, target: str) -> 
         raise LibraryError("Audio files can only convert to mp3, m4a, or wav")
 
     base = (source.title or source.filename or "media").rsplit(".", 1)[0]
+    source_path = source.file_path
     record = _persist(
         db,
         Download(
             user_id=user.id,
             url=source.url,
             title=f"{base} ({target})",
-            convert_source=source.file_path,
+            convert_source=source_path,
             convert_target=target,
         ),
     )
-    jobs.submit(run_convert, record.id, source.file_path, target)
+    jobs.submit(run_convert, record.id, source_path, target, generation=record.job_token)
     return record
 
 
@@ -193,19 +203,20 @@ def queue_cutout(db: Session, user: User, source: Download, quality: str) -> Dow
         raise LibraryError(f"Unknown quality: {quality}")
 
     base = (source.title or source.filename or "image").rsplit(".", 1)[0]
+    source_path = source.file_path
     record = _persist(
         db,
         Download(
             user_id=user.id,
             url=source.url,
             title=f"{base} (no bg)",
-            convert_source=source.file_path,
+            convert_source=source_path,
             job_kind=CUTOUT,
             # the tier is remembered so /retry re-runs at the same quality
             quality=quality,
         ),
     )
-    jobs.submit(run_remove_bg, record.id, source.file_path, quality)
+    jobs.submit(run_remove_bg, record.id, source_path, quality, generation=record.job_token)
     return record
 
 
@@ -231,13 +242,16 @@ def requeue(db: Session, dl: Download) -> Download:
 
     dl.status = DownloadStatus.queued
     dl.error = None
+    generation = dl.job_token = uuid4().hex
     db.commit()
     db.refresh(dl)
+    if dl.job_token != generation:
+        raise Conflict("Download changed before it could be queued")
 
     if dl.job_kind == CUTOUT:
-        jobs.submit(run_remove_bg, dl.id, dl.convert_source, dl.quality or "good")
+        jobs.submit(run_remove_bg, dl.id, dl.convert_source, dl.quality or "good", generation=generation)
     elif dl.is_derived:
-        jobs.submit(run_convert, dl.id, dl.convert_source, dl.convert_target)
+        jobs.submit(run_convert, dl.id, dl.convert_source, dl.convert_target, generation=generation)
     else:
-        jobs.submit(run_download, dl.id, True)
+        jobs.submit(run_download, dl.id, True, generation=generation)
     return dl

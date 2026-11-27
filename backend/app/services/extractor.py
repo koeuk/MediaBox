@@ -170,6 +170,13 @@ def run_ytdlp(dl, db, url: str | None = None) -> None:
     last_write = 0.0
     cancelled = False
 
+    def cleanup_cancelled():
+        # yt-dlp can stop before file_path is recorded. Its stream, fragment,
+        # and resume sidecars all share this invocation's unique prefix.
+        for candidate in out_dir.glob(f"{prefix}*"):
+            if candidate.is_file():
+                candidate.unlink(missing_ok=True)
+
     def hook(d: dict) -> None:
         nonlocal last_write, cancelled
         if take_cancel(dl.id):
@@ -197,10 +204,12 @@ def run_ytdlp(dl, db, url: str | None = None) -> None:
                 info = ydl.extract_info(source, download=True)
             break
         except Cancelled:
+            cleanup_cancelled()
             raise
         except Exception as exc:
             # yt-dlp may wrap the hook's cancel exception in its own error type
             if cancelled:
+                cleanup_cancelled()
                 raise Cancelled() from None
             if isinstance(exc, yt_dlp.utils.DownloadError):
                 message = _ANSI_RE.sub("", str(exc)).replace("ERROR: ", "").strip()

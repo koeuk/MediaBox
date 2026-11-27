@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StrictBool, field_validator
 
@@ -17,6 +18,20 @@ class AdminStats(BaseModel):
     failed: int
     favorites: int
     bytes_stored: int
+
+
+class AdminDownloadsDelete(BaseModel):
+    ids: list[Annotated[int, Field(gt=0)]] = Field(min_length=1, max_length=200)
+
+
+class AdminDownloadDeleteFailure(BaseModel):
+    id: int
+    detail: str
+
+
+class AdminDownloadsDeleteResult(BaseModel):
+    deleted_ids: list[int]
+    failed: list[AdminDownloadDeleteFailure]
 
 
 class AdminMonthStats(BaseModel):

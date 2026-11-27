@@ -42,6 +42,7 @@ def run_migrations(conn) -> None:
             ("is_free", "is_free BOOLEAN NOT NULL DEFAULT FALSE"),
         ],
         "downloads": [
+            ("job_token", "job_token VARCHAR(32) NULL"),
             ("quality", "quality VARCHAR(8)"),
             ("convert_source", "convert_source TEXT"),
             ("convert_target", "convert_target VARCHAR(8)"),

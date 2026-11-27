@@ -170,6 +170,24 @@ At least one quality must remain enabled. Existing defaults are 720p and 480p,
 with 480p selected. Settings are stored in the existing database; no migration
 is required. Deploy the updated backend and rebuild the frontend for this UI.
 
+## Admin download deletion
+
+In **Admin → Downloads**, use the row checkboxes and **Delete selected**, or
+the **Delete** button on an individual row. The header checkbox selects only
+the current page; changing pages, filters, or refreshing clears the selection.
+A confirmation is required before permanently deleting records, media,
+thumbnails, and slides from local storage or Spaces.
+
+Full administrators have this access automatically. Delegated accounts need
+both **All downloads (admin) → View** and **Delete** permissions. Active jobs
+are asked to stop before deletion; if a job is still stopping or storage fails,
+the record is retained with an error so deletion can be retried. Other selected
+records can still be deleted. Queued invocations are invalidated after deletion.
+The worker coordination uses the existing single-process queue; keep one API
+process as described in the production guide. Deploy the updated backend and
+rebuild the frontend for these controls. Startup adds a nullable job-identity
+column to existing databases; existing media and records are retained.
+
 ## Future Features
 
 - Background download queue (Redis + Celery)

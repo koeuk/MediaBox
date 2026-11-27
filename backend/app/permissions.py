@@ -5,7 +5,7 @@ PermissionName = Literal[
     'media.view', 'media.create', 'media.edit', 'media.delete',
     'categories.view', 'categories.create', 'categories.edit', 'categories.delete',
     'public_feedback.view', 'public_feedback.create',
-    'dashboard.view', 'downloads.view',
+    'dashboard.view', 'downloads.view', 'downloads.delete',
     'feedback.view', 'feedback.create', 'feedback.edit', 'feedback.delete',
     'users.view', 'users.create', 'users.edit', 'users.delete',
     'plans.view', 'plans.create', 'plans.edit', 'plans.delete', 'payments.view', 'payments.edit',
