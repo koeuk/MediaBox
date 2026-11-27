@@ -10,10 +10,14 @@ from app.config import settings
 from app.database import Base, SessionLocal, engine, run_migrations
 from app.services import jobs, payments as payment_service, plans
 from app.services.library import LibraryError
+from app.services.object_store import StorageError
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if settings.storage_backend == "spaces":
+        from app.services.object_store import get_spaces_client
+        get_spaces_client()  # Fail startup on missing credentials; never fall back to disk.
     Base.metadata.create_all(bind=engine)
     with engine.begin() as conn:
         run_migrations(conn)
@@ -36,6 +40,7 @@ app.add_middleware(
 )
 
 @app.exception_handler(LibraryError)
+@app.exception_handler(StorageError)
 async def library_error_handler(request: Request, exc: LibraryError):
     """Library rejections answer in the same shape FastAPI uses for
     HTTPException, so the frontend's error handling needs no special case."""
@@ -50,7 +55,7 @@ app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(public.router, prefix="/api/public", tags=["public"])
 app.include_router(payments.router, prefix="/api/payments", tags=["payments"])
 app.include_router(ws.router, tags=["ws"])
-app.include_router(spaces.router, tags=["spaces"])
+app.include_router(spaces.router, prefix="/api", tags=["spaces"])
 
 
 @app.get("/api/health")

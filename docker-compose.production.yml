@@ -23,6 +23,10 @@ services:
       ALLOW_PRIVATE_URLS: 'false'
       MAX_CONCURRENT_DOWNLOADS: ${MAX_CONCURRENT_DOWNLOADS:-3}
       MAX_DOWNLOAD_SIZE_MB: ${MAX_DOWNLOAD_SIZE_MB:-2048}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-spaces}
+      APP_ENV: production
+      DO_SPACES_KEY: ${DO_SPACES_KEY:?Set DO_SPACES_KEY in .env.production}
+      DO_SPACES_SECRET: ${DO_SPACES_SECRET:?Set DO_SPACES_SECRET in .env.production}
     # The backend is reachable only on the private Compose network.
     command: [uvicorn, app.main:app, --host, 0.0.0.0, --port, '8000', --proxy-headers, '--forwarded-allow-ips=*']
     healthcheck:

@@ -112,7 +112,7 @@ class ApiQueryTests(unittest.TestCase):
             app = FastAPI()
             app.include_router(downloads.router, prefix='/downloads')
             app.dependency_overrides[get_db] = request_db
-            with patch.object(downloads, 'FileResponse', CheckedFileResponse), TestClient(app) as client:
+            with patch.object(downloads.storage, 'FileResponse', CheckedFileResponse), TestClient(app) as client:
                 response = client.get(f'/downloads/{ident}/file?token={create_media_token(self.user_id)}')
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.content, b'test-media')

@@ -92,5 +92,8 @@ class Download(Base):
         if self.status != DownloadStatus.failed:
             return False
         if self.is_derived:
+            # Remote availability is checked in the worker, not during list serialization.
+            if self.convert_source.startswith("s3://"):
+                return True
             return Path(self.convert_source).exists()
         return self.url.lower().startswith(("http://", "https://"))

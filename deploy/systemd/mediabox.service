@@ -13,6 +13,7 @@ Environment=FRONTEND_URL=https://droplinks.site
 Environment=CORS_ORIGINS=https://droplinks.site
 Environment=ALLOW_PRIVATE_URLS=false
 Environment=MAX_CONCURRENT_DOWNLOADS=1
+Environment=APP_ENV=production
 Environment=OMP_NUM_THREADS=1
 Environment=OPENBLAS_NUM_THREADS=1
 ExecStart=/home/mediabox/.cache/mediabox/venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8005 --proxy-headers --forwarded-allow-ips=127.0.0.1

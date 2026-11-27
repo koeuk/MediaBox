@@ -105,7 +105,7 @@ def queue_batch(db: Session, user: User, urls: list[str], quality: str | None) -
 
 
 def store_upload(db: Session, user: User, file: UploadFile, scope: str | None = None) -> Download:
-    """Save a local media file as a completed download so it can be previewed
+    """Store an uploaded media file as a completed download so it can be previewed
     and converted like anything else in the box.
 
     `scope="cutout"` marks it as belonging to the background-removal page, so
@@ -122,24 +122,30 @@ def store_upload(db: Session, user: User, file: UploadFile, scope: str | None = 
         raise LibraryError(str(exc)) from exc
 
     filename = dest.name.split("_", 1)[-1]
-    return _persist(
-        db,
-        Download(
-            user_id=user.id,
-            url=f"upload://{filename}",
-            title=Path(filename).stem,
-            filename=filename,
-            status=DownloadStatus.completed,
-            progress=100.0,
-            total_bytes=size,
-            downloaded_bytes=size,
-            content_type=content_type,
-            file_path=str(dest),
-            thumbnail_path=ffmpeg.make_thumbnail(dest, content_type),
-            job_kind=CUTOUT_SOURCE if scope == "cutout" else None,
-            completed_at=datetime.now(timezone.utc),
-        ),
+    record = Download(
+        user_id=user.id,
+        url=f"upload://{filename}",
+        title=Path(filename).stem,
+        filename=filename,
+        status=DownloadStatus.completed,
+        progress=100.0,
+        total_bytes=size,
+        downloaded_bytes=size,
+        content_type=content_type,
+        file_path=str(dest),
+        thumbnail_path=ffmpeg.make_thumbnail(dest, content_type),
+        job_kind=CUTOUT_SOURCE if scope == "cutout" else None,
+        completed_at=datetime.now(timezone.utc),
     )
+    thumbnail = record.thumbnail_path
+    try:
+        storage.persist_media(db, record)
+    except Exception:
+        # There is no library row to retry after a rejected upload.
+        storage.delete_files(str(dest), thumbnail)
+        raise
+    db.refresh(record)
+    return record
 
 
 def _require_usable_source(source: Download) -> None:
@@ -147,7 +153,7 @@ def _require_usable_source(source: Download) -> None:
     if (
         source.status != DownloadStatus.completed
         or not source.file_path
-        or not Path(source.file_path).exists()
+        or not storage.exists(source.file_path)
     ):
         raise Conflict("Source file is not available")
 
@@ -212,7 +218,7 @@ def requeue(db: Session, dl: Download) -> Download:
     if dl.status != DownloadStatus.failed:
         raise Conflict("Only failed downloads can be retried")
 
-    if dl.is_derived and not Path(dl.convert_source).exists():
+    if dl.is_derived and not storage.exists(dl.convert_source):
         raise Conflict("The source file is gone — start again from its card")
     if not dl.is_derived and dl.url.startswith("upload://"):
         raise Conflict("This item can't be re-fetched — convert again from the source card")

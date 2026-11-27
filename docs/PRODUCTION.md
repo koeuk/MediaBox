@@ -47,6 +47,141 @@ WebSockets to FastAPI, and sends password reset links to this public URL.
 Caddy manages HTTPS and certificate renewal. MySQL, FastAPI, and Nuxt are only
 reachable on the Compose network; Caddy publishes ports 80 and 443.
 
+## DigitalOcean Spaces
+
+The existing library API now stores completed uploads, URL downloads,
+conversions, cutouts, thumbnails, and photo slides in Spaces when
+`STORAGE_BACKEND=spaces`. The frontend continues to use `/api/downloads/*`.
+The separate raw-file endpoints are `/api/upload` and `/api/url/{key}`;
+all of these paths are covered by the existing `/api` reverse proxy.
+
+Files are private. The backend checks account ownership before redirecting
+downloads and previews to one-hour signed URLs. Browser reads follow the
+[DigitalOcean private-file model](https://docs.digitalocean.com/products/spaces/how-to/set-file-permissions/).
+Completed library records store stable object references, never expiring URLs.
+Failed remote writes do not silently fall back to local storage.
+
+### Server settings
+
+For **systemd**, set these in `/srv/MediaBox/backend/.env`:
+
+```dotenv
+STORAGE_BACKEND=spaces
+APP_ENV=production
+DO_SPACES_KEY=YOUR_SPACES_ACCESS_KEY
+DO_SPACES_SECRET=YOUR_SPACES_SECRET_KEY
+DO_SPACES_REGION=sgp1
+DO_SPACES_BUCKET=droplinks-uploads
+DO_SPACES_ENDPOINT=https://sgp1.digitaloceanspaces.com
+FRONTEND_URL=https://droplinks.site
+```
+
+The checked-in systemd unit also enforces `APP_ENV=production`. Install the
+updated unit when upgrading, and restrict `.env` to the service account.
+Install dependencies using that account's existing environment:
+
+```bash
+cd /srv/MediaBox/backend
+sudo -u mediabox /home/mediabox/.cache/mediabox/venv/bin/python -m pip install -r requirements.txt
+```
+
+For **Docker**, put the same storage settings in the root `.env.production`.
+Production Compose forwards all `DO_SPACES_*` values, defaults to Spaces, and
+enforces `APP_ENV=production`. Rebuild the backend image to install the updated
+dependencies. Do not copy the developer's `backend/.env` into the image.
+
+Use a Spaces key limited to the intended bucket with read, write, and delete
+access. Keep file permissions private. Setting bucket CORS may need an owner
+key; use that only for setup. Never place Spaces credentials in the frontend.
+
+Development defaults to `APP_ENV=dev` and `STORAGE_BACKEND=local`. To test
+Spaces locally, use `STORAGE_BACKEND=spaces`, `APP_ENV=dev`, and preferably a
+separate development bucket/key. Objects are stored under `production/media/`
+or `dev/media/` (standalone uploads use the corresponding `uploads/` prefix).
+Application checks reject signing and reading references from other environments.
+Prefixes separate application data; separate keys/buckets provide stronger isolation.
+
+### Browser CORS and a live storage check
+
+The browser follows signed redirects for previews and Save As. Configure bucket
+CORS for the exact site origin so JavaScript can read these responses. The
+maintenance command retains unrelated rules and replaces only its environment's
+`mediabox-production` rule. The commands below change bucket CORS and briefly
+upload/delete a tiny test file; run them on the server after setting credentials.
+
+For systemd, from `/srv/MediaBox/backend`:
+
+```bash
+sudo -u mediabox /home/mediabox/.cache/mediabox/venv/bin/python manage_spaces.py configure-cors --origin https://droplinks.site
+sudo -u mediabox /home/mediabox/.cache/mediabox/venv/bin/python manage_spaces.py check
+```
+
+For Docker, build the new image and run the same checks with production settings:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.production.yml build backend
+docker compose --env-file .env.production -f docker-compose.production.yml run --rm --no-deps backend python manage_spaces.py configure-cors --origin https://droplinks.site
+docker compose --env-file .env.production -f docker-compose.production.yml run --rm --no-deps backend python manage_spaces.py check
+```
+
+`check` verifies upload, metadata access, the signed download's exact content,
+browser CORS, denied anonymous access, and deletion. It prints no keys or signed
+URLs. A nonzero exit means setup is incomplete. If testing Spaces locally, run
+the CORS command with `APP_ENV=dev` and `--origin http://localhost:3005` instead;
+keep production settings on the server.
+
+### Existing library files
+
+Turning on Spaces does not automatically move old local files. They remain
+readable through the persistent media volume/directory. To move them:
+
+1. Back up the production database and media directory/volume together.
+2. Stop the API and let active tasks finish first. Do not accept writes or run
+   background workers during migration.
+3. From the backend directory, with production settings, preview:
+   `python manage_spaces.py migrate`.
+4. If the preview has no missing files, apply:
+   `python manage_spaces.py migrate --apply`.
+5. Restart the API and verify old and new media, thumbnails, conversion retry,
+   slideshow images, and deletion using an account you own.
+
+Use the service account's Python path above. For Docker, stop `backend` and use
+the same `docker compose ... run --rm --no-deps backend python manage_spaces.py`
+prefix with `migrate` or `migrate --apply`.
+
+Migration uploads each completed record's artifacts, updates any derived rows'
+source references in the same DB transaction, and retains local originals as
+backup. Successfully migrated records are skipped on rerun. Missing originals
+stop the command. For rollback, stop the API and restore the matching database
+backup; retained local originals remain available. Remote copies are left in
+place for later review. Files uploaded by the old standalone endpoint are not
+library records and are outside this migration.
+
+### Release verification and operating limits
+
+After checks and any migration, restart the systemd service or deploy the rebuilt
+Compose stack using the commands in this guide. Sign in at `https://droplinks.site`
+and upload a small image and video through the existing library UI. Check:
+
+- Preview and thumbnail load; Save and Save As return the original file.
+- Conversion and background removal produce usable results.
+- Another account cannot read or delete the records.
+- Files remain accessible after an API restart, and deleting a record deletes
+  its remote artifacts.
+
+Keep one API process/instance: the current in-memory job queue and interrupted-job
+recovery are not safe for multiple independent API instances. Spaces makes
+completed media durable; it does not make the queue distributed. Continue to keep
+the database and media volume backed up. Avatars, branding, partial downloads,
+and processing scratch files still use local disk. Allow outbound HTTPS to the
+Spaces endpoint and enough temporary disk for processing large media.
+
+The bundled nginx permits the default 2048 MB upload plus multipart overhead.
+For an existing host-level nginx, set `client_max_body_size 2050m;` in the site
+configuration, validate with `nginx -t`, and reload. Adjust this alongside
+`MAX_DOWNLOAD_SIZE_MB` if you change the upload limit. Caddy already routes all
+`/api` requests to the backend; no additional root-path routes are needed.
+
 ## Configuration
 
 Use the project root on the server. Copy `.env.production.example` to

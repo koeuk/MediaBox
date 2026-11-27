@@ -239,4 +239,4 @@ def run_ytdlp(dl, db, url: str | None = None) -> None:
     dl.thumbnail_path = ffmpeg.make_thumbnail(path, content_type)
     dl.status = DownloadStatus.completed
     dl.completed_at = datetime.now(timezone.utc)
-    db.commit()
+    storage.persist_media(db, dl)

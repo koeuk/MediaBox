@@ -232,4 +232,4 @@ def run_pinterest(dl, db) -> None:
     dl.thumbnail_path = ffmpeg.make_thumbnail(dest, content_type)
     dl.status = DownloadStatus.completed
     dl.completed_at = datetime.now(timezone.utc)
-    db.commit()
+    storage.persist_media(db, dl)

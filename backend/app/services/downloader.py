@@ -59,6 +59,18 @@ def _reject_web_page(url: str, content_type: str) -> None:
         )
 
 
+def _finish(db, dl: Download, dest: Path, size: int) -> None:
+    dl.downloaded_bytes = size
+    dl.total_bytes = size
+    dl.progress = 100.0
+    if not dl.title:
+        dl.title = dl.filename
+    dl.thumbnail_path = ffmpeg.make_thumbnail(dest, dl.content_type)
+    dl.status = DownloadStatus.completed
+    dl.completed_at = datetime.now(timezone.utc)
+    storage.persist_media(db, dl)
+
+
 def run_download(download_id: int, resume: bool = False) -> None:
     """Stream a URL to disk, persisting progress so the UI can follow it.
 
@@ -81,6 +93,14 @@ def run_download(download_id: int, resume: bool = False) -> None:
         dl.status = DownloadStatus.downloading
         dl.error = None
         db.commit()
+
+        # A failed Spaces publication can leave the complete staged file.
+        # Publish it again instead of issuing an unsatisfiable Range at EOF.
+        if dest is not None and start_at and start_at == dl.total_bytes:
+            _finish(db, dl, dest, start_at)
+            return
+        if start_at and not dl.total_bytes:
+            start_at = 0  # Unknown final size: safely re-fetch instead of guessing at EOF.
 
         if not dl.url.lower().startswith(("http://", "https://")):
             raise ValueError(
@@ -146,15 +166,7 @@ def run_download(download_id: int, resume: bool = False) -> None:
                                 dl.progress = round(done / total * 100, 1)
                             db.commit()
 
-        dl.downloaded_bytes = done
-        dl.total_bytes = total or done
-        dl.progress = 100.0
-        if not dl.title:
-            dl.title = filename
-        dl.thumbnail_path = ffmpeg.make_thumbnail(dest, dl.content_type)
-        dl.status = DownloadStatus.completed
-        dl.completed_at = datetime.now(timezone.utc)
-        db.commit()
+        _finish(db, dl, dest, done)
     except Cancelled:
         # the partial file stays on disk; /retry resumes it via HTTP Range
         def keep_partial(dl: Download) -> None:

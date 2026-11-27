@@ -1,14 +1,21 @@
-"""Filesystem layout for stored media: per-user folders, collision-free
-destination paths, saving uploads, and deleting a record's files.
+"""Local staging and durable library storage, using disk or private Spaces.
 """
 
+import json
+import logging
 import mimetypes
 import uuid
 from pathlib import Path
 
 from fastapi import UploadFile
+from fastapi.responses import FileResponse, RedirectResponse
 
 from app.config import settings
+from app.services import object_store
+
+logger = logging.getLogger(__name__)
+local_file = object_store.local_file
+is_remote = object_store.is_remote
 
 _UPLOAD_CHUNK = 1024 * 1024
 # a profile picture has no business being larger than this
@@ -40,9 +47,71 @@ def new_path(user_id: int, filename: str) -> Path:
 
 
 def delete_files(*paths: str | None) -> None:
-    for path in paths:
+    for path in dict.fromkeys(paths):
         if path:
+            if is_remote(path):
+                object_store.delete(path)
+            else:
+                Path(path).unlink(missing_ok=True)
+
+
+def exists(path: str | None) -> bool:
+    if not path:
+        return False
+    return object_store.exists(path) if is_remote(path) else Path(path).is_file()
+
+
+def file_response(path: str, filename: str | None = None, media_type: str | None = None):
+    if is_remote(path):
+        return RedirectResponse(
+            object_store.signed_url(path, filename), status_code=307,
+            headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer"},
+        )
+    return FileResponse(path, filename=filename, media_type=media_type)
+
+
+def persist_media(db, dl, *, keep_local: bool = False) -> None:
+    """Publish completed library artifacts before committing their references.
+
+    Local working files are removed only after the database commit succeeds.
+    Existing local rows remain readable when Spaces is enabled.
+    """
+    uploaded: dict[str, str] = {}
+    try:
+        if settings.storage_backend == "spaces":
+            paths = [dl.file_path, dl.thumbnail_path, *dl.slide_paths]
+            for path in dict.fromkeys(paths):
+                if path and not is_remote(path):
+                    mime = dl.content_type if path == dl.file_path else None
+                    uploaded[path] = object_store.upload_path(Path(path), dl.user_id, mime)
+            if dl.file_path:
+                dl.file_path = uploaded.get(dl.file_path, dl.file_path)
+            if dl.thumbnail_path:
+                dl.thumbnail_path = uploaded.get(dl.thumbnail_path, dl.thumbnail_path)
+            if dl.slides:
+                dl.slides = json.dumps([uploaded.get(p, p) for p in dl.slide_paths])
+            # Preserve retry inputs when migrating a source that already has derived rows.
+            if uploaded:
+                from sqlalchemy import update
+                from app.models import Download
+
+                for local, remote in uploaded.items():
+                    db.execute(update(Download).where(Download.convert_source == local).values(convert_source=remote))
+        db.add(dl)
+        db.commit()
+    except Exception:
+        db.rollback()
+        for reference in uploaded.values():
+            try:
+                object_store.delete(reference)
+            except object_store.StorageError:
+                logger.warning("Could not clean up an uncommitted Spaces object")
+        raise
+    for path in (() if keep_local else uploaded):
+        try:
             Path(path).unlink(missing_ok=True)
+        except OSError:
+            logger.warning("Could not remove a local staging file after Spaces upload")
 
 
 def save_avatar(file: UploadFile, user_id: int) -> Path:

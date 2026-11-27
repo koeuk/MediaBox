@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import AnyHttpUrl, EmailStr, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -41,6 +42,8 @@ class Settings(BaseSettings):
         return value.expanduser().resolve()
     cors_origins: str = "http://localhost:3000"
     max_download_size_mb: int = 2048
+    storage_backend: Literal["local", "spaces"] = "local"
+    app_env: str = Field(default="dev", pattern=r"^[a-z0-9][a-z0-9_-]{0,31}$")
     do_spaces_key: SecretStr = SecretStr("")
     do_spaces_secret: SecretStr = SecretStr("")
     do_spaces_region: str = "sgp1"

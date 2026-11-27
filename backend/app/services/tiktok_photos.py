@@ -177,4 +177,4 @@ def run_photo_post(dl, db, url: str | None = None) -> None:
     dl.thumbnail_path = ffmpeg.make_thumbnail(first, "image/jpeg")
     dl.status = DownloadStatus.completed
     dl.completed_at = datetime.now(timezone.utc)
-    db.commit()
+    storage.persist_media(db, dl)

@@ -6,6 +6,7 @@ reuses it afterwards, so the very first cutout at a given quality is slow.
 """
 
 import threading
+from contextlib import ExitStack
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -49,6 +50,7 @@ def run_remove_bg(download_id: int, source_path: str, quality: str) -> None:
 
     db = SessionLocal()
     out_path: Path | None = None
+    sources = ExitStack()
     try:
         dl = db.get(Download, download_id)
         if dl is None:
@@ -58,9 +60,7 @@ def run_remove_bg(download_id: int, source_path: str, quality: str) -> None:
         dl.progress = 5.0
         db.commit()
 
-        source = Path(source_path)
-        if not source.exists():
-            raise ValueError("Source image is missing")
+        source = sources.enter_context(storage.local_file(source_path))
 
         model_name, alpha_matting = QUALITY_MODELS.get(
             quality, QUALITY_MODELS[DEFAULT_QUALITY]
@@ -105,7 +105,7 @@ def run_remove_bg(download_id: int, source_path: str, quality: str) -> None:
         dl.thumbnail_path = ffmpeg.make_thumbnail(out_path, "image/png", keep_alpha=True)
         dl.status = DownloadStatus.completed
         dl.completed_at = datetime.now(timezone.utc)
-        db.commit()
+        storage.persist_media(db, dl)
     except Cancelled:
         # a half-written cutout is useless — remove it
         if out_path is not None:
@@ -116,4 +116,5 @@ def run_remove_bg(download_id: int, source_path: str, quality: str) -> None:
             out_path.unlink(missing_ok=True)
         mark_failed(db, download_id, str(exc) or exc.__class__.__name__)
     finally:
+        sources.close()
         db.close()

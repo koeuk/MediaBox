@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -170,7 +169,7 @@ def export_download(download_id: int, payload: DownloadExportRequest, db: DbSess
     if (
         dl.status != DownloadStatus.completed
         or not dl.file_path
-        or not Path(dl.file_path).exists()
+        or not storage.exists(dl.file_path)
     ):
         raise HTTPException(status_code=404, detail="File not available")
 
@@ -190,7 +189,8 @@ def export_download(download_id: int, payload: DownloadExportRequest, db: DbSess
         dest = target_dir / f"{Path(name).stem} ({n}){Path(name).suffix}"
         n += 1
     try:
-        shutil.copy2(dl.file_path, dest)
+        with storage.local_file(dl.file_path) as source:
+            shutil.copy2(source, dest)
     except OSError:
         raise HTTPException(status_code=422, detail="Could not write into that folder")
     return {"saved_to": str(dest)}
@@ -202,10 +202,10 @@ def download_file(download_id: int, db: DbSession, user: MediaUser):
     if (
         dl.status != DownloadStatus.completed
         or not dl.file_path
-        or not Path(dl.file_path).exists()
+        or not storage.exists(dl.file_path)
     ):
         raise HTTPException(status_code=404, detail="File not available")
-    return FileResponse(
+    return storage.file_response(
         dl.file_path,
         filename=dl.filename or "download",
         media_type=dl.content_type or "application/octet-stream",
@@ -219,17 +219,17 @@ def download_slide(download_id: int, index: int, db: DbSession, user: MediaUser)
     slides = dl.slide_paths
     if dl.status != DownloadStatus.completed or not 0 <= index < len(slides):
         raise HTTPException(status_code=404, detail="Slide not available")
-    path = Path(slides[index])
-    if not path.exists():
+    path = slides[index]
+    if not storage.exists(path):
         raise HTTPException(status_code=404, detail="Slide not available")
-    return FileResponse(path, filename=path.name.split("_", 1)[-1], media_type="image/jpeg")
+    return storage.file_response(path, filename=Path(path).name.split("_", 1)[-1], media_type="image/jpeg")
 
 
 @router.get("/{download_id}/thumbnail")
 def download_thumbnail(download_id: int, db: DbSession, user: MediaUser):
     dl = _owned(db, download_id, user)
-    if not dl.thumbnail_path or not Path(dl.thumbnail_path).exists():
+    if not storage.exists(dl.thumbnail_path):
         raise HTTPException(status_code=404, detail="Thumbnail not available")
     # cutout thumbnails are PNG so their transparency survives
     kind = "image/png" if dl.thumbnail_path.endswith(".png") else "image/jpeg"
-    return FileResponse(dl.thumbnail_path, media_type=kind)
+    return storage.file_response(dl.thumbnail_path, media_type=kind)

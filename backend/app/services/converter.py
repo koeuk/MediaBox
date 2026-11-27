@@ -4,6 +4,7 @@ progress against the source duration.
 
 import subprocess
 import tempfile
+from contextlib import ExitStack
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,6 +18,7 @@ def run_convert(download_id: int, source_path: str, target: str) -> None:
     """Convert `source_path` into a new file for the given Download record."""
     db = SessionLocal()
     out_path: Path | None = None
+    sources = ExitStack()
     try:
         dl = db.get(Download, download_id)
         if dl is None:
@@ -25,9 +27,7 @@ def run_convert(download_id: int, source_path: str, target: str) -> None:
         dl.status = DownloadStatus.downloading
         db.commit()
 
-        source = Path(source_path)
-        if not source.exists():
-            raise ValueError("Source file is missing")
+        source = sources.enter_context(storage.local_file(source_path))
         mime, codec_args = ffmpeg.CONVERT_FORMATS[target]
         duration = ffmpeg.probe_duration(source)
 
@@ -36,12 +36,13 @@ def run_convert(download_id: int, source_path: str, target: str) -> None:
         out_path = storage.new_path(dl.user_id, filename)
 
         # stderr → temp file so a failure can report ffmpeg's actual error
-        stderr_file = tempfile.TemporaryFile()
+        stderr_file = sources.enter_context(tempfile.TemporaryFile())
         proc = subprocess.Popen(
             ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
              "-i", str(source), *codec_args, "-progress", "pipe:1", "-nostats", str(out_path)],
             stdout=subprocess.PIPE, stderr=stderr_file, text=True,
         )
+        sources.callback(proc.stdout.close)
 
         last_progress = 0.0
         assert proc.stdout is not None
@@ -79,7 +80,7 @@ def run_convert(download_id: int, source_path: str, target: str) -> None:
         dl.thumbnail_path = ffmpeg.make_thumbnail(out_path, mime)
         dl.status = DownloadStatus.completed
         dl.completed_at = datetime.now(timezone.utc)
-        db.commit()
+        storage.persist_media(db, dl)
     except Cancelled:
         # a half-written conversion is useless — remove it
         if out_path is not None:
@@ -90,4 +91,5 @@ def run_convert(download_id: int, source_path: str, target: str) -> None:
             out_path.unlink(missing_ok=True)
         mark_failed(db, download_id, str(exc) or exc.__class__.__name__)
     finally:
+        sources.close()
         db.close()
