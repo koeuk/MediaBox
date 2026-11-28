@@ -704,12 +704,12 @@ async function handleSaveHiddenPassword() {
 }
 
 .save-option.on {
-  border-color: var(--accent, #f0a832);
+  border-color: var(--accent, #134e4a);
 }
 
 .save-option input {
   margin-top: 0.2rem;
-  accent-color: var(--accent, #f0a832);
+  accent-color: var(--accent, #134e4a);
 }
 
 .save-option strong {
@@ -779,13 +779,13 @@ async function handleSaveHiddenPassword() {
 }
 
 .lock-switch-label input:checked + .switch {
-  border-color: var(--accent, #f0a832);
-  background: color-mix(in srgb, var(--accent, #f0a832) 20%, transparent);
+  border-color: var(--accent, #134e4a);
+  background: color-mix(in srgb, var(--accent, #134e4a) 20%, transparent);
 }
 
 .lock-switch-label input:checked + .switch::after {
   transform: translateX(20px);
-  background: var(--accent, #f0a832);
+  background: var(--accent, #134e4a);
 }
 
 .switch-text {

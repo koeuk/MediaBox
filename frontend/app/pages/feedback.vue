@@ -833,7 +833,7 @@ function formatDateDisplay(iso: string) {
 .badge-praise {
   background: var(--accent-soft);
   color: var(--accent);
-  border: 1px solid rgba(242, 163, 60, 0.25);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .badge-general {
