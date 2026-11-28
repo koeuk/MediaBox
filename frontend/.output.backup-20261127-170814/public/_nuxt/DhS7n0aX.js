@@ -1,0 +1,1 @@
+function e(e){let t=e||``;return t.startsWith(`video/`)?`video`:t.startsWith(`audio/`)?`audio`:t.startsWith(`image/`)?`image`:`file`}function t(e){return e===`video`?[`mp4`,`webm`,`gif`,`mp3`,`m4a`,`wav`]:e===`audio`?[`mp3`,`m4a`,`wav`]:[]}export{e as n,t};

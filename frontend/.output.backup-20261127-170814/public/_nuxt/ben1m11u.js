@@ -1,0 +1,1 @@
+var e=[`B`,`KB`,`MB`,`GB`,`TB`];function t(t){if(!t)return`0 B`;let n=Math.min(Math.floor(Math.log(t)/Math.log(1024)),e.length-1);return`${(t/1024**n).toFixed(n===0?0:1)} ${e[n]}`}function n(e){return new Date(e).toLocaleDateString(void 0,{year:`numeric`,month:`short`,day:`numeric`})}export{n,t};

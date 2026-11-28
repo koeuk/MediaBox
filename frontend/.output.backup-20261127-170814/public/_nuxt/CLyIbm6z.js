@@ -1,0 +1,1 @@
+import{t as e}from"./DvSayUm4.js";function t(){let t=e(`player-target`,()=>null),n=e(`player-playlist`,()=>[]);function r(e,r=[]){n.value=[...r],t.value=e}function i(){t.value=null}return{target:t,playlist:n,open:r,close:i}}export{t};

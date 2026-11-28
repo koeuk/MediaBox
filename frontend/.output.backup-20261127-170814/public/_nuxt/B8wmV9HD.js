@@ -1,0 +1,1 @@
+import{a as e}from"./JZ1-Hyfy.js";import{t}from"./CwXmTVGX.js";import{t as n}from"./DvSayUm4.js";function r(){let r=n(`access-paid-mode`,()=>!0),i=e();async function a(){try{let e=await t(`/public/access-settings`,{baseURL:i.public.apiBase,timeout:5e3});r.value=e.paid_mode}catch{}}return{paidMode:r,fetchAccessSettings:a}}export{r as t};

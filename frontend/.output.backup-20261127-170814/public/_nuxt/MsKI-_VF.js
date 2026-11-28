@@ -1,0 +1,1 @@
+import{c as e,u as t}from"./C-Kwlo7A.js";import{t as n}from"./CMl0XrDb.js";var r=e(e=>{if(!n(`mediabox_token`).value)return t(e.path===`/`?`/free`:`/login`)});export{r as default};

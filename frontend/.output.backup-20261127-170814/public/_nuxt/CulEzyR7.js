@@ -1,0 +1,1 @@
+function e(e,t,n=t){if(e?.cause?.name===`TimeoutError`||e?.name===`TimeoutError`)return`The request timed out. Please try again.`;let r=e?.data?.detail;return Array.isArray(r)?n:r||t}function t(e,t){let n=e?.data?.detail;return typeof n==`string`?n:Array.isArray(n)&&n[0]?.msg||t}export{t as n,e as t};

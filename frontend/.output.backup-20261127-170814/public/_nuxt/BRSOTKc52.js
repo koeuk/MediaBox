@@ -1,0 +1,1 @@
+import{D as e,P as t,X as n,ot as r}from"./JZ1-Hyfy.js";import{u as i}from"./C-Kwlo7A.js";var a=t({__name:`reviews`,async setup(t){let a,o;return[a,o]=r(()=>i(`/feedback`,{redirectCode:301,replace:!0})),await a,o(),(t,r)=>(n(),e(`div`))}});export{a as default};
