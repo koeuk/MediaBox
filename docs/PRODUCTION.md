@@ -182,6 +182,23 @@ configuration, validate with `nginx -t`, and reload. Adjust this alongside
 `MAX_DOWNLOAD_SIZE_MB` if you change the upload limit. Caddy already routes all
 `/api` requests to the backend; no additional root-path routes are needed.
 
+## Facebook video stories
+
+The backend recognizes single-story links such as
+`https://web.facebook.com/stories/OWNER/STORY_TOKEN/?view_single=1` for member
+and guest downloads. It resolves the video attached to that specific story;
+other stories on the page are not downloaded. Photo-only stories are not
+supported by this video path.
+
+Facebook must still make the story available to the server. Expired stories
+cannot be recovered. If Facebook returns a login page, the app reports that
+login is required. The existing `YTDLP_COOKIES_FILE` backend setting can point
+to a Netscape-format cookies file for an account permitted to view the story.
+Treat this file as a login credential. This setting is shared by member and
+guest downloads, so use it only where those users should have access to the
+configured account's media. Do not commit it or include it in frontend builds.
+No Facebook session is configured automatically.
+
 ## Configuration
 
 Use the project root on the server. Copy `.env.production.example` to

@@ -113,6 +113,7 @@ def _fetch_direct(url: str, folder: Path) -> Path:
 
 def _fetch_ytdlp(url: str, folder: Path, quality: str) -> Path:
     import yt_dlp
+    from app.services.facebook import extract_info
 
     # The shared selector caps the shorter side for landscape and portrait.
     opts = {
@@ -136,7 +137,7 @@ def _fetch_ytdlp(url: str, folder: Path, quality: str) -> Path:
 
     with yt_dlp.YoutubeDL(opts) as ydl:
         limit_video_quality(ydl, quality)
-        ydl.extract_info(url, download=True)
+        extract_info(ydl, url, download=True)
 
     produced = _largest_file(folder)
     if produced is None:

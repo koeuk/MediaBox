@@ -161,6 +161,7 @@ def run_ytdlp(dl, db, url: str | None = None) -> None:
     share link to its canonical form (see app.services.pinterest).
     """
     import yt_dlp  # heavy import, only needed on this path
+    from app.services.facebook import extract_info
 
     source = url or dl.url
     out_dir = storage.user_dir(dl.user_id)
@@ -201,7 +202,7 @@ def run_ytdlp(dl, db, url: str | None = None) -> None:
         try:
             with yt_dlp.YoutubeDL(_build_opts(dl, out_template, hook, source, attempt)) as ydl:
                 limit_video_quality(ydl, dl.quality)
-                info = ydl.extract_info(source, download=True)
+                info = extract_info(ydl, source, download=True)
             break
         except Cancelled:
             cleanup_cancelled()
